@@ -1,0 +1,29 @@
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+config.local.json
+
+# Runtime state and private work data
+/.chunsu/
+/APP_HOME/
+/var/
+/state/
+/runs/
+/logs/
+/backups/
+/proposals/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Build output and operating-system metadata
+/bin/
+/dist/
+.DS_Store
