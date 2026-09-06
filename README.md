@@ -1,8 +1,9 @@
 # Chun-su
 
 A terminal-first personal AI workflow controller built with Go and embedded SQLite.
-Human-owned workgroup assets stay outside the executor. Mail reporting comes first;
-Jira is outside the current implementation scope.
+Human-owned workgroup assets stay outside the executor. Mail reporting comes first.
+Jira ingestion preparation is now scoped in a [reviewable proposal](docs/implementation/JIRA_INGESTION_PREPARATION.md);
+its runtime connector and real account connection are not implemented or active yet.
 
 ## Development
 

@@ -2,7 +2,7 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Implementation authorized through Phase 5; Gmail selected for live validation  
+**Status:** Implementation through Phase 5 and Jira ingestion preparation authorized; actual Jira connection deferred
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** Command paths through Phase 5 prepared; restricted real Codex execution and one 20-message Gmail candidate report verified; user usefulness, remaining lifecycle checks and background activation pending
 
@@ -17,9 +17,13 @@ result-evaluation, improvement, and revalidation loop. A persistent service is
 not a prerequisite for that milestone.
 
 On 2026-09-06 the user authorized implementation through Phase 5 and selected
-Gmail for live validation, with connection requests made when needed. Jira and
-later phases remain outside this execution scope. Task acceptance scenarios
-are planned checks until an implementation completion note records evidence.
+Gmail for live validation, with connection requests made when needed. After the
+bounded mail pilot, the user expanded scope to Jira collection preparation with
+a replaceable provider-to-internal-data boundary, deferring the real connection.
+The [Jira ingestion proposal](docs/implementation/JIRA_INGESTION_PREPARATION.md)
+defines the concrete preparation units and remaining contract/provider decisions.
+This does not authorize tenant access or complete the full Phase 6 report loop.
+Task acceptance scenarios are planned checks until evidence is recorded.
 
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
@@ -168,7 +172,7 @@ order, not a demand to implement every phase before obtaining value.
 | [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Feedback tooling checked; MS1 remains pending |
 | [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | One 20-message batch collected and candidate report produced; partial scope and human review remain explicit |
 | [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Operations commands and synthetic checkpoints prepared; live MS3 pending |
-| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Not started |
+| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Ingestion preparation scoped; contract/provider review pending; live connection deferred |
 | [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |
 | [8 — Deeper optimization](docs/implementation/PHASE_08_OPTIMIZATION.md) | Evidence-based improvements across runs without mandatory golden-set growth | Phase 3 and sufficient recorded use | Not started |
 | [9 — Development-work pilot](docs/implementation/PHASE_09_DEVELOPMENT.md) | One bounded repository task with appropriate controls and evidence | Mail/Jira reuse evidence and an explicit development scope | Not started; conditional |

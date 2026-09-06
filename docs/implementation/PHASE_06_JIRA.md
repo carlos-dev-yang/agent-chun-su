@@ -2,7 +2,8 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Collection/normalization/preservation scope approved; implementation in progress; real connection deferred
+
 **Goal:** Prove that a second workgroup fits the existing execution, evidence, evaluation, and proposal structure.
 
 **Entry conditions:** P3-07 and P4-09 are complete. Jira can start as a manual workflow; Phase 5 service completion is not required.
@@ -10,6 +11,15 @@
 **Exit evidence:** One scoped Jira report supports the user's assigned/current-sprint decisions and is evaluated through the same common framework.
 
 **Out of scope:** Ticket implementation, comments, field changes, transitions, reassignment, and development execution.
+
+The latest user request authorizes Jira collection preparation now, while
+deferring the real account connection. This is an explicit early subset of
+Phase 6, not acceptance of the full phase's entry/exit milestones. The
+[ingestion preparation proposal](JIRA_INGESTION_PREPARATION.md) specifies the
+replaceable reader/normalizer boundary, reuse points, concrete work units and
+completion evidence. The user approved this collection and internal-data
+boundary. Cloud/Data Center selection remains open; tenant access and AI Jira
+reporting are deferred.
 
 All implementation paths and commands below are planned deliverables. Acceptance
 scenarios are not completed checks or authorization to create test code. Follow
@@ -19,7 +29,7 @@ the work-unit and validation rules in the master plan.
 
 ### P6-01 — Define Jira reporting semantics and access scope
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-07, P4-09; D08.
 - **Work:** Select Cloud or Data Center integration as appropriate, user identity, project/board/sprint scope, necessary history, and allowed reads. Define assigned work versus sprint work, delay versus risk, meaningful post-completion issues, and available-capacity evidence.
 - **Deliverable:** A Jira workgroup brief and concrete connection/semantic decision.
