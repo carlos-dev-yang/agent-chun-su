@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Operations preparation in progress; no background activation or live reliability claim  
+**Status:** Operations command paths prepared and synthetic checks recorded; activation and MS3 remain pending  
 **Goal:** Make useful manual mail reporting repeatable without losing work, silently duplicating delivery, or requiring constant supervision.
 
 **Entry conditions:** P4-09 establishes a useful manual pilot. The user chooses the operating policy before background activation.
@@ -19,7 +19,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-01 — Specify operating and intervention policies
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-09; D07.
 - **Work:** Define schedule/timezone, overlap handling, named retry/time limits, missed-run catch-up, user-question handling, partial report availability, retention, and destination policy. Prepare a concrete terminal experience for resolving blocked work.
 - **Deliverable:** A local-operations policy and runbook draft.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-05 — Provide optional macOS user-service lifecycle
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-04.
 - **Work:** Implement install/start/status/stop/remove for the selected user LaunchAgent. Use discovered executable paths and explicit environment/configuration; do not rely on interactive shell startup or the project working directory. Activate only under the selected operating scope.
 - **Deliverable:** Terminal service management and generated per-user service configuration.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-06 — Add scheduling and deterministic catch-up policy
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-05, P5-01.
 - **Work:** Persist schedule definitions and next eligibility; define ownership between launchd process management and Chun-su job scheduling. Implement the chosen time, overlap, and catch-up semantics without silently creating historical reports or duplicate work.
 - **Deliverable:** A scheduler and terminal schedule configuration.

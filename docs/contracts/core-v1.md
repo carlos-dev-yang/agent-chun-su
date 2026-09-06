@@ -33,3 +33,9 @@ Evaluation judgments and optimization findings are separate records. Proposals i
 ## Feedback storage extension (schema 2)
 
 The additive records table indexes immutable case/rubric/evaluation/finding/proposal/comparison/decision files by host ID, kind, subject, digest, byte count and timestamp. It does not update historical job completion when a semantic evaluation is added. The active workgroup pointer references a preserved bundle and, after a selection, its decision ID. Indexing a selection request alone does not establish that the active pointer was published. No private expected answers are copied into an execution package.
+
+## Acquisition and operations extensions (schemas 3–4)
+
+Schema 3 indexes immutable acquisition checkpoints and records report-backed source coverage. A unique acquisition-to-job binding repairs a crash between job admission and checkpoint linkage without admitting a duplicate. Continuations retain their parent's original as-of boundary. Coverage never changes Gmail read flags or represents human acknowledgment.
+
+Schema 4 adds persisted admission settings, schedules and occurrence records with stable reserved acquisition IDs, collection budgets and retry eligibility. It adds artifact content state and retention operations. A retained artifact is `available`; explicit retirement changes it to `retiring`, then `purged`. The associated job uses the same retirement states and cannot be resumed as ordinary queued work. Paths/hashes remain tombstone metadata and do not claim content availability. A consistent restored database retains those states while accounts/schedules are disabled and admission is paused.

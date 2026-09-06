@@ -10,16 +10,20 @@ import (
 )
 
 const (
-	Queued       = "queued"
-	Running      = "running"
-	RetryWait    = "retry_wait"
-	WaitingInput = "waiting_input"
-	WaitingAuth  = "waiting_auth"
-	Completed    = "completed"
-	Partial      = "partial"
-	Failed       = "failed"
-	Cancelled    = "cancelled"
-	Interrupted  = "interrupted"
+	Queued           = "queued"
+	Running          = "running"
+	RetryWait        = "retry_wait"
+	WaitingInput     = "waiting_input"
+	WaitingAuth      = "waiting_auth"
+	Completed        = "completed"
+	Partial          = "partial"
+	Failed           = "failed"
+	Cancelled        = "cancelled"
+	Interrupted      = "interrupted"
+	Purged           = "purged"
+	Retiring         = "retiring"
+	ContentAvailable = "available"
+	RecoveryRequired = "interrupted attempt requires recovery review"
 )
 
 func (s *Store) StartAttempt(ctx context.Context, jobID, executor string, maxAttempts int) (Attempt, error) {
@@ -112,7 +116,7 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if j.Status == Completed || j.Status == Partial || j.Status == Cancelled {
+	if j.Status == Completed || j.Status == Partial || j.Status == Cancelled || j.Status == Purged || j.Status == Retiring {
 		return fmt.Errorf("job is already %s", j.Status)
 	}
 	if _, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=?,diagnostic=? WHERE id=?", Cancelled, now(), "cancelled by user", id); err != nil {
@@ -145,7 +149,7 @@ func (s *Store) RecoverInterrupted(ctx context.Context) (int, error) {
 		}
 		_, err = tx.ExecContext(ctx, "UPDATE attempts SET status=?,ended_at=?,diagnostic=? WHERE id=? AND status=?", Interrupted, now(), "controller interrupted; inspect evidence before retry", j.CurrentAttempt, Running)
 		if err == nil {
-			_, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=?,diagnostic=? WHERE id=? AND status=?", WaitingInput, now(), "interrupted attempt requires recovery review", j.ID, Running)
+			_, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=?,diagnostic=? WHERE id=? AND status=?", WaitingInput, now(), RecoveryRequired, j.ID, Running)
 		}
 		if err == nil {
 			_, err = tx.ExecContext(ctx, "INSERT INTO events(job_id,attempt_id,kind,created_at,data_json) VALUES(?,?,?,?,?)", j.ID, j.CurrentAttempt, "attempt.interrupted", now(), `{}`)

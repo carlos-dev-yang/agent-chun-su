@@ -15,4 +15,20 @@ Checks actually run:
 - Restored into a separate root and resolved the original report and metadata references.
 - Refused an existing restore destination and rejected a deliberately damaged backup file.
 
-These are bounded process/persistence walkthroughs with synthetic data. No actual AI publication failure, restored live account, successful Keychain operation, power-loss durability, long-running service behavior or live operational usefulness has been demonstrated. Retention actions, scheduling and service lifecycle preparation continue separately. No generated test suite was added.
+These are bounded process/persistence walkthroughs with synthetic data. No actual AI publication failure, restored live account, successful Keychain operation, power-loss durability, long-running service behavior or live operational usefulness has been demonstrated. No generated test suite was added.
+
+## Scheduling, management and retention checkpoint — P5-01/P5-04–06/P5-08
+
+Added disabled-by-default elapsed-interval schedules, durable occurrence/acquisition identities, missed-interval coalescing, bounded collection retries, blocked-occurrence intervention and persisted admission pause. The foreground worker integrates scheduling; supported management commands reach its sole owner. Added reviewable macOS LaunchAgent generation and explicit lifecycle commands. Added reviewed run-content retention with stale-plan rejection, interrupted-application state, purged tombstones and idempotent completion. Schema 4 is an additive local migration. Restore now disables schedules and pauses admission as well as disabling connections.
+
+Checks actually run on synthetic data in a separate short temporary data root:
+
+- Fresh setup reported schema 4; schedule creation was disabled and enabling a disabled synthetic connection was refused.
+- Seeded a due occurrence three intervals in the past with a disabled connection. The worker recorded one occurrence with three missed intervals, no credential lookup/collection attempt, and `waiting_auth`. Restart did not create another occurrence; explicit retry reused its occurrence and reserved acquisition IDs.
+- Started a paused foreground worker with an intentionally unavailable executor path. The protected socket had mode 0600; status, cancellation and pause/unpause reached the active owner. No model was invoked and shutdown completed.
+- Retention refused missing confirmation and a changed run directory. Applying the reviewed plan removed only the selected synthetic run, retained a purged job, and a repeated application reused completed status.
+- Parsed the rendered plist with the system Python plist parser; verified absolute program/data arguments and disabled login/crash activation. The target LaunchAgent did not exist and was not installed or started.
+- Backed up and restored the purged run metadata plus synthetic schedule/connection. Reference verification succeeded, schedules and connections were disabled, admission was paused, and restored secret references differed from the original.
+- Built the CLI and ran focused vet on the changed operations and directly related packages.
+
+Not run: actual scheduled Gmail retrieval, provider retry timing, full executor cancellation, launchd start/stop/remove, real sleep/wake or DST transitions, process/power interruption during physical deletion, secure erasure, and long-duration resource/reliability measurements. UTC interval arithmetic and a missed due timestamp are not a real sleep/wake test. The [runbook](../setup/LOCAL_OPERATIONS.md) is an implementation policy draft, not the user's approval to activate background work.

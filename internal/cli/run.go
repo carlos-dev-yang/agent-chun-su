@@ -7,6 +7,7 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/runner"
+	"chunsu/internal/schedule"
 	"chunsu/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -107,29 +108,54 @@ func (o *options) worker() *cobra.Command {
 		ticker := time.NewTicker(time.Duration(c.Limits.PollSeconds) * time.Second)
 		defer ticker.Stop()
 		for {
-			jobs, err := s.Jobs(cmd.Context())
+			paused, err := s.Paused(cmd.Context())
 			if err != nil {
 				if cmd.Context().Err() != nil {
 					return nil
 				}
 				return err
 			}
-			for i := len(jobs) - 1; i >= 0; i-- {
-				j := jobs[i]
-				if (j.Status != store.Queued && j.Status != store.RetryWait) || j.NotBefore > time.Now().UnixMilli() {
-					continue
-				}
-				outcome, runErr := r.Run(cmd.Context(), j.ID, "")
-				if err = output(cmd, outcome); err != nil {
+			processed := false
+			if !paused {
+				jobs, err := s.Jobs(cmd.Context())
+				if err != nil {
+					if cmd.Context().Err() != nil {
+						return nil
+					}
 					return err
 				}
-				if runErr != nil && outcome.Status == "" {
-					return runErr
+				for i := len(jobs) - 1; i >= 0; i-- {
+					j := jobs[i]
+					if (j.Status != store.Queued && j.Status != store.RetryWait) || j.NotBefore > time.Now().UnixMilli() {
+						continue
+					}
+					outcome, runErr := r.Run(cmd.Context(), j.ID, "")
+					processed = true
+					if err = output(cmd, outcome); err != nil {
+						return err
+					}
+					if runErr != nil && outcome.Status == "" {
+						return runErr
+					}
+					if once {
+						return runErr
+					}
+					break
 				}
-				if once {
-					return runErr
+				if !processed {
+					tick, e := (schedule.Manager{Store: s, Config: c}).Step(cmd.Context())
+					if e != nil {
+						if cmd.Context().Err() != nil {
+							return nil
+						}
+						return e
+					}
+					if tick != nil {
+						if e = output(cmd, tick); e != nil {
+							return e
+						}
+					}
 				}
-				break
 			}
 			if once {
 				return nil
@@ -141,6 +167,6 @@ func (o *options) worker() *cobra.Command {
 			}
 		}
 	}}
-	cmd.Flags().BoolVar(&once, "once", false, "Process at most one eligible attempt and exit")
+	cmd.Flags().BoolVar(&once, "once", false, "Process at most one eligible attempt or scheduled collection and exit")
 	return cmd
 }

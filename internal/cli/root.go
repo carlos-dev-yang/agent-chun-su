@@ -39,6 +39,8 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.feedback(), o.workgroup(), o.experiment())
 	root.AddCommand(o.gmail())
 	root.AddCommand(o.report(), o.publish(), o.backup(), o.restore(), o.verifyBackup())
+	root.AddCommand(o.schedule(), o.queueControl("pause"), o.queueControl("unpause"), o.queueControl("status"))
+	root.AddCommand(o.retention(), o.service())
 	return root
 }
 

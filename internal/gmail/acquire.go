@@ -32,8 +32,9 @@ type AcquisitionState struct {
 	Snapshot       *mail.Snapshot `json:"snapshot,omitempty"`
 }
 type Collector struct {
-	Store  *store.Store
-	Config config.Config
+	Store      *store.Store
+	Config     config.Config
+	ReservedID string
 }
 
 func PolicyDigest(p Policy) string { b, _ := json.Marshal(p); return files.Digest(b) }
@@ -76,6 +77,12 @@ func (c Collector) state(ctx context.Context, id string) (store.Acquisition, Acq
 	return a, state, nil
 }
 
+// HasContinuation inspects only the verified acquisition checkpoint, never Gmail.
+func (c Collector) HasContinuation(ctx context.Context, id string) (bool, error) {
+	_, state, err := c.state(ctx, id)
+	return state.Snapshot != nil && state.NextPageToken != "", err
+}
+
 func (c Collector) Collect(ctx context.Context, connection Connection, resumeID, continueID string) (store.Acquisition, error) {
 	var a store.Acquisition
 	var state AcquisitionState
@@ -87,6 +94,17 @@ func (c Collector) Collect(ctx context.Context, connection Connection, resumeID,
 		if err == nil {
 			resumeID = existing.ID
 			continueID = ""
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return a, err
+		}
+	}
+	if resumeID == "" && continueID == "" && c.ReservedID != "" {
+		if !files.ValidID(c.ReservedID) {
+			return a, errors.New("invalid reserved acquisition identity")
+		}
+		existing, err := c.Store.Acquisition(ctx, c.ReservedID)
+		if err == nil {
+			resumeID = existing.ID
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return a, err
 		}
@@ -110,6 +128,9 @@ func (c Collector) Collect(ctx context.Context, connection Connection, resumeID,
 		asOf := time.Now().UTC().Truncate(time.Second)
 		state = AcquisitionState{Version: Version, Policy: connection.Policy, PolicyDigest: PolicyDigest(connection.Policy), Pending: []MessageID{}, Sources: []Normalized{}, Errors: []string{}}
 		a = store.Acquisition{ID: files.ID(), ConnectionID: connection.ID, Status: "collecting", AsOf: asOf.Format(time.RFC3339Nano)}
+		if c.ReservedID != "" {
+			a.ID = c.ReservedID
+		}
 		state.EffectiveQuery = "(" + connection.Policy.Query + ") before:" + strconv.FormatInt(asOf.Unix(), 10)
 		if continueID != "" {
 			parent, previous, err := c.state(ctx, continueID)

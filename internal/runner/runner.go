@@ -76,7 +76,16 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		r.mu.Lock()
 		id := r.active
 		r.mu.Unlock()
-		return map[string]any{"active_job": id, "owner": "controller"}, nil
+		paused, err := r.Store.Paused(ctx)
+		return map[string]any{"active_job": id, "owner": "controller", "queue_paused": paused}, err
+	case "pause", "unpause":
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		paused := req.Operation == "pause"
+		if err := r.Store.SetPaused(ctx, paused); err != nil {
+			return nil, err
+		}
+		return map[string]any{"queue_paused": paused, "active_job": r.active, "active_work": "allowed to finish; use cancel to stop a running job"}, nil
 	default:
 		return nil, errors.New("unsupported management operation")
 	}
@@ -88,6 +97,15 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		return out, errors.New("executor is not configured; use config set after selecting your executor account")
 	}
 	r.mu.Lock()
+	paused, err := r.Store.Paused(ctx)
+	if err != nil || paused {
+		r.mu.Unlock()
+		if err != nil {
+			return out, err
+		}
+		out.Status = store.Queued
+		return out, errors.New("queue is paused; use unpause after reviewing pending work")
+	}
 	if r.active != "" {
 		r.mu.Unlock()
 		return out, errors.New("another job is already running")

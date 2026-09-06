@@ -103,5 +103,8 @@ func RemoveTree(root, name string) error {
 		return err
 	}
 	defer r.Close()
-	return r.RemoveAll(name)
+	if err = r.RemoveAll(name); err != nil {
+		return err
+	}
+	return syncParents(r, filepath.Dir(name))
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 const currentUser = "me"
 const MaxProviderIDLength = 256
 const retryBase = time.Second
+const maxBackoffSeconds = math.MaxInt64 / int64(time.Second)
 
 type APIError struct {
 	Kind              string `json:"kind"`
@@ -93,7 +95,10 @@ func providerID(id string) bool {
 }
 func retryDelay(header string, attempt int) time.Duration {
 	if seconds, err := strconv.ParseInt(header, 10, 64); err == nil && seconds >= 0 {
-		return time.Duration(seconds) * time.Second
+		return time.Duration(min(seconds, maxBackoffSeconds)) * time.Second
+	}
+	if header != "" && strings.Trim(header, "0123456789") == "" {
+		return time.Duration(maxBackoffSeconds) * time.Second
 	}
 	if at, err := http.ParseTime(header); err == nil {
 		return max(time.Until(at), 0)
@@ -170,7 +175,10 @@ func (c *Client) get(ctx context.Context, segments []string, query url.Values, t
 			delay = retryDelay(response.Header.Get("Retry-After"), attempt)
 		}
 		transient := strings.HasPrefix(failure.Kind, "transient_") || failure.Kind == "rate_limited"
-		failure.RetryAfterSeconds = int64(delay / time.Second)
+		failure.RetryAfterSeconds = min(int64(delay/time.Second), maxBackoffSeconds)
+		if delay%time.Second != 0 && failure.RetryAfterSeconds < maxBackoffSeconds {
+			failure.RetryAfterSeconds++
+		}
 		if !transient || attempt == DefaultHTTPAttempts-1 || delay > time.Duration(DefaultMaxRetrySeconds)*time.Second {
 			return failure
 		}

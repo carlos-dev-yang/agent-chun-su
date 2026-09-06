@@ -23,7 +23,7 @@ const Version = 1
 const ManifestName = "backup-manifest.json"
 const RestoreNote = "state/restore.json"
 
-var roots = []string{config.FileName, "runs", "workgroups", "evaluations", "proposals", "state/acquisitions", "state/connections", RestoreNote}
+var roots = []string{config.FileName, "runs", "workgroups", "evaluations", "proposals", "state/acquisitions", "state/connections", "state/retention", RestoreNote}
 
 type Entry struct {
 	Digest string `json:"digest"`
@@ -262,6 +262,12 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 	if _, err = s.DB.ExecContext(ctx, "UPDATE jobs SET status=?,diagnostic=? WHERE status IN (?,?,?)", store.WaitingInput, "restored data requires explicit resume after account/configuration review", store.Queued, store.RetryWait, store.Running); err != nil {
 		return destination, err
 	}
+	if _, err = s.DB.ExecContext(ctx, "UPDATE schedules SET enabled=0"); err != nil {
+		return destination, err
+	}
+	if err = s.SetPaused(ctx, true); err != nil {
+		return destination, err
+	}
 	note, _ := json.Marshal(map[string]any{"version": Version, "restored_at": time.Now().UTC().Format(time.RFC3339Nano), "source_manifest": manifest, "connections_enabled": false, "user_review_required": true})
 	if err = files.Write(destination, RestoreNote, note, true); err != nil {
 		return destination, err
@@ -270,7 +276,7 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 }
 
 func VerifyReferences(ctx context.Context, s *store.Store, limit int64) error {
-	rows, err := s.DB.QueryContext(ctx, "SELECT path,digest,bytes FROM artifacts UNION ALL SELECT path,digest,bytes FROM records UNION ALL SELECT path,digest,bytes FROM acquisitions")
+	rows, err := s.DB.QueryContext(ctx, "SELECT path,digest,bytes FROM artifacts WHERE content_state='available' UNION ALL SELECT path,digest,bytes FROM records UNION ALL SELECT path,digest,bytes FROM acquisitions")
 	if err != nil {
 		return err
 	}

@@ -18,7 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 const DBRelative = "state/chunsu.db"
 
 //go:embed migrations/*.sql
@@ -54,14 +54,15 @@ type Attempt struct {
 }
 
 type Artifact struct {
-	ID        string `json:"id"`
-	JobID     string `json:"job_id"`
-	AttemptID string `json:"attempt_id,omitempty"`
-	Kind      string `json:"kind"`
-	Path      string `json:"path"`
-	Digest    string `json:"digest"`
-	Bytes     int64  `json:"bytes"`
-	CreatedAt int64  `json:"created_at"`
+	ID           string `json:"id"`
+	JobID        string `json:"job_id"`
+	AttemptID    string `json:"attempt_id,omitempty"`
+	Kind         string `json:"kind"`
+	Path         string `json:"path"`
+	Digest       string `json:"digest"`
+	Bytes        int64  `json:"bytes"`
+	CreatedAt    int64  `json:"created_at"`
+	ContentState string `json:"content_state"`
 }
 
 type Event struct {
@@ -282,7 +283,7 @@ func (s *Store) Events(ctx context.Context, id string) ([]Event, error) {
 }
 
 func (s *Store) Artifacts(ctx context.Context, id string) ([]Artifact, error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT id,job_id,attempt_id,kind,path,digest,bytes,created_at FROM artifacts WHERE job_id=? ORDER BY created_at,id", id)
+	rows, err := s.DB.QueryContext(ctx, "SELECT id,job_id,attempt_id,kind,path,digest,bytes,created_at,content_state FROM artifacts WHERE job_id=? ORDER BY created_at,id", id)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +291,7 @@ func (s *Store) Artifacts(ctx context.Context, id string) ([]Artifact, error) {
 	out := []Artifact{}
 	for rows.Next() {
 		var v Artifact
-		if err = rows.Scan(&v.ID, &v.JobID, &v.AttemptID, &v.Kind, &v.Path, &v.Digest, &v.Bytes, &v.CreatedAt); err != nil {
+		if err = rows.Scan(&v.ID, &v.JobID, &v.AttemptID, &v.Kind, &v.Path, &v.Digest, &v.Bytes, &v.CreatedAt, &v.ContentState); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -306,7 +307,7 @@ func (s *Store) SaveArtifact(ctx context.Context, job, attempt, kind string, dat
 	if int64(len(data)) > limit {
 		return a, errors.New("artifact exceeds configured limit")
 	}
-	a = Artifact{ID: files.ID(), JobID: job, AttemptID: attempt, Kind: kind, Digest: files.Digest(data), Bytes: int64(len(data)), CreatedAt: now()}
+	a = Artifact{ID: files.ID(), JobID: job, AttemptID: attempt, Kind: kind, Digest: files.Digest(data), Bytes: int64(len(data)), CreatedAt: now(), ContentState: ContentAvailable}
 	a.Path = filepath.ToSlash(filepath.Join("runs", job, "artifacts", a.ID))
 	if err := files.Write(s.Root, a.Path, data, false); err != nil {
 		return a, err
@@ -316,6 +317,9 @@ func (s *Store) SaveArtifact(ctx context.Context, job, attempt, kind string, dat
 }
 
 func (s *Store) ReadArtifact(a Artifact, limit int64) ([]byte, error) {
+	if a.ContentState != "" && a.ContentState != ContentAvailable {
+		return nil, errors.New("artifact content was explicitly retired and is no longer available")
+	}
 	b, err := files.Read(s.Root, a.Path, limit)
 	if err != nil {
 		return nil, err

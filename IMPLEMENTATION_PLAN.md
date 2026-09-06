@@ -4,7 +4,7 @@
 **Date:** 2026-09-05  
 **Status:** Implementation authorized through Phase 5; Gmail selected for live validation  
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Core, saved-mail, feedback and Gmail connector code prepared; real executor/mail milestones pending, with Keychain authentication blocked
+**Current position:** Command paths through Phase 5 prepared with synthetic evidence; real executor/mail milestones and background activation pending, with Keychain authentication blocked
 
 ## 1. Purpose and scope
 

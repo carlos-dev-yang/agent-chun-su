@@ -64,3 +64,9 @@ See [Gmail pilot setup](docs/setup/GMAIL_PILOT.md) before connecting. `gmail con
 `report JOB_ID` reads the verified Markdown result; `--path` prints its path. `publish JOB_ID` recovers a failed presentation stage from preserved structured output and source evidence, without another AI run. Neither command infers that a person acknowledged the report.
 
 Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIRECTORY NEW_DATA_DIRECTORY`. Backups include a consistent SQLite image and declared evidence files, with hashes. Restore requires a separate new directory and leaves connections disabled and pending jobs awaiting review. Credential values are never backed up; account reconnection is explicit.
+
+## Optional repeated operation
+
+See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/resume, blocked work, scheduling, the optional macOS user service, and reviewed run-content retention. Schedules are disabled at creation; `service render` shows the configuration without activating it. Restored data has admission paused and every schedule disabled. Run-content deletion requires a concrete `retention plan` followed by explicit application and preserves a tombstone; acquisition/evaluation/backup copies remain outside its scope.
+
+Core and Phase 2–5 command paths are implemented, with bounded synthetic checks recorded under [validation](docs/validation/). Actual executor behavior, Gmail OAuth and reporting quality, service activation and MS1–MS3 milestone acceptance remain pending. No Jira connector or later-phase distribution/development workflow is included.
