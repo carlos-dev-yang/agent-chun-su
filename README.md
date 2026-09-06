@@ -31,3 +31,18 @@ the original file is copied into private storage before the job is published.
 
 Development follows [AGENTS.md](AGENTS.md): bounded local commits, relevant
 validation, and no new test code unless explicitly requested.
+
+## Saved mail
+
+Initialize a private data directory, inspect an example, and queue it:
+
+```sh
+bin/chunsu setup
+bin/chunsu mail inspect examples/mail/synthetic-day.json
+bin/chunsu queue examples/mail/synthetic-day.json
+bin/chunsu jobs
+```
+
+After choosing the existing Codex account, configure `executor.kind` as `codex` and `executor.path` as the discovered absolute executable path. The adapter currently requires Codex 0.153.4. Account sign-in belongs to Codex; Chun-su does not copy its credentials. `run JOB_ID` executes one attempt, while `worker` owns the queue in the foreground. `cancel`, `retry` and `resolve JOB_ID ANSWER` preserve the earlier attempt. Queueing and cancellation reach the current owner through a private local socket.
+
+`mail validate-report INPUT.json REPORT.json` performs offline contract checks only. It does not verify tool execution or semantic quality and cannot complete a job. Source examples are synthetic; personal expectations and a live Gmail pilot remain to be reviewed.

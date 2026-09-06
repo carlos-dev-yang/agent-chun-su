@@ -12,9 +12,13 @@ import (
 	"time"
 
 	"chunsu/internal/config"
+	"chunsu/internal/control"
 	"chunsu/internal/files"
+	"chunsu/internal/mail"
 	"chunsu/internal/platform"
+	"chunsu/internal/runner"
 	"chunsu/internal/store"
+	"chunsu/internal/workgroup"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +34,8 @@ func New(version string) *cobra.Command {
 	root.PersistentFlags().StringVar(&o.root, "home", "", "Application data directory (or CHUNSU_HOME)")
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "Print structured JSON")
 	root.AddCommand(o.setup(), o.doctor(), o.configuration(), o.queue(), o.jobs(), o.show(), o.logs(), o.cancel(), o.recover())
+	root.AddCommand(o.mailCommands(), o.tools())
+	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker())
 	return root
 }
 
@@ -102,6 +108,9 @@ func (o *options) setup() *cobra.Command {
 			return err
 		}
 		defer s.Close()
+		if err = workgroup.Install(root, c.Limits.MaxArtifactBytes); err != nil {
+			return err
+		}
 		if o.json {
 			return output(cmd, map[string]any{"root": root, "created": created, "schema_version": store.SchemaVersion, "executor_configured": c.Executor.Path != ""})
 		}
@@ -218,6 +227,10 @@ func (o *options) configuration() *cobra.Command {
 				c.Limits.RetryDelaySeconds = v
 			case "limits.poll_seconds":
 				c.Limits.PollSeconds = v
+			case "limits.max_tool_calls":
+				c.Limits.MaxToolCalls = v
+			case "limits.max_evidence_bytes":
+				c.Limits.MaxEvidenceBytes = int64(v)
 			default:
 				return errors.New("unknown configuration key")
 			}
@@ -232,6 +245,21 @@ func (o *options) configuration() *cobra.Command {
 
 func (o *options) queue() *cobra.Command {
 	return &cobra.Command{Use: "queue INPUT.json", Short: "Snapshot a saved JSON input and queue a mail-review job", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := o.path()
+		if err != nil {
+			return err
+		}
+		cfg, err := config.Load(root)
+		if err != nil {
+			return err
+		}
+		input, err := readExternal(args[0], cfg.Limits.MaxArtifactBytes)
+		if err != nil {
+			return err
+		}
+		if handled, err := o.managed(cmd, control.Request{Operation: "queue", Input: input}); handled || err != nil {
+			return err
+		}
 		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err
@@ -245,8 +273,8 @@ func (o *options) queue() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if !json.Valid(b) {
-			return errors.New("input must be valid JSON")
+		if _, err = mail.ParseSnapshot(b, c.Limits); err != nil {
+			return fmt.Errorf("mail snapshot: %w", err)
 		}
 		j, err := s.Submit(cmd.Context(), "mail-review", b, map[string]any{"origin": "saved", "source_name": filepath.Base(p)}, c.Limits.MaxArtifactBytes)
 		if err != nil {
@@ -323,7 +351,10 @@ func (o *options) logs() *cobra.Command {
 }
 
 func (o *options) cancel() *cobra.Command {
-	return &cobra.Command{Use: "cancel JOB_ID", Short: "Cancel a queued or waiting job", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "cancel JOB_ID", Short: "Cancel a job and terminate its active executor if running", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if handled, err := o.managed(cmd, control.Request{Operation: "cancel", JobID: args[0]}); handled || err != nil {
+			return err
+		}
 		s, _, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err
@@ -338,12 +369,12 @@ func (o *options) cancel() *cobra.Command {
 
 func (o *options) recover() *cobra.Command {
 	return &cobra.Command{Use: "recover", Short: "Identify interrupted work after obtaining controller ownership", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		s, _, close, err := o.open(cmd.Context(), true)
+		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err
 		}
 		defer close()
-		n, err := s.RecoverInterrupted(cmd.Context())
+		n, err := runner.Recover(cmd.Context(), s, c)
 		if err != nil {
 			return err
 		}

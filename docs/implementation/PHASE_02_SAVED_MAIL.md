@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Saved-input pipeline implemented; real executor and full-boundary validation pending  
 **Goal:** Use one real executor to produce a source-backed local mail report from a bounded saved dataset.
 
 **Entry conditions:** Phase 1 is usable. P0-03 through P0-06 and D01–D04 are resolved for the first execution scope; synthetic demonstration limits may be explicitly accepted.
@@ -19,7 +19,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-01 — Create the mail workgroup and saved-input reader
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P1-07, P0-03, P0-04, P0-06; D02/D03/D04.
 - **Work:** Create the reviewed guide, public examples, result schema, and versioned saved-input format. Distinguish message, thread, business item, source disposition, schedule state, prior interpretation, and current source evidence.
 - **Deliverable:** `workgroups/mail-review/` and a saved-input reader; labeled synthetic examples where needed.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-02 — Build pinned execution packages
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P2-01, P1-05.
 - **Work:** Resolve one active workgroup version, scope, input snapshot, tool contract, and named budget. Generate the initial instructions and public completion requirements from the pinned declarations; preserve manifest/provenance.
 - **Deliverable:** Package preparation with an explicit initial instruction payload and artifact manifest.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-03 — Implement the first adapter and its enforceable boundary
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-02, P0-05; D01/D03.
 - **Work:** Implement only the selected invocation method, input/output channels, termination, and capability restrictions. Prevent executor access to active-control writes, private evaluation answers, unrelated runs, secrets, and the management channel. If available isolation cannot enforce the scope, record the blocker and revise the concrete design.
 - **Deliverable:** One executor adapter and a documented, verifiable boundary.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-04 — Expose bounded saved-source lookup tools
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-03.
 - **Work:** Allow the executor to choose relevant saved messages/threads and explicitly supported material. Bind tool calls to the attempt and scope, check revocation, and record actual responses, missing/truncated content, and errors. Use recorded data for this phase.
 - **Deliverable:** The first gateway transport and saved-source tool implementation.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-05 — Validate and present the local report
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-04.
 - **Work:** End the attempt's write access before collecting structured output and rendering local Markdown; reject stale-attempt output. Check schema, reference existence, per-target dispositions, and known acquisition failures; then apply the declared complete/partial/wait decision. Separate generated, validated, and locally available states.
 - **Deliverable:** Mail validation, completion handling, report rendering, and a manual run command.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-06 — Handle bounded failures and user clarification
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-05.
 - **Work:** Implement per-stage error classification and named retry budgets for transient execution/contract failures. Record a blocked question and accept a terminal answer tied to the original request. Resume from an explicit checkpoint without overwriting attempts.
 - **Deliverable:** Manual cancellation, retry, and clarification/resume behavior.
@@ -78,3 +78,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Current evidence: [Saved-mail implementation checkpoint](../validation/PHASE_02_SAVED_MAIL.md).
