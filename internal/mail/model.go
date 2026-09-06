@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"chunsu/internal/config"
+	"chunsu/internal/files"
 )
 
 const Version = 1
@@ -37,6 +38,14 @@ type Message struct {
 type Collection struct {
 	Status string   `json:"status"`
 	Errors []string `json:"errors"`
+	Scope  string   `json:"scope,omitempty"`
+}
+
+type Origin struct {
+	Provider      string `json:"provider"`
+	ConnectionID  string `json:"connection_id"`
+	AcquisitionID string `json:"acquisition_id"`
+	PolicyDigest  string `json:"policy_digest"`
 }
 type Interpretation struct {
 	AsOf      string   `json:"as_of"`
@@ -52,6 +61,7 @@ type Snapshot struct {
 	Collection           Collection       `json:"collection"`
 	Messages             []Message        `json:"messages"`
 	PriorInterpretations []Interpretation `json:"prior_interpretations"`
+	Origin               *Origin          `json:"origin,omitempty"`
 }
 type Schedule struct {
 	Status string `json:"status"`
@@ -136,13 +146,22 @@ func ParseSnapshot(data []byte, limits config.Limits) (Snapshot, error) {
 		return s, errors.New("snapshot exceeds message limit")
 	}
 	seen := map[string]bool{}
+	if s.Origin != nil {
+		if s.Origin.Provider != "gmail" || !files.ValidID(s.Origin.ConnectionID) || !files.ValidID(s.Origin.AcquisitionID) || !files.ValidDigest(s.Origin.PolicyDigest) {
+			return s, errors.New("invalid live-source provenance")
+		}
+	}
 	for _, m := range s.Messages {
+		if s.Origin != nil && (!strings.HasPrefix(m.ID, s.Origin.ConnectionID+":") || !strings.HasPrefix(m.ThreadID, s.Origin.ConnectionID+":")) {
+			return s, errors.New("source identity does not belong to the pinned connection")
+		}
 		if m.ID == "" || m.ThreadID == "" || seen[m.ID] {
 			return s, errors.New("message and thread identities must be nonempty; messages must be unique")
 		}
 		seen[m.ID] = true
 		t, e := time.Parse(time.RFC3339, m.ReceivedAt)
-		if e != nil || t.After(asOf) {
+		unknownTime := m.ReceivedAt == "" && m.ContentStatus == "unavailable"
+		if !unknownTime && (e != nil || t.After(asOf)) {
 			return s, fmt.Errorf("message %s is outside the as-of boundary or has invalid time", m.ID)
 		}
 		if !oneOf(m.Scope, Target, Reference) || !oneOf(m.ContentStatus, "complete", "truncated", "unavailable") {

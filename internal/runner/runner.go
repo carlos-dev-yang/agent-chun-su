@@ -15,6 +15,7 @@ import (
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
+	"chunsu/internal/gmail"
 	"chunsu/internal/mail"
 	"chunsu/internal/platform"
 	"chunsu/internal/store"
@@ -144,6 +145,14 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		e := finish(store.Failed, "package preparation: "+err.Error(), false)
 		return out, errors.Join(err, e)
 	}
+	if p.Snapshot.Origin != nil {
+		connection, e := gmail.LoadConnection(r.Store.Root, p.Snapshot.Origin.ConnectionID, r.Config)
+		if e != nil || gmail.PolicyDigest(connection.Policy) != p.Snapshot.Origin.PolicyDigest {
+			cause := errors.New("live connection is disabled, unavailable or has a different policy; review the original acquisition before retry")
+			e = finish(store.WaitingInput, cause.Error(), false)
+			return out, errors.Join(cause, e)
+		}
+	}
 	generated, execErr := executor.Run(attemptCtx, r.Store.Root, p)
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -207,7 +216,16 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	if err = r.Store.AddEvent(finishCtx, jobID, a.ID, "report.available", map[string]string{"artifact_id": art.ID, "availability": "local", "acknowledgment": "unknown"}); err != nil {
 		return out, err
 	}
-	return out, finish(validation.OperationalStatus, "", false)
+	if err = finish(validation.OperationalStatus, "", false); err != nil {
+		return out, err
+	}
+	if p.Snapshot.Origin != nil && (out.Status == store.Completed || out.Status == store.Partial) {
+		if err = r.Store.RecordCoverage(finishCtx, p.Snapshot.Origin.ConnectionID, jobID, gmail.CoverageForReport(p.Snapshot, report)); err != nil {
+			_ = r.Store.AddEvent(finishCtx, jobID, a.ID, "coverage.pending", map[string]string{"reason": "source coverage update failed after report publication"})
+			return out, err
+		}
+	}
+	return out, nil
 }
 
 func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attempt) (map[string]bool, error) {

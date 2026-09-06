@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	DirMode     = 0700
-	FileMode    = 0600
-	IDBytes     = 16
-	MaxIDLength = 64
+	DirMode         = 0700
+	FileMode        = 0600
+	IDBytes         = 16
+	MaxIDLength     = 64
+	DigestHexLength = sha256.Size * 2
 )
 
 func ID() string { return rand.Text() }
@@ -35,6 +36,14 @@ func ValidID(id string) bool {
 
 func Digest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
 
+func ValidDigest(digest string) bool {
+	if len(digest) != DigestHexLength {
+		return false
+	}
+	_, err := hex.DecodeString(digest)
+	return err == nil
+}
+
 func PrivateDir(p string) error {
 	info, err := os.Lstat(p)
 	if errors.Is(err, os.ErrNotExist) {
@@ -48,6 +57,17 @@ func PrivateDir(p string) error {
 	}
 	if info.Mode().Perm()&0077 != 0 {
 		return fmt.Errorf("data directory must be private (0700): %s", p)
+	}
+	return nil
+}
+
+func RequirePrivateDir(p string) error {
+	info, err := os.Lstat(p)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
+		return errors.New("managed data directories must be real private directories (0700)")
 	}
 	return nil
 }

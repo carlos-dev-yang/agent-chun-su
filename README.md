@@ -52,3 +52,9 @@ After choosing the existing Codex account, configure `executor.kind` as `codex` 
 Use `feedback import` for versioned cases/rubrics, result evaluations, feedback and independent optimization findings. `feedback compare` keeps failures and unknown judgments visible. `workgroup propose` stores an inactive guide/schema version, `workgroup diff` shows the concrete before/after assets, and `experiment` queues the same saved input with that candidate. `workgroup decide` records adoption, rejection or rollback. AI source tools expose none of these control operations.
 
 The initial rubric in `examples/evaluation/` is a draft. Actual personal expectations and a useful first improvement loop still require human review. Run `setup` after an upgrade to apply supported additive schema changes; unknown future schemas are never reset.
+
+## Gmail pilot
+
+See [Gmail pilot setup](docs/setup/GMAIL_PILOT.md) before connecting. `gmail connect` requires a local Desktop app client JSON file, the exact account and an explicit query. It uses the system browser once and stores credentials in macOS Keychain. `gmail check` verifies account identity, `gmail collect` preserves a bounded snapshot, `gmail queue` admits it once, and `gmail review` collects and runs a report. `--resume` continues interrupted retrieval; `--continue` follows a preserved page token at its original as-of boundary. `gmail reauth` repairs the same connection identity without expanding its policy.
+
+`gmail disconnect` disables local access and removes credential references; `--revoke` additionally requests OAuth revocation from Google. Local reports remain available. `gmail normalize` inspects a saved API message without an account. The current host's Keychain rejected the non-production storage check with authentication error -25293, so successful credential storage and the live pilot remain pending.

@@ -65,6 +65,9 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 		return p, err
 	}
 	relative := filepath.Join("runs", j.ID, "attempts", a.ID, "package")
+	if _, err = mail.CompileSchema(p.Bundle.Schema); err != nil {
+		return p, err
+	}
 	p.Directory = filepath.Join(s.Root, relative)
 	type indexMessage struct {
 		ID            string `json:"id"`

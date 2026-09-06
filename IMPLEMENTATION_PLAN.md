@@ -4,7 +4,7 @@
 **Date:** 2026-09-05  
 **Status:** Implementation authorized through Phase 5; Gmail selected for live validation  
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Phase 0 decisions and Phase 1 foundation; live connection pending
+**Current position:** Core, saved-mail, feedback and Gmail connector code prepared; real executor/mail milestones pending, with Keychain authentication blocked
 
 ## 1. Purpose and scope
 
@@ -162,12 +162,12 @@ order, not a demand to implement every phase before obtaining value.
 
 | Phase | Outcome | Main dependency | Current state |
 |---|---|---|---|
-| [0 — Decisions and mail contracts](docs/implementation/PHASE_00_DECISIONS.md) | Startable foundation work and explicit blockers for the first mail run | Current principles and Go + SQLite choice | P0-01 complete; remaining tasks not started |
-| [1 — Minimal CLI and durable records](docs/implementation/PHASE_01_FOUNDATION.md) | A small runnable program with persistent job/artifact records | P0-08 | Not started |
-| [2 — Saved-input mail execution](docs/implementation/PHASE_02_SAVED_MAIL.md) | A real executor produces a traceable local mail report | Phase 1 and first-run decisions | Not started |
-| [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Not started |
-| [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | Not started |
-| [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Not started |
+| [0 — Decisions and mail contracts](docs/implementation/PHASE_00_DECISIONS.md) | Startable foundation work and explicit blockers for the first mail run | Current principles and Go + SQLite choice | Core contracts prepared; executor/personal policy decisions pending |
+| [1 — Minimal CLI and durable records](docs/implementation/PHASE_01_FOUNDATION.md) | A small runnable program with persistent job/artifact records | P0-08 | Foundation checked; real process lifecycle evidence pending |
+| [2 — Saved-input mail execution](docs/implementation/PHASE_02_SAVED_MAIL.md) | A real executor produces a traceable local mail report | Phase 1 and first-run decisions | Saved pipeline prepared; real executor run pending |
+| [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Feedback tooling checked; MS1 remains pending |
+| [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | Connector prepared; Keychain/account prerequisites blocked |
+| [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Foreground ownership exists; operations preparation continues |
 | [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Not started |
 | [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |
 | [8 — Deeper optimization](docs/implementation/PHASE_08_OPTIMIZATION.md) | Evidence-based improvements across runs without mandatory golden-set growth | Phase 3 and sufficient recorded use | Not started |
@@ -312,3 +312,5 @@ any implementation milestone has been achieved.
 
 The completed documentation checks and remaining Phase 0 work are recorded in
 the [P0-01 planning completion note](docs/validation/PHASE_00_PLANNING.md).
+
+Implementation checkpoints are recorded in `docs/validation/PHASE_01_FOUNDATION.md`, `PHASE_02_SAVED_MAIL.md`, `PHASE_03_FEEDBACK.md`, and `PHASE_04_GMAIL.md`. Code preparation does not establish the real-executor, useful-feedback, live-mail, or repeated-operation milestones. Jira and later phases are outside the current execution authorization.

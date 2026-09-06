@@ -1,0 +1,29 @@
+{
+  "id": "abc789",
+  "threadId": "def456",
+  "labelIds": [
+    "INBOX",
+    "UNREAD"
+  ],
+  "internalDate": "1788602400000",
+  "payload": {
+    "mimeType": "text/html",
+    "headers": [
+      {
+        "name": "From",
+        "value": "recruiter@example.invalid"
+      },
+      {
+        "name": "Subject",
+        "value": "Synthetic HTML-only mail"
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/html; charset=UTF-8"
+      }
+    ],
+    "body": {
+      "data": "PGh0bWw-PGhlYWQ-PHN0eWxlPmhpZGRlbiBzdHlsZTwvc3R5bGU-PC9oZWFkPjxib2R5PjxwPkludGVydmlldyBtb3ZlZCB0byBUaHVyc2RheS48L3A-PHNjcmlwdD51bnRydXN0ZWQgc2NyaXB0IHRleHQ8L3NjcmlwdD48aW1nIHNyYz0iaHR0cHM6Ly90cmFja2VyLmV4YW1wbGUuaW52YWxpZC9waXhlbCI-PHA-UGxlYXNlIGNvbmZpcm0uPC9wPjwvYm9keT48L2h0bWw-"
+    }
+  }
+}

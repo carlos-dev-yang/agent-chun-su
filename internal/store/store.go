@@ -18,7 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 const DBRelative = "state/chunsu.db"
 
 //go:embed migrations/*.sql
@@ -117,10 +117,10 @@ func Open(ctx context.Context, root string, c config.Config, initialize bool) (*
 }
 
 func OpenReadOnly(ctx context.Context, root string) (*Store, error) {
-	if err := files.PrivateDir(root); err != nil {
+	if err := files.RequirePrivateDir(root); err != nil {
 		return nil, err
 	}
-	if err := files.PrivateDir(filepath.Join(root, "state")); err != nil {
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
 		return nil, err
 	}
 	info, err := os.Lstat(filepath.Join(root, DBRelative))

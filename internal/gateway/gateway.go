@@ -11,6 +11,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
+	"chunsu/internal/gmail"
 	"chunsu/internal/mail"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
@@ -113,6 +114,12 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 		}
 		if current.Status != store.Running || current.CurrentAttempt != attemptID {
 			return nil, Output{Status: "revoked"}, errors.New("attempt access revoked")
+		}
+		if snapshot.Origin != nil {
+			connection, e := gmail.LoadConnection(root, snapshot.Origin.ConnectionID, c)
+			if e != nil || gmail.PolicyDigest(connection.Policy) != snapshot.Origin.PolicyDigest {
+				return nil, Output{Status: "connection_revoked"}, errors.New("connection access was revoked or its scope changed")
+			}
 		}
 		if calls.Add(1) > int64(c.Limits.MaxToolCalls) {
 			return nil, Output{Status: "budget_exhausted"}, errors.New("source lookup budget exhausted")

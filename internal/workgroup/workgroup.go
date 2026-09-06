@@ -37,7 +37,7 @@ func Default() (Bundle, error) {
 	return Bundle{Version: BundleVersion, Guide: string(guide), Schema: schema}, nil
 }
 func BundlePath(digest string) (string, error) {
-	if len(digest) != 64 {
+	if !files.ValidDigest(digest) {
 		return "", errors.New("invalid workgroup digest")
 	}
 	for _, c := range digest {

@@ -1,0 +1,73 @@
+{
+  "id": "abc123",
+  "threadId": "def456",
+  "labelIds": [
+    "INBOX",
+    "UNREAD"
+  ],
+  "internalDate": "1788602400000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "From",
+        "value": "sender@example.invalid"
+      },
+      {
+        "name": "Subject",
+        "value": "Synthetic request and unsupported attachment"
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "1",
+        "mimeType": "multipart/alternative",
+        "body": {
+          "size": 0
+        },
+        "parts": [
+          {
+            "partId": "1.1",
+            "mimeType": "text/plain",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=iso-8859-1"
+              }
+            ],
+            "body": {
+              "size": 25,
+              "data": "UGxlYXNlIHJldmlldyBjYWbpIG5vdGVzLg"
+            }
+          },
+          {
+            "partId": "1.2",
+            "mimeType": "text/html",
+            "headers": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=UTF-8"
+              }
+            ],
+            "body": {
+              "size": 22,
+              "data": "PHA-QWx0ZXJuYXRpdmUgYm9keTwvcD4"
+            }
+          }
+        ]
+      },
+      {
+        "partId": "2",
+        "mimeType": "application/pdf",
+        "filename": "schedule.pdf",
+        "body": {
+          "attachmentId": "attachment789",
+          "size": 1024
+        }
+      }
+    ]
+  }
+}

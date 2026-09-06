@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Gmail connector prepared; live validation blocked on account setup and Keychain authentication  
 **Goal:** Validate the useful mail feedback loop against one explicitly scoped real account without modifying remote mail or calendars.
 
 **Entry conditions:** P3-07 is complete. The first provider, account, data boundaries, and permitted reading scope are selected before dependent integration work.
@@ -19,7 +19,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-01 — Define the first live connection and data policy
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-07; D05/D06.
 - **Work:** Prepare the concrete provider/account/folder-or-query/time scope, allowed body/attachment/history access, related-service lookup policy, disclosure boundary, retention/deletion, and local report destination. Verify current official provider documentation for the chosen integration.
 - **Deliverable:** A reviewed live-mail connection and data-policy decision.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-02 — Implement host secret storage and live-data handling
 
-- **Status:** not_started
+- **Status:** blocked
 - **Depends on:** P4-01.
 - **Work:** Implement the selected Keychain bridge and secret-reference lifecycle, plus the initial retention/deletion and diagnostic-redaction rules needed before live data enters storage. Separate non-secret bindings from credential values; avoid secrets in arguments, general config, packages, and logs.
 - **Deliverable:** The secret-store adapter and effective live-data storage/redaction policy.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-03 — Implement provider authentication and bounded reads
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-02.
 - **Work:** Implement the selected OAuth or token flow, account identity check, scoped list/get operations, pagination, rate limits, authentication errors, and connection revocation. Use official APIs; classify provider retry advice with named limits.
 - **Deliverable:** One mail provider connector and terminal connection setup/check commands.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-04 — Bind live tools to attempts and host credentials
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-03, P2-04.
 - **Work:** Expose only reviewed domain reads through the gateway. Bind connection and scope on the host, validate requested identifiers, avoid forwarding authentication to arbitrary source URLs, and revoke access when the job or connection is cancelled.
 - **Deliverable:** Live tool bindings using the same observable tool contract as saved-input operation.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-05 — Normalize messages and explicitly supported attachments
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P4-03; attachment portion of D05/D06.
 - **Work:** Handle MIME, encoding, HTML-to-text, quoted history, source identity, and supported attachment extraction. Keep original provenance, explicit truncation/unsupported status, named limits, and safe extraction. Do not fetch tracking images or execute attachments.
 - **Deliverable:** Provider normalization and a deliberately limited attachment path.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-06 — Persist acquisition progress separately from processing
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-04, P4-05.
 - **Work:** Persist collected snapshots and progress so a cursor advance does not lose unprocessed items. Handle duplicate pages, late arrivals, interrupted retrieval, expired cursors, and retry snapshots. Link history through source evidence and corrections, not unverified prior AI prose.
 - **Deliverable:** Durable acquisition progress, source mapping, and reviewed history updates.
@@ -75,7 +75,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-08 — Run live reports with truthful partial and delivery states
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-07.
 - **Work:** Connect live acquisition to the existing package/execute/validate/local-report path. Preserve known missing content, no-new-mail behavior, prior interpretation corrections, and explicit waits. Distinguish generated/validated/locally available from user acknowledgment.
 - **Deliverable:** A manual live mail-review command and traceable local report bundle.
@@ -94,3 +94,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Current evidence: [Gmail connector checkpoint](../validation/PHASE_04_GMAIL.md). P4-05 completion covers the declared text-only normalization subset, not attachment extraction or live-provider verification.

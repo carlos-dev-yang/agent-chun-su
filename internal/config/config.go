@@ -119,10 +119,10 @@ func Setup(root string) (bool, error) {
 
 func Load(root string) (Config, error) {
 	c := Defaults()
-	if err := files.PrivateDir(root); err != nil {
+	if err := files.RequirePrivateDir(root); err != nil {
 		return c, err
 	}
-	if err := files.PrivateDir(filepath.Join(root, "state")); err != nil {
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
 		return c, err
 	}
 	b, err := files.Read(root, FileName, DefaultMaxArtifactBytes)
