@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Feedback tooling implemented; real issue-to-human-decision milestone pending  
 **Goal:** Demonstrate that preserved outputs can lead to a justified change and fair revalidation, while keeping result evaluation and optimization independent.
 
 **Entry conditions:** Phase 2 has a real executor result and its evidence. Reviewed expectations are available for the cases being evaluated.
@@ -19,7 +19,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-01 — Finalize the initial case expectations and rubric
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-07, P0-04; D02/D10.
 - **Work:** Have the human confirm expected facts, prohibited errors, acceptable alternatives, unresolved judgments, and unacceptable omissions. Define the initial comparison baseline and sample/repeat needs from observed variability and burden.
 - **Deliverable:** Versioned case expectations and an evaluation rubric.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-02 — Store independent evaluation records
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-01; review the evaluation extension to D04.
 - **Work:** Link evaluator/rubric/case versions, judgments, reasons, unknowns, and artifact references without changing historical completion decisions. Support human semantic judgments; AI grading remains optional and explicitly qualified.
 - **Deliverable:** Evaluation persistence and a terminal evaluation entry point.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-03 — Produce honest comparisons and summaries
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-02.
 - **Work:** Compare runs with their input, as-of time, workgroup, executor/tool, budget, and evaluator versions. Include failed attempts, absent artifacts, partial inputs, and unevaluable outcomes. Record measured time/cost only when available.
 - **Deliverable:** A comparison report and provenance summary.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-04 — Record feedback, optimization findings, and candidate changes separately
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-02.
 - **Work:** Represent result feedback and optimization findings as independent records that can reference one run or several runs. A candidate names evidence, hypothesis, changed assets, expected effect, and required checks. Keep the candidate outside active controls.
 - **Deliverable:** Proposal records and minimal optimization-review linkage.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-05 — Run a controlled candidate comparison
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-03, P3-04.
 - **Work:** Select an actual observed issue, edit a candidate asset version, and rerun the affected and relevant existing cases under comparable conditions. Keep tuning material separate from independent confirmation cases or report the lack of an independent set.
 - **Deliverable:** Baseline/candidate bundles with a regression review.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P3-06 — Implement human adoption and rollback records
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P3-05; reviewed active-control update contract.
 - **Work:** Provide a reviewable candidate diff and validation evidence. Only an authorized human action selects the active version. Preserve rejection, adoption, and rollback history; running attempts retain their pinned version.
 - **Deliverable:** A candidate adoption/rejection workflow and version-history handling.
@@ -78,3 +78,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Current evidence: [Feedback tooling checkpoint](../validation/PHASE_03_FEEDBACK.md).

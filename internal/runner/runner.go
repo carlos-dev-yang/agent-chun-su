@@ -54,6 +54,13 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		}
 		return map[string]string{"job_id": req.JobID, "status": store.Cancelled}, nil
 	case "retry", "resolve":
+		attempts, err := r.Store.Attempts(ctx, req.JobID)
+		if err != nil {
+			return nil, err
+		}
+		if len(attempts) >= r.Config.Limits.MaxAttempts {
+			return nil, errors.New("attempt budget exhausted; review the limit or queue a separate experiment")
+		}
 		if req.Operation == "resolve" && !mail.Nonempty(req.Answer) {
 			return nil, errors.New("answer must not be empty")
 		}
@@ -123,6 +130,14 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		out.Status = status
 		out.Diagnostic = diagnostic
 		return r.Store.FinishAttempt(finishCtx, a, status, diagnostic, next)
+	}
+	if candidate == "" {
+		var request struct {
+			Candidate string `json:"candidate_digest"`
+		}
+		if e := json.Unmarshal(j.Request, &request); e == nil {
+			candidate = request.Candidate
+		}
 	}
 	p, err := workgroup.Prepare(ctx, r.Store, r.Config, j, a, candidate)
 	if err != nil {

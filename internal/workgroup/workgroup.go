@@ -20,8 +20,9 @@ type Bundle struct {
 	Schema  json.RawMessage `json:"schema"`
 }
 type Selection struct {
-	Digest string `json:"digest"`
-	Reason string `json:"reason"`
+	Digest     string `json:"digest"`
+	Reason     string `json:"reason"`
+	DecisionID string `json:"decision_id,omitempty"`
 }
 
 func Default() (Bundle, error) {
@@ -49,6 +50,9 @@ func BundlePath(digest string) (string, error) {
 func Put(root string, b Bundle) (string, error) {
 	if b.Version != BundleVersion || !mail.Nonempty(b.Guide) || !json.Valid(b.Schema) {
 		return "", errors.New("invalid workgroup bundle")
+	}
+	if _, err := mail.CompileSchema(b.Schema); err != nil {
+		return "", err
 	}
 	data, err := json.Marshal(b)
 	if err != nil {

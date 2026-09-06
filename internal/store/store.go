@@ -18,7 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 const DBRelative = "state/chunsu.db"
 
 //go:embed migrations/*.sql

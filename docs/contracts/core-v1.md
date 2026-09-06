@@ -29,3 +29,7 @@ Saved-input operation does not require Gmail or a running service. Diagnostic ou
 The host checks result shape, declared source references, target-source dispositions, and known acquisition failures. It applies complete/partial/wait policy independently from semantic evaluation. Missing or failed acquisition cannot be reported as a successfully empty mailbox. A malformed result remains available as failed evidence.
 
 Evaluation judgments and optimization findings are separate records. Proposals identify candidate assets and evidence; adoption is an explicit human action. Adoption affects subsequent packages and preserves old runs and decisions.
+
+## Feedback storage extension (schema 2)
+
+The additive records table indexes immutable case/rubric/evaluation/finding/proposal/comparison/decision files by host ID, kind, subject, digest, byte count and timestamp. It does not update historical job completion when a semantic evaluation is added. The active workgroup pointer references a preserved bundle and, after a selection, its decision ID. Indexing a selection request alone does not establish that the active pointer was published. No private expected answers are copied into an execution package.

@@ -46,3 +46,9 @@ bin/chunsu jobs
 After choosing the existing Codex account, configure `executor.kind` as `codex` and `executor.path` as the discovered absolute executable path. The adapter currently requires Codex 0.153.4. Account sign-in belongs to Codex; Chun-su does not copy its credentials. `run JOB_ID` executes one attempt, while `worker` owns the queue in the foreground. `cancel`, `retry` and `resolve JOB_ID ANSWER` preserve the earlier attempt. Queueing and cancellation reach the current owner through a private local socket.
 
 `mail validate-report INPUT.json REPORT.json` performs offline contract checks only. It does not verify tool execution or semantic quality and cannot complete a job. Source examples are synthetic; personal expectations and a live Gmail pilot remain to be reviewed.
+
+## Feedback and controlled changes
+
+Use `feedback import` for versioned cases/rubrics, result evaluations, feedback and independent optimization findings. `feedback compare` keeps failures and unknown judgments visible. `workgroup propose` stores an inactive guide/schema version, `workgroup diff` shows the concrete before/after assets, and `experiment` queues the same saved input with that candidate. `workgroup decide` records adoption, rejection or rollback. AI source tools expose none of these control operations.
+
+The initial rubric in `examples/evaluation/` is a draft. Actual personal expectations and a useful first improvement loop still require human review. Run `setup` after an upgrade to apply supported additive schema changes; unknown future schemas are never reset.

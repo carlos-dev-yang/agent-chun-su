@@ -20,15 +20,8 @@ type Validation struct {
 func ValidateReport(data, schema []byte, s Snapshot, mode string, observed map[string]bool) (Report, Validation, error) {
 	var r Report
 	v := Validation{Checks: []string{}, Gaps: []string{}, SemanticEvaluation: "not performed"}
-	var raw, schemaDoc any
-	if err := json.Unmarshal(schema, &schemaDoc); err != nil {
-		return r, v, err
-	}
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("report.json", schemaDoc); err != nil {
-		return r, v, err
-	}
-	compiled, err := compiler.Compile("report.json")
+	var raw any
+	compiled, err := CompileSchema(schema)
 	if err != nil {
 		return r, v, err
 	}
@@ -136,6 +129,48 @@ func ValidateReport(data, schema []byte, s Snapshot, mode string, observed map[s
 		v.OperationalStatus = "waiting_input"
 	}
 	return r, v, nil
+}
+
+func CompileSchema(data []byte) (*jsonschema.Schema, error) {
+	var doc any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	var inspect func(any) error
+	inspect = func(value any) error {
+		switch node := value.(type) {
+		case map[string]any:
+			for key, child := range node {
+				if key == "$id" {
+					return errors.New("workgroup schemas must not redefine their resource identity")
+				}
+				if key == "$ref" || key == "$dynamicRef" || key == "$recursiveRef" {
+					ref, ok := child.(string)
+					if !ok || !strings.HasPrefix(ref, "#") {
+						return errors.New("schema references must remain inside the pinned document")
+					}
+				}
+				if err := inspect(child); err != nil {
+					return err
+				}
+			}
+		case []any:
+			for _, child := range node {
+				if err := inspect(child); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := inspect(doc); err != nil {
+		return nil, err
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("report.json", doc); err != nil {
+		return nil, err
+	}
+	return compiler.Compile("report.json")
 }
 
 func Render(r Report, v Validation, synthetic bool) []byte {

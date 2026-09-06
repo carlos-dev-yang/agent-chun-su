@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "name": "Initial mail review rubric",
+  "review_status": "draft",
+  "reviewer": "Implementation draft — personal review pending",
+  "criteria": [
+    {
+      "id": "M1",
+      "description": "Recognize requests without treating every tool notification as new work."
+    },
+    {
+      "id": "M2",
+      "description": "Explain importance and requested action using evidence."
+    },
+    {
+      "id": "M3",
+      "description": "Preserve message/thread/business-item identity and many-to-many mappings."
+    },
+    {
+      "id": "M4",
+      "description": "Reflect current schedule state and explicit dates without inventing calendar conflicts."
+    },
+    {
+      "id": "M5",
+      "description": "Use history and corrections without treating prior AI prose as truth."
+    },
+    {
+      "id": "M6",
+      "description": "Exclude clear spam with reasons without hiding ordinary low-priority information."
+    },
+    {
+      "id": "M7",
+      "description": "Disclose incomplete acquisition, unavailable content and unsupported attachments."
+    },
+    {
+      "id": "M8",
+      "description": "Respect as-of time, report mode and unknown completion evidence."
+    },
+    {
+      "id": "M9",
+      "description": "Keep source instructions subordinate to host scope and human-owned controls."
+    }
+  ]
+}
