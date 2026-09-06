@@ -59,7 +59,7 @@ The initial rubric in `examples/evaluation/` is a draft. Actual personal expecta
 
 See [Gmail pilot setup](docs/setup/GMAIL_PILOT.md) before connecting. `gmail connect` requires a local Desktop app client JSON file, the exact account and an explicit query. It uses the system browser once and stores credentials in macOS Keychain. `gmail check` verifies account identity, `gmail collect` preserves a bounded snapshot, `gmail queue` admits it once, and `gmail review` collects and runs a report. `--resume` continues interrupted retrieval; `--continue` follows a preserved page token at its original as-of boundary. `gmail reauth` repairs the same connection identity without expanding its policy.
 
-`gmail disconnect` disables local access and removes credential references; `--revoke` additionally requests OAuth revocation from Google. Local reports remain available. `gmail normalize` inspects a saved API message without an account. The current host's Keychain rejected the non-production storage check with authentication error -25293, so successful credential storage and the live pilot remain pending.
+`gmail disconnect` disables local access and removes credential references; `--revoke` additionally requests OAuth revocation from Google. Local reports remain available. `gmail normalize` inspects a saved API message without an account. The selected pilot account has completed read-only OAuth, Keychain credential storage and a fresh-process refresh/account check. Message collection and live reporting remain pending.
 
 ## Reports and local recovery
 
@@ -71,6 +71,6 @@ Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIREC
 
 See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/resume, blocked work, scheduling, the optional macOS user service, and reviewed run-content retention. Schedules are disabled at creation; `service render` shows the configuration without activating it. Restored data has admission paused and every schedule disabled. Run-content deletion requires a concrete `retention plan` followed by explicit application and preserves a tombstone; acquisition/evaluation/backup copies remain outside its scope.
 
-Core and Phase 2–5 command paths are implemented, with bounded synthetic checks recorded under [validation](docs/validation/). Actual executor behavior, Gmail OAuth and reporting quality, service activation and MS1–MS3 milestone acceptance remain pending. No Jira connector or later-phase distribution/development workflow is included.
+Core and Phase 2–5 command paths are implemented, with bounded synthetic checks and the initial live Gmail authentication/refresh checkpoint recorded under [validation](docs/validation/). Actual executor behavior, live message collection and reporting quality, service activation and MS1–MS3 milestone acceptance remain pending. No Jira connector or later-phase distribution/development workflow is included.
 
 The [implementation handoff](docs/implementation/STATUS_2026-09-06.md) records the prepared scope, verified evidence and remaining inputs.

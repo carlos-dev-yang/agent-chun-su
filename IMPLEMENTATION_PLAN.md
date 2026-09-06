@@ -4,7 +4,7 @@
 **Date:** 2026-09-05  
 **Status:** Implementation authorized through Phase 5; Gmail selected for live validation  
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Command paths through Phase 5 prepared with synthetic evidence; real executor/mail milestones and background activation pending, with Keychain authentication blocked
+**Current position:** Command paths through Phase 5 prepared; Gmail OAuth, Keychain storage and a fresh-process token refresh verified; real executor/mail milestones and background activation pending
 
 ## 1. Purpose and scope
 
@@ -166,7 +166,7 @@ order, not a demand to implement every phase before obtaining value.
 | [1 — Minimal CLI and durable records](docs/implementation/PHASE_01_FOUNDATION.md) | A small runnable program with persistent job/artifact records | P0-08 | Foundation checked; real process lifecycle evidence pending |
 | [2 — Saved-input mail execution](docs/implementation/PHASE_02_SAVED_MAIL.md) | A real executor produces a traceable local mail report | Phase 1 and first-run decisions | Saved pipeline prepared; real executor run pending |
 | [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Feedback tooling checked; MS1 remains pending |
-| [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | Connector prepared; Keychain/account prerequisites blocked |
+| [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | Account connected; storage/refresh verified; message collection and live reporting pending |
 | [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Operations commands and synthetic checkpoints prepared; live MS3 pending |
 | [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Not started |
 | [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |

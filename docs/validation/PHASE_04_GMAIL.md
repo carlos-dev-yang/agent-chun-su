@@ -1,6 +1,6 @@
 # Gmail Connector Checkpoint
 
-Date: 2026-09-06. No Gmail account has been connected and no real mail or calendar data has been read. MS2 is not complete.
+Date: 2026-09-06. The selected Gmail pilot account is connected with read-only scope; credential storage and a fresh-process token refresh/account check passed. No message list, message body or calendar data has been fetched. MS2 is not complete. Earlier checkpoint failures below are preserved as history; the successful connection checkpoint supersedes the Keychain blocker.
 
 ## Implemented
 
@@ -39,13 +39,21 @@ After the initial repeated failure, retries were paused and the user was asked a
 - Connection errors now identify whether credential storage failed before Google sign-in or while saving the returned credentials. The preflight still runs before opening the browser.
 - The rebuilt CLI's random-marker check reported `Keychain store failed`, `security exit 51`, and `errSecAuthFailed (-25293)`. A separate direct `SecKeychainAddGenericPassword` call, using only a random non-production marker, also returned `-25293` before a successful write. This reproduces the failure without the command-line bridge. It does not establish the underlying macOS cause or prove that the user supplied an incorrect password.
 - Formatting, a native CGO-disabled CLI build and focused vet of `internal/secrets`, `internal/gmail` and `internal/cli` passed. Only the native authentication-failure path and missing-marker cleanup were exercised; successful storage and other native error cases remain unverified. No generated test code was added.
-- The next diagnostic step is a user-side reauthentication of the default login Keychain, followed by one marker check after that state change. No Keychain reset, access-rule change, credential-backend change, Google OAuth request or mail read was performed.
+- The next diagnostic step at that checkpoint was user-side reauthentication of the default login Keychain, followed by one marker check after that state change. No Keychain reset, access-rule change, credential-backend change, Google OAuth request or mail read was performed during that diagnosis.
+
+## Successful pilot connection and refresh
+
+- The user reported `verified` from the marker check and requested verification. The agent reran the authorized connection flow; its own random-marker preflight succeeded before opening the browser. The flow then completed with exit 0, verified the selected account and exact `gmail.readonly` scope, and saved separate client-secret/refresh-token references after Keychain write/read verification.
+- A new CLI process ran `gmail check` for the saved connection and exited 0. This path retrieves the credentials from Keychain, obtains an access token from the stored refresh token and calls the Gmail profile endpoint. The account matched and the command explicitly reported `message_bodies_read: false`. This verifies one real refresh and account check, not long-duration refresh reliability or token rotation/revocation.
+- The saved policy is recent seven-day inbox mail, at most 20 listed messages per batch, no related-thread history, `Asia/Seoul`, manual retention and local reports. No message query, collection, queue admission, AI invocation or mailbox mutation was performed. The real-mail disclosure gate was not changed.
+- Credential files, stored token values, account identifiers and private connection records remain outside the committed evidence. No implementation code changed for this checkpoint; no build or static checks were repeated. The connection flow and independent account check are the validations actually run.
+- P4-02 is unblocked and remains in progress for the wider handling policy; P4-03 remains in progress because provider message reads and failure/revocation scenarios are still unverified. No phase or live-usefulness milestone is completed by authentication alone.
 
 ## Not run / remaining evidence
 
-Successful Keychain storage, live OAuth/account verification, refresh/revocation, provider pagination/retries, actual before/after label observations, the full selected-executor boundary, real mail reports and user usefulness review remain unverified. Live connection handling is blocked on the Keychain/account prerequisites. Saved-mode development, report records and local operations preparation remain independent.
+Provider message reads/pagination/retries, reauthorization/revocation, token rotation and long-duration refresh, actual before/after label observations, the full selected-executor boundary, real mail reports and user usefulness review remain unverified. The Keychain/account setup blocker is cleared for the selected host/account; this does not establish portability or live-report readiness. Saved-mode development, report records and local operations preparation remain independent.
 
-No generated test suite was created. All local records used in these checks were explicitly synthetic and kept out of Git.
+No generated test suite was created. Earlier seeded records were explicitly synthetic; the later OAuth and refresh checks used the authorized pilot account. Both synthetic runtime data and private live connection records are kept out of Git.
 
 ## Final integration review checkpoint
 
@@ -55,4 +63,4 @@ No generated test suite was created. All local records used in these checks were
 - Report rendering neutralized terminal control characters and escaped literal Markdown/HTML syntax. This was a synthetic presentation checkpoint, not a model-generated report.
 - A declared-live envelope using a disabled-by-default disclosure setting was blocked before executor inspection or invocation. All account/source markers were synthetic. Changing the executor and restoring a backup reset the approval setting.
 
-Code review also separated token-refresh transport/provider failures from authentication repair and bounded large `Retry-After` values. Live HTTP, refresh, calendar-date edge cases and OAuth behavior remain unverified. A prior report is context, not proof that its interpretation was correct; human usefulness and correction policy still require review.
+Code review also separated token-refresh transport/provider failures from authentication repair and bounded large `Retry-After` values. The later connection checkpoint verifies the initial live OAuth/profile path and one refresh; provider message reads, refresh failure handling and calendar-date edge cases remain unverified. A prior report is context, not proof that its interpretation was correct; human usefulness and correction policy still require review.

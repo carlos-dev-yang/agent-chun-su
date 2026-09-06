@@ -2,7 +2,8 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Gmail connector prepared; live validation blocked on account setup and Keychain authentication  
+**Status:** Pilot account connected; Keychain storage and fresh-process token refresh verified; live message collection and executor/report validation pending
+
 **Goal:** Validate the useful mail feedback loop against one explicitly scoped real account without modifying remote mail or calendars.
 
 **Entry conditions:** P3-07 is complete. The first provider, account, data boundaries, and permitted reading scope are selected before dependent integration work.
@@ -27,7 +28,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-02 — Implement host secret storage and live-data handling
 
-- **Status:** blocked
+- **Status:** in_progress
 - **Depends on:** P4-01.
 - **Work:** Implement the selected Keychain bridge and secret-reference lifecycle, plus the initial retention/deletion and diagnostic-redaction rules needed before live data enters storage. Separate non-secret bindings from credential values; avoid secrets in arguments, general config, packages, and logs.
 - **Deliverable:** The secret-store adapter and effective live-data storage/redaction policy.

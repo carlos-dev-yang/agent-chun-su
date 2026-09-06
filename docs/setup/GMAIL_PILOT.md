@@ -1,19 +1,19 @@
 # Gmail Pilot Setup
 
-Status: connector prepared; the pilot account and a local Desktop app client file have been supplied and the file format checked. No Gmail account has been connected or read. Keychain storage verification remains pending.
+Status: the selected pilot account is connected with `gmail.readonly`. Credential storage and a separate-process token refresh/account check passed on 2026-09-06. No message list, message body or calendar data has been fetched; live report validation remains pending.
 
 ## Information needed for the first pilot
 
 - The exact Gmail account to use (supplied for the current pilot; keep account-specific setup outside Git).
 - A Google OAuth **Desktop app** client JSON file available locally (supplied and checked for the current pilot). Provide its file path, not token or secret values in chat. The local file is restricted to owner read/write and excluded from Git.
-- A reviewed query and batch size. Proposed starting scope: `in:inbox newer_than:7d`, at most 20 listed messages per batch, body review only, no separate attachment downloads and no calendar access. Related-thread history is opt-in and bounded by a declared age/message limit.
+- A reviewed query and batch size. The connected pilot policy is `in:inbox newer_than:7d`, at most 20 listed messages per batch, body review only, related-thread history disabled, manual retention and `Asia/Seoul`. No separate attachment downloads or calendar access. Related-thread history is opt-in and bounded by a declared age/message limit. The connection check has not executed this message query.
 - The selected executor account. The existing Codex login is available, but its use is awaiting the user's response.
 
 Google requires an enabled Gmail API and an OAuth client for the installed-app flow. If a client is not already available, create a project/client in Google Cloud, configure the consent audience and permitted test account, and download a Desktop app client file. The initial account consent uses the system browser; subsequent operation uses the terminal. See [Google's installed-app authorization guide](https://developers.google.com/identity/protocols/oauth2/native-app) and [Gmail Go setup prerequisites](https://developers.google.com/workspace/gmail/api/quickstart/go).
 
 ## Keychain authentication failure before sign-in
 
-If the storage preflight reports `errSecAuthFailed (-25293)`, Google sign-in has not started. An unlocked Keychain status alone does not verify that a credential can be stored. The current pilot reproduced this failure both through Chun-su and through Apple's native Keychain API; the underlying macOS cause is still unresolved.
+If the storage preflight reports `errSecAuthFailed (-25293)`, Google sign-in has not started. An unlocked Keychain status alone does not verify that a credential can be stored. Earlier pilot attempts reproduced this failure both through Chun-su and through Apple's native Keychain API. The user subsequently reported a verified marker check, and connection storage plus a fresh-process account check now succeed. The earlier failure's exact macOS cause was not established; the procedure below remains troubleshooting guidance if it recurs.
 
 After confirming that the default Keychain is the intended login Keychain, the user can reauthenticate it in their own Terminal. Run these commands one at a time; proceed to unlock only if the lock command succeeds:
 
