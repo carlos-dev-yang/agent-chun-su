@@ -4,7 +4,7 @@
 **Date:** 2026-09-05  
 **Status:** Implementation through Phase 5 and Jira ingestion preparation authorized; actual Jira connection deferred
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Command paths through Phase 5 prepared; restricted real Codex execution and one 20-message Gmail candidate report verified; user usefulness, remaining lifecycle checks and background activation pending
+**Current position:** Phase 2–5 command paths and the Phase 6 saved Jira ingestion subset prepared; restricted real Codex execution and one bounded Gmail batch verified; live Jira, user usefulness and background activation pending
 
 ## 1. Purpose and scope
 
@@ -21,7 +21,10 @@ Gmail for live validation, with connection requests made when needed. After the
 bounded mail pilot, the user expanded scope to Jira collection preparation with
 a replaceable provider-to-internal-data boundary, deferring the real connection.
 The [Jira ingestion proposal](docs/implementation/JIRA_INGESTION_PREPARATION.md)
-defines the concrete preparation units and remaining contract/provider decisions.
+defines the approved collection units and remaining provider decisions. The
+[saved ingestion checkpoint](docs/validation/PHASE_06_JIRA_INGESTION.md) records
+implemented readers, normalization and preservation; live HTTP access and
+Jira report execution remain deferred.
 This does not authorize tenant access or complete the full Phase 6 report loop.
 Task acceptance scenarios are planned checks until evidence is recorded.
 
@@ -172,7 +175,7 @@ order, not a demand to implement every phase before obtaining value.
 | [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Feedback tooling checked; MS1 remains pending |
 | [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | One 20-message batch collected and candidate report produced; partial scope and human review remain explicit |
 | [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Operations commands and synthetic checkpoints prepared; live MS3 pending |
-| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Ingestion preparation scoped; contract/provider review pending; live connection deferred |
+| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Saved ingestion and storage seam checked; live provider and report execution deferred |
 | [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |
 | [8 — Deeper optimization](docs/implementation/PHASE_08_OPTIMIZATION.md) | Evidence-based improvements across runs without mandatory golden-set growth | Phase 3 and sufficient recorded use | Not started |
 | [9 — Development-work pilot](docs/implementation/PHASE_09_DEVELOPMENT.md) | One bounded repository task with appropriate controls and evidence | Mail/Jira reuse evidence and an explicit development scope | Not started; conditional |
@@ -219,6 +222,11 @@ decision; ask only when that task actually depends on the answer.
 Unknown provider details must not block local configuration or SQLite work.
 Unknown personal semantics may remain explicit in a synthetic demonstration,
 but cannot be silently replaced with invented user preferences.
+
+For the approved saved Jira ingestion subset, D04 is resolved by the versioned
+[evidence contract](docs/contracts/jira-evidence.md). D08 remains open for the
+real deployment, authenticated identity, field discovery and report judgments;
+the saved policy requires explicit fictional scope in public examples.
 
 On 2026-09-06 the user authorized the existing AI account and one scoped live
 trial after access verification. D01/D03/D05/D06 are resolved for that trial:
@@ -327,4 +335,4 @@ any implementation milestone has been achieved.
 The completed documentation checks and remaining Phase 0 work are recorded in
 the [P0-01 planning completion note](docs/validation/PHASE_00_PLANNING.md).
 
-Implementation checkpoints are recorded in `docs/validation/PHASE_01_FOUNDATION.md`, `PHASE_02_SAVED_MAIL.md`, `PHASE_03_FEEDBACK.md`, and `PHASE_04_GMAIL.md`. Code preparation does not establish the real-executor, useful-feedback, live-mail, or repeated-operation milestones. Jira and later phases are outside the current execution authorization.
+Implementation checkpoints are recorded in `docs/validation/PHASE_01_FOUNDATION.md`, `PHASE_02_SAVED_MAIL.md`, `PHASE_03_FEEDBACK.md`, `PHASE_04_GMAIL.md`, and `PHASE_06_JIRA_INGESTION.md`. Code preparation does not establish useful-feedback, live-usefulness, repeated-operation or Jira-report reuse milestones. The approved Jira ingestion subset is complete for saved inputs; live Jira access, Jira AI reporting and later phases remain outside this execution scope.

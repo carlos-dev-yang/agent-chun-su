@@ -6,7 +6,9 @@ Status: the user approved implementing the collection, Jira-specific internal
 format and raw/normalized preservation boundary below. Real account connection
 and AI reporting are deferred. Cloud/Data Center selection remains unresolved;
 the selected live HTTP transport is a later dependent unit. This approval is
-not evidence that a Jira connector already exists.
+not authorization for a live Jira connection. The saved-input units below are
+now implemented; the [actual checkpoint](../validation/PHASE_06_JIRA_INGESTION.md)
+and [terminal guide](../setup/JIRA_INGESTION.md) record their supported scope.
 
 ## Intended result
 
@@ -52,8 +54,9 @@ appropriate validator, package builder and source reader.
 
 ### Reader: obtain evidence
 
-A small internal reader interface performs bounded identity, issue-page and
-explicitly requested issue-context reads. Inputs contain the selected connection,
+A small internal reader interface now performs bounded issue-page reads from
+saved responses. Identity and context reads belong to the later selected HTTP
+provider; embedded context can already be normalized. Inputs contain the selected connection,
 approved scope and an opaque continuation. Outputs contain response bytes,
 provider/format identity, collection timestamps, continuation metadata and safe
 error classification. The interface has no write operation or arbitrary URL.
@@ -164,10 +167,11 @@ create write tools in the host reader or executor gateway.
 | P6-03c | Cross-provider storage integration review | Relevant existing Gmail collection inspection and backup/restore behavior still work with the new record type |
 | P6-04 onward | Jira guide, result schema, scoped tools and common execution dispatch | Separate reviewed implementation step; actual Jira source/tool boundary and report evaluation evidence |
 
-Proposed terminal surface after contract review: inspect saved provider responses,
-normalize them, collect a saved-response acquisition, list/show acquisitions,
-and inspect a disabled connection draft. Final command/JSON names are part of
-the implementation review, not existing commands documented as executable now.
+Implemented terminal surface: `jira status`, `inspect`, `collect`, `resume`,
+`renormalize`, `acquisitions`, `show` and `source`. Collection performs
+normalization and preservation together. Status reports the disconnected live
+reader without creating a connection draft. Exact command and JSON meanings
+are documented in the [evidence contract](../contracts/jira-evidence.md).
 
 Use meaningful existing checks and manual synthetic fixtures; do not add test
 code unless the user asks. New persistent/CLI contracts and changes needed in
@@ -193,7 +197,10 @@ authentication still need verification; the documentation renderer returned
 only navigation for the selected search page, so its detailed route contract
 was not established in this preparation. [Data Center reference](https://developer.atlassian.com/server/jira/platform/rest-apis/).
 
-Not done: Jira runtime code, schema migration, credentials, tenant requests,
-AI Jira execution, generated tests or live validation. No existing mail runtime
-configuration, active workgroup or private report was changed. This document
-is the reviewable preparation result before the new contract is implemented.
+At proposal time, Jira runtime code and validation had not been implemented.
+The subsequent approved work added saved readers, normalization, private
+acquisitions and inspection commands, with no schema migration. Credentials,
+tenant requests, AI Jira execution and live validation remain deferred; no test
+code was generated. Existing mail runtime configuration, active workgroup and
+private reports were not changed. See the [implementation checkpoint](../validation/PHASE_06_JIRA_INGESTION.md)
+for the evidence after this preparation review.

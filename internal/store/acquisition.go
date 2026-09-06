@@ -26,6 +26,7 @@ type Acquisition struct {
 }
 
 const acquisitionColumns = "id,connection_id,parent_id,status,as_of,not_before,path,digest,bytes,job_id,created_at,updated_at"
+const legacyGmailAcquisitionVersion = 1
 
 func scanAcquisition(row scanner) (Acquisition, error) {
 	var a Acquisition
@@ -54,6 +55,49 @@ func (s *Store) Acquisitions(ctx context.Context, connection string) ([]Acquisit
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// AcquisitionsByProvider also recognizes legacy Gmail checkpoints, whose policy
+// contains a query before a snapshot exists. Unknown or damaged records must not
+// silently appear as a successful empty listing for a known provider.
+func (s *Store) AcquisitionsByProvider(ctx context.Context, provider string, limit int64) ([]Acquisition, error) {
+	all, err := s.Acquisitions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	out := []Acquisition{}
+	for _, a := range all {
+		data, err := s.ReadAcquisition(a, limit)
+		if err != nil {
+			return nil, err
+		}
+		var envelope struct {
+			Version  int    `json:"version"`
+			Provider string `json:"provider"`
+			Policy   struct {
+				Query *string `json:"query"`
+			} `json:"policy"`
+			Snapshot struct {
+				Origin struct {
+					Provider string `json:"provider"`
+				} `json:"origin"`
+			} `json:"snapshot"`
+		}
+		if err = json.Unmarshal(data, &envelope); err != nil {
+			return nil, errors.New("invalid acquisition provider envelope")
+		}
+		kind := envelope.Provider
+		if kind == "" && envelope.Version == legacyGmailAcquisitionVersion && (envelope.Snapshot.Origin.Provider == "gmail" || (envelope.Policy.Query != nil && *envelope.Policy.Query != "")) {
+			kind = "gmail"
+		}
+		if kind == "" {
+			return nil, errors.New("acquisition provider is unknown")
+		}
+		if kind == provider {
+			out = append(out, a)
+		}
+	}
+	return out, nil
 }
 func (s *Store) SaveAcquisition(ctx context.Context, a Acquisition, payload any, limit int64) (Acquisition, error) {
 	if !files.ValidID(a.ID) || !files.ValidID(a.ConnectionID) || (a.ParentID != "" && !files.ValidID(a.ParentID)) {

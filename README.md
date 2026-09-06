@@ -2,8 +2,9 @@
 
 A terminal-first personal AI workflow controller built with Go and embedded SQLite.
 Human-owned workgroup assets stay outside the executor. Mail reporting comes first.
-Jira ingestion preparation is now scoped in a [reviewable proposal](docs/implementation/JIRA_INGESTION_PREPARATION.md);
-its runtime connector and real account connection are not implemented or active yet.
+Jira has a [saved-response ingestion layer](docs/setup/JIRA_INGESTION.md) with
+replaceable retrieval, explicit field mapping and preserved raw/normalized evidence.
+Its live HTTP reader, account connection and AI reporting remain deferred.
 
 ## Development
 
@@ -64,6 +65,23 @@ See [Gmail pilot setup](docs/setup/GMAIL_PILOT.md) before connecting. `gmail con
 
 The [pilot reporting rules](docs/contracts/mail-pilot-reporting.md) separate work categories from notification channels, exclude promotional content with auditable reasons, and retain uncertain operational requests. For a trial, use `workgroup propose` and `experiment BASELINE_JOB --candidate DIGEST`, then run the experiment job. Merely supplying `run --candidate` is not the experiment lifecycle. Experiments preserve source coverage and active rules; adoption remains a human decision.
 
+## Jira collection preparation
+
+`jira inspect examples/jira/saved-cloud.json` validates a synthetic source
+envelope. After setup, `jira collect` with that file preserves and normalizes a
+bounded batch. `jira resume ACQUISITION_ID` follows the pinned saved continuation;
+`jira show ACQUISITION_ID --snapshot` shows normalized facts and gaps. Use
+`jira source ACQUISITION_ID 0` to inspect exact source bytes and
+`jira renormalize ACQUISITION_ID --mapping MAPPING.json` to create a new derived
+record while preserving the earlier one.
+
+No account or executor is needed. `jira status` reports the disconnected live
+reader; collection without a saved file fails explicitly as `not_configured`.
+See the [terminal guide](docs/setup/JIRA_INGESTION.md),
+[evidence contract](docs/contracts/jira-evidence.md), and
+[actual checks](docs/validation/PHASE_06_JIRA_INGESTION.md). Provider-specific live
+HTTP access and shared Jira report execution are later work.
+
 ## Reports and local recovery
 
 `report JOB_ID` reads the verified Markdown result; `--path` prints its path. `report JOB_ID --sources` reads the corresponding local source document, and can also use `--path`. New Markdown artifacts have `.md` filenames; old artifact paths remain valid. The summary links to deterministic source labels, while the source document retains normalized text, origin metadata and exclusion reasons. It is not an original EML or attachment archive. `publish JOB_ID` recovers a failed presentation stage from preserved structured output and source evidence, without another AI run. Neither command infers that a person acknowledged the report.
@@ -74,6 +92,6 @@ Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIREC
 
 See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/resume, blocked work, scheduling, the optional macOS user service, and reviewed run-content retention. Schedules are disabled at creation; `service render` shows the configuration without activating it. Restored data has admission paused and every schedule disabled. Run-content deletion requires a concrete `retention plan` followed by explicit application and preserves a tombstone; acquisition/evaluation/backup copies remain outside its scope.
 
-Core and Phase 2–5 command paths are implemented. [Validation records](docs/validation/) distinguish synthetic checks, actual restricted executor runs and the bounded live Gmail candidate pilot. Broader lifecycle/reliability checks, personal reporting quality, service activation and MS1–MS3 milestone acceptance remain pending. No Jira connector or later-phase distribution/development workflow is included.
+Core and Phase 2–5 command paths and the approved Phase 6 saved ingestion subset are implemented. [Validation records](docs/validation/) distinguish synthetic checks, actual restricted executor runs and the bounded live Gmail candidate pilot. Broader lifecycle/reliability checks, personal reporting quality, service activation and MS1–MS4 milestone acceptance remain pending. Live Jira access, Jira AI reporting and later-phase distribution/development workflows are not included.
 
 The [implementation handoff](docs/implementation/STATUS_2026-09-06.md) records the prepared scope, verified evidence and remaining inputs.

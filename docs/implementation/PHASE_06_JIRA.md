@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Collection/normalization/preservation scope approved; implementation in progress; real connection deferred
+**Status:** Approved saved ingestion subset implemented and checked; live HTTP connection and Jira reporting deferred
 
 **Goal:** Prove that a second workgroup fits the existing execution, evidence, evaluation, and proposal structure.
 
@@ -21,9 +21,12 @@ completion evidence. The user approved this collection and internal-data
 boundary. Cloud/Data Center selection remains open; tenant access and AI Jira
 reporting are deferred.
 
-All implementation paths and commands below are planned deliverables. Acceptance
-scenarios are not completed checks or authorization to create test code. Follow
-the work-unit and validation rules in the master plan.
+The saved ingestion units P6-01a/P6-02a/P6-03a/P6-03b/P6-03c are complete for the
+documented local formats and storage seam. Their [validation record](../validation/PHASE_06_JIRA_INGESTION.md)
+separates manual synthetic evidence from unrun live and crash-recovery checks.
+The [terminal guide](../setup/JIRA_INGESTION.md) lists actual commands. Remaining
+parent-task acceptance scenarios are planned checks, not authorization to create
+test code. Follow the work-unit and validation rules in the master plan.
 
 ## Work units
 
@@ -37,7 +40,7 @@ the work-unit and validation rules in the master plan.
 
 ### P6-02 — Implement one scoped Jira read connector
 
-- **Status:** not_started
+- **Status:** in_progress — P6-02a saved/disconnected readers complete; P6-02b live HTTP provider deferred
 - **Depends on:** P6-01; applicable D06 data policy.
 - **Work:** Verify current official APIs and implement the chosen authentication, identity, paginated issue/history reads, relevant relationships, and rate/error handling. Reuse host secret references and gateway enforcement.
 - **Deliverable:** One Jira connector and bounded tool bindings.
@@ -45,7 +48,7 @@ the work-unit and validation rules in the master plan.
 
 ### P6-03 — Normalize Jira evidence and effective time
 
-- **Status:** not_started
+- **Status:** in_progress — P6-03a/b/c saved normalization, preservation and mixed storage checks complete; live evidence pending
 - **Depends on:** P6-02.
 - **Work:** Preserve issue/history identity, as-of time, status changes, estimates, dependencies, and evidence of follow-up after completion. Handle unavailable history and partial pages explicitly.
 - **Deliverable:** A Jira input/evidence adapter using the common envelope.

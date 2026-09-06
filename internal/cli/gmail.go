@@ -112,12 +112,12 @@ func (o *options) gmail() *cobra.Command {
 		return output(cmd, map[string]any{"connection_id": connection.ID, "account": account, "scopes": connection.Scopes, "policy": connection.Policy, "message_bodies_read": false})
 	}})
 	cmd.AddCommand(&cobra.Command{Use: "acquisitions", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		s, _, close, err := o.open(cmd.Context(), false)
+		s, c, close, err := o.open(cmd.Context(), false)
 		if err != nil {
 			return err
 		}
 		defer close()
-		acquisitions, err := s.Acquisitions(cmd.Context(), "")
+		acquisitions, err := s.AcquisitionsByProvider(cmd.Context(), "gmail", c.Limits.MaxEvidenceBytes)
 		if err != nil {
 			return err
 		}
