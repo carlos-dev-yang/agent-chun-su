@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Pilot account connected; Keychain storage and fresh-process token refresh verified; live message collection and executor/report validation pending
+**Status:** Pilot account connected; one 20-message live collection and candidate report verified; acquisition is partial and human usefulness review remains pending
 
 **Goal:** Validate the useful mail feedback loop against one explicitly scoped real account without modifying remote mail or calendars.
 
@@ -68,7 +68,7 @@ the work-unit and validation rules in the master plan.
 
 ### P4-07 — Verify the live boundary before an AI report run
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P4-06, P2-03.
 - **Work:** Check actual connector routes, granted scopes, executor restrictions, secret handling, revocation, and the absence of implicit read-state or other remote changes using the approved small scope. Verify persisted data handling before sending live content to the executor.
 - **Deliverable:** A concrete live-boundary verification record.
@@ -97,3 +97,11 @@ remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
 
 Current evidence: [Gmail connector checkpoint](../validation/PHASE_04_GMAIL.md). P4-05 completion covers the declared text-only normalization subset, not attachment extraction or live-provider verification.
+
+The user explicitly authorized the bounded live experiment after the actual
+synthetic executor boundary check, before Phase 3 human acceptance. This trial
+advances P4-01 through P4-08 evidence without closing MS1/MS2. All 20 collected
+targets were available and inspected; additional mailbox pages remain. No
+additional page, related thread, linked service or calendar was read. User
+usefulness, before/after provider-state comparison and failure/revocation cases
+remain separate evidence.

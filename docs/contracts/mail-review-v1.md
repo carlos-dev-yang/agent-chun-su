@@ -1,6 +1,6 @@
 # Mail Review v1 — Meaning and Initial Cases
 
-Date: 2026-09-06. Status: implementable public requirements with explicit personal-policy unknowns. Gmail is the selected live provider; no account is connected yet.
+Date: 2026-09-06. Status: public requirements with explicit personal-policy unknowns. The Gmail pilot account is connected, and a scoped real candidate report has been generated. The [pilot reporting baseline](mail-pilot-reporting.md) supplies the current trial rules; human semantic acceptance remains pending.
 
 ## Meaning
 
@@ -12,7 +12,7 @@ Report explicit deadlines and direct schedule impact. Distinguish proposed, conf
 
 Previous reports are interpretations, not ground truth. Connect follow-ups through sources, preserve user corrections, and never treat missing completion evidence as proof of unfinished work. Snapshot as-of time and timezone are required; future messages are unavailable to earlier cases.
 
-The user has been asked whether to show only changes or also existing requests needing confirmation. Until answered, the code can support both modes; no personal default is represented as approved. User role, importance rules, and spam preferences remain editable public workgroup assets, with unknowns visible in output.
+The current authorized trial uses changes within its collected batch. The code can support both changes and changes-plus-open modes; this trial is not a complete account-wide task tracker or a permanent personal-mode decision. User role and detailed importance preferences remain editable public workgroup assets, with unknowns visible in output.
 
 ## Case catalog
 

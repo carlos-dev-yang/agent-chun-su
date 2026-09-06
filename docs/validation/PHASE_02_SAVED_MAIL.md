@@ -1,6 +1,29 @@
 # Saved-Mail Implementation Checkpoint
 
-Date: 2026-09-06. Status: implementation checkpoint, not Phase 2 completion.
+Date: 2026-09-06. Status: real saved-mail report and restricted executor checks verified; not Phase 2 completion.
+
+## Current real-executor evidence
+
+The [restricted executor walkthrough](EXECUTOR_BOUNDARY_2026-09-06.md)
+supersedes the initial no-model/boundary-pending checkpoint below. The user's
+authorized trial used the existing Codex login, CLI 0.153.4 and GPT-5.5. A real
+nine-source synthetic run retrieved every target, returned valid JSON, preserved
+an outside-scope denial and produced a local report with a retained clarification.
+Host schema validation, private filesystem/network checks, MCP resource denial
+and post-attempt revocation passed. The temporary-root exception is now rejected
+before execution.
+
+The report presentation now groups business categories in Korean and links to
+a separately preserved source Markdown document. The public policy fixture
+covers direct work, interview changes, operational failure, promotion, newsletter,
+receipt, ambiguity, spam and source injection. No private expected answer is
+placed in the executor package. P2-07 is in progress; actual model cancellation,
+crash recovery, broader time-boundary cases and human usefulness remain pending.
+
+## Historical implementation checkpoint
+
+The following sections describe checks and limitations before that real run;
+their earlier pending statements are retained as history.
 
 ## Implemented
 

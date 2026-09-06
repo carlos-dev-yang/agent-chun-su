@@ -1,6 +1,74 @@
 # Gmail Connector Checkpoint
 
-Date: 2026-09-06. The selected Gmail pilot account is connected with read-only scope; credential storage and a fresh-process token refresh/account check passed. No message list, message body or calendar data has been fetched. MS2 is not complete. Earlier checkpoint failures below are preserved as history; the successful connection checkpoint supersedes the Keychain blocker.
+Date: 2026-09-06. The selected Gmail pilot account is connected with read-only scope. After the user's authorization and actual executor verification, one bounded batch of 20 message bodies was collected and a real AI candidate report was produced. Additional mailbox pages remain; MS2 is not complete. Earlier checkpoint failures below are preserved as history.
+
+## Current bounded live report
+
+- The [executor walkthrough](EXECUTOR_BOUNDARY_2026-09-06.md) passed before
+  setting the approved executor configuration's live disclosure flag. The actual
+  adapter used the existing Codex login, CLI 0.153.4 and GPT-5.5.
+- One seven-day inbox collection listed 20 messages, with no thread expansion.
+  All 20 normalized bodies were complete, none had declared attachments, and
+  no returned source labels contained `SPAM` or `TRASH`. A next-page token was
+  preserved; no continuation was requested. This is not the whole week's inbox.
+- The collector made bounded read-only list/get requests and kept credentials
+  on the host. The source gateway served the immutable snapshot to the executor;
+  it could not select another account, an arbitrary URL or a write operation.
+  No independent before/after Gmail label comparison was run, so the read-only
+  claim rests on the granted scope, invoked read paths and gateway restrictions.
+- The first candidate report inspected all 20 target bodies, merged repeated
+  alerts into four business items, excluded four promotional sources and kept
+  one source reference-only. Structure, bidirectional mappings, acquisition gaps
+  and saved artifact hashes passed validation. Operational state is `partial`
+  because additional pages exist; semantic usefulness is not automatically scored.
+- AI review recorded a finding about operational alerts being categorized as
+  new work, repetition of excluded brands and technical status wording. The
+  first output was preserved and a separate candidate rerun used the same input.
+  No additional Gmail collection or active-rule adoption is implied.
+- The revised run returned five items, all in the operational category, and
+  excluded the same four newsletters. It kept the notification whose underlying
+  message content was missing as an uncertain fifth item. Twenty successful
+  lookups, matching input/manifest/artifact hashes, 17 resolving source-document
+  links and owner-only file permissions were checked. Displayed states and
+  timestamps are Korean/local-time views of unchanged raw values.
+- Two remaining semantic issues are recorded, not erased: the model changed a
+  notification-only source from reference to an uncertain item, and its item
+  order still puts normal-importance alerts before high-importance items. No
+  independent rubric judgments or human usefulness review exists yet. The
+  comparison correctly reports `comparable: false` for that missing evaluation.
+- Both reports are experiments. The unused baseline queue entry was cancelled;
+  experimental results do not advance production coverage or replace production
+  history. Read-only database inspection confirmed one acquisition, zero source
+  coverage rows and zero enabled schedules. The active workgroup digest was
+  unchanged. Local availability does not acknowledge user readership.
+
+The [reporting baseline](../contracts/mail-pilot-reporting.md) defines category,
+exclusion and source handling. A local summary links to a source document with
+sender, subject, received time, source/thread IDs, disposition reasons and inert
+normalized body text. Files are private and outside Git. These are collected
+text records, not original EML files or downloaded attachments.
+
+Native CGO-disabled build, focused vet of the directly affected mail, Gmail,
+workgroup, executor, gateway, runner, store and CLI packages, and whitespace
+checks passed. Both `report --path` and `report --sources --path` verified their
+saved artifacts. No test files or broad test suite were added/run for this work.
+
+For local retrieval, the first candidate job is `HB6F5V3RAC467ND5G7YSKBXFCQ`;
+the revised candidate job is `J3G5ZHDXEZKIQIZIINNXALZA3C`. Use `report JOB_ID`
+and `report JOB_ID --sources` in the existing private data root. Findings,
+proposals, the comparison and all raw evidence remain linked in local records;
+no account identifiers, body content or credentials are copied into this note.
+
+Still unverified: further-page continuation, provider failure/retry scenarios,
+reauthorization/revocation, long-duration refresh, independent label comparison,
+calendar/attachment reads, user usefulness and unattended operation. No phase
+or live-usefulness milestone is closed by this sample.
+
+## Historical connector checkpoints
+
+The following sections preserve the implementation, authentication failures
+and eventual successful connection in order. Statements about no collection
+or pending executor access describe those earlier checkpoints.
 
 ## Implemented
 

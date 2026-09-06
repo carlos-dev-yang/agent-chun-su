@@ -319,7 +319,7 @@ func (c Collector) Collect(ctx context.Context, connection Connection, resumeID,
 		snapshot.Collection.Errors = append(snapshot.Collection.Errors, gaps...)
 	}
 	if state.NextPageToken != "" {
-		snapshot.Collection.Errors = append(snapshot.Collection.Errors, "additional mailbox pages remain; continue the acquisition explicitly")
+		snapshot.Collection.Errors = append(snapshot.Collection.Errors, mail.RemainingPagesGap)
 	}
 	if len(snapshot.Collection.Errors) > 0 {
 		snapshot.Collection.Status = "partial"

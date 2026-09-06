@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"chunsu/internal/config"
@@ -316,6 +317,9 @@ func (s *Store) SaveArtifact(ctx context.Context, job, attempt, kind string, dat
 	}
 	a = Artifact{ID: files.ID(), JobID: job, AttemptID: attempt, Kind: kind, Digest: files.Digest(data), Bytes: int64(len(data)), CreatedAt: now(), ContentState: ContentAvailable}
 	a.Path = filepath.ToSlash(filepath.Join("runs", job, "artifacts", a.ID))
+	if strings.HasSuffix(kind, "_markdown") {
+		a.Path += ".md"
+	}
 	if err := files.Write(s.Root, a.Path, data, false); err != nil {
 		return a, err
 	}

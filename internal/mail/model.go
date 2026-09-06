@@ -16,6 +16,7 @@ const Version = 1
 const Workgroup = "mail-review"
 const Target = "target"
 const Reference = "reference"
+const RemainingPagesGap = "additional mailbox pages remain; continue the acquisition explicitly"
 
 type Attachment struct {
 	ID     string `json:"id"`

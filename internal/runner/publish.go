@@ -121,7 +121,7 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	if available != nil {
 		art = *available
 	} else {
-		art, err = r.Store.SaveArtifact(ctx, j.ID, j.CurrentAttempt, "report_markdown", mail.Render(report, validation, snapshot.Synthetic), r.Config.Limits.MaxArtifactBytes)
+		art, err = r.savePresentation(ctx, j.ID, j.CurrentAttempt, report, validation, snapshot)
 		if err != nil {
 			return out, err
 		}
@@ -137,4 +137,12 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 		err = r.Store.RecordCoverage(ctx, snapshot.Origin.ConnectionID, j.ID, gmail.CoverageForReport(snapshot, report))
 	}
 	return out, err
+}
+
+func (r *Runner) savePresentation(ctx context.Context, jobID, attemptID string, report mail.Report, validation mail.Validation, snapshot mail.Snapshot) (store.Artifact, error) {
+	sources, err := r.Store.SaveArtifact(ctx, jobID, attemptID, mail.SourcesArtifactKind, mail.RenderSources(report, snapshot), r.Config.Limits.MaxArtifactBytes)
+	if err != nil {
+		return store.Artifact{}, err
+	}
+	return r.Store.SaveArtifact(ctx, jobID, attemptID, "report_markdown", mail.RenderWithSources(report, validation, snapshot, filepath.Base(sources.Path)), r.Config.Limits.MaxArtifactBytes)
 }

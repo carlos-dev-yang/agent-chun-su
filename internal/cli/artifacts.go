@@ -7,12 +7,13 @@ import (
 
 	"chunsu/internal/backup"
 	"chunsu/internal/config"
+	"chunsu/internal/mail"
 	"chunsu/internal/runner"
 	"github.com/spf13/cobra"
 )
 
 func (o *options) report() *cobra.Command {
-	var pathOnly bool
+	var pathOnly, sources bool
 	cmd := &cobra.Command{Use: "report JOB_ID", Short: "Read a locally available report without marking it as acknowledged", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), false)
 		if err != nil {
@@ -27,9 +28,13 @@ func (o *options) report() *cobra.Command {
 		if err != nil {
 			return err
 		}
+		kind := "report_markdown"
+		if sources {
+			kind = mail.SourcesArtifactKind
+		}
 		for i := len(artifacts) - 1; i >= 0; i-- {
 			art := artifacts[i]
-			if art.AttemptID == j.CurrentAttempt && art.Kind == "report_markdown" {
+			if art.AttemptID == j.CurrentAttempt && art.Kind == kind {
 				b, err := s.ReadArtifact(art, c.Limits.MaxArtifactBytes)
 				if err != nil {
 					return err
@@ -49,6 +54,7 @@ func (o *options) report() *cobra.Command {
 		return errors.New("no report is locally available; inspect the job or use publish for a presentation failure")
 	}}
 	cmd.Flags().BoolVar(&pathOnly, "path", false, "Print only the verified report file path")
+	cmd.Flags().BoolVar(&sources, "sources", false, "Read the preserved source document instead of the summary")
 	return cmd
 }
 func (o *options) publish() *cobra.Command {

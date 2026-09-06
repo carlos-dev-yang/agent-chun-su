@@ -2,7 +2,8 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Feedback tooling implemented; real issue-to-human-decision milestone pending  
+**Status:** Real issue-to-candidate rerun and an explicitly unevaluated comparison recorded; human-decision milestone pending
+
 **Goal:** Demonstrate that preserved outputs can lead to a justified change and fair revalidation, while keeping result evaluation and optimization independent.
 
 **Entry conditions:** Phase 2 has a real executor result and its evidence. Reviewed expectations are available for the cases being evaluated.
@@ -80,3 +81,8 @@ remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
 
 Current evidence: [Feedback tooling checkpoint](../validation/PHASE_03_FEEDBACK.md).
+
+The actual Gmail pilot produced an initial report, an AI-authored finding, a
+revised inactive guide and a second real run of the identical input. Their
+comparison remains unevaluated and cannot justify adoption. No human acceptance
+or permanent workgroup change has been inferred from the trial.

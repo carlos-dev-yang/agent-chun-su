@@ -229,7 +229,7 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		e := finish(store.Failed, "result contract: "+validationErr.Error(), true)
 		return out, errors.Join(validationErr, e)
 	}
-	art, err := r.Store.SaveArtifact(finishCtx, jobID, a.ID, "report_markdown", mail.Render(report, validation, p.Snapshot.Synthetic), r.Config.Limits.MaxArtifactBytes)
+	art, err := r.savePresentation(finishCtx, jobID, a.ID, report, validation, p.Snapshot)
 	if err != nil {
 		e := finish(store.WaitingInput, store.PublicationRequired, false)
 		return out, errors.Join(err, e)

@@ -2,7 +2,8 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Saved-input pipeline implemented; real executor and full-boundary validation pending  
+**Status:** A real nine-source synthetic report and restricted executor checks passed; broader lifecycle and semantic acceptance remain pending
+
 **Goal:** Use one real executor to produce a source-backed local mail report from a bounded saved dataset.
 
 **Entry conditions:** Phase 1 is usable. P0-03 through P0-06 and D01–D04 are resolved for the first execution scope; synthetic demonstration limits may be explicitly accepted.
@@ -67,7 +68,7 @@ the work-unit and validation rules in the master plan.
 
 ### P2-07 — Demonstrate one traceable saved-input mail run
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P2-06.
 - **Work:** Run representative reviewed cases with the selected executor and preserve package, lookups, outputs, validation, and completion evidence. Include sequence/time-boundary and no-new-input behavior appropriate to the agreed report semantics.
 - **Deliverable:** A Phase 2 report bundle and completion note.
@@ -80,3 +81,9 @@ remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
 
 Current evidence: [Saved-mail implementation checkpoint](../validation/PHASE_02_SAVED_MAIL.md).
+
+The [2026-09-06 real executor walkthrough](../validation/EXECUTOR_BOUNDARY_2026-09-06.md)
+adds actual package/tool/output evidence for P2-03 through P2-07. Its deliberately
+ambiguous source yielded a valid local report with `waiting_input`. Timeout,
+cancellation, time-sequence/no-new-input model cases and human usefulness are
+not completed by that result.
