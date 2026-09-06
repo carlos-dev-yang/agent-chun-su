@@ -2,9 +2,9 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Active planning baseline; implementation has not started  
+**Status:** Implementation authorized through Phase 5; Gmail selected for live validation  
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Phase 0; documentation reconciliation is complete
+**Current position:** Phase 0 decisions and Phase 1 foundation; live connection pending
 
 ## 1. Purpose and scope
 
@@ -16,10 +16,10 @@ The first useful milestone is a saved-input mail report with a complete
 result-evaluation, improvement, and revalidation loop. A persistent service is
 not a prerequisite for that milestone.
 
-This request authorizes preparing the phased plan first. This document does
-not claim that any CLI, database, connector, service, evaluation dataset, or
-executor integration already exists. Commands and implementation paths below
-are proposed deliverables.
+On 2026-09-06 the user authorized implementation through Phase 5 and selected
+Gmail for live validation, with connection requests made when needed. Jira and
+later phases remain outside this execution scope. Task acceptance scenarios
+are planned checks until an implementation completion note records evidence.
 
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
@@ -61,7 +61,7 @@ principles when refining implementation details:
 
 The project began as a documentation-only directory. At the user's request,
 Git was initialized in the current checkout and the pre-implementation inputs
-were preserved in commit `7020143`. There is still no application code. No
+were preserved in commit `7020143`. Implementation now proceeds under that authorization. No
 remote has been configured or pushed. Recheck the working tree before each
 change and follow the [repository instructions](AGENTS.md).
 
@@ -256,8 +256,8 @@ but cannot be silently replaced with invented user preferences.
 - Do not collect private chain-of-thought. Store observable actions, source
   evidence, result rationale, errors, and measured resource information.
 - Public releases, service activation, real account access, and external
-  messages require authority appropriate to the concrete action. The plan
-  alone does not grant new permissions for them.
+  messages require authority appropriate to the concrete action. Use the latest user authorization; request only the missing account/scope
+  decisions when a concrete integration is ready.
 
 A task's completion note should contain: task ID, changed behavior, artifact
 paths, checks actually run and their results, checks not run, remaining

@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** P0-01 complete; remaining tasks not started  
+**Status:** Foundation ready; executor choice and full mail result contract in progress  
 **Goal:** Make foundation work startable while preparing the concrete decisions needed for the first useful mail report.
 
 **Entry conditions:** The user has selected Go + SQLite. Current principles and historical proposals are available.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-02 — Record the smallest build and dependency baseline
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-01.
 - **Work:** Recheck the current checkout and toolchain. Select a supported Go patch, a module identity without inventing a remote, the CLI library, and SQLite driver. Inspect native build requirements, including future secret-store integration.
 - **Deliverable:** A build decision under `docs/decisions/`, with exact versions to use when implementation starts.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-03 — Draft personal mail semantics with concrete examples
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-01; D02 is developed here.
 - **Work:** Draft inclusion/exclusion examples for the three categories, user role, importance, spam, interview states, previous history, and delta versus outstanding-action reporting. Distinguish source channel from business meaning.
 - **Deliverable:** A mail behavior brief and sample report in `docs/contracts/`.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-04 — Specify saved cases and expectation ownership
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-03; D02/D03 for personal or real-data expectations.
 - **Work:** Define source IDs, as-of time, timezone, allowed history and lookups, data origin, required facts, prohibited claims, acceptable variations, and unknowns. Include a sequence with a schedule proposal, change, and a later run with no new mail.
 - **Deliverable:** A case catalog and human review template; executable evaluation data is a later deliverable.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-05 — Choose and assess the first executor adapter
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P0-02; D01/D03 are developed here.
 - **Work:** Compare only concrete available executor choices against instruction delivery, scoped tools, structured output, cancellation, authentication, observable traces, and filesystem/network restrictions. Prepare a recommendation without making a paid or real-data model call.
 - **Deliverable:** An executor capability and data-boundary decision under `docs/decisions/`.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-06 — Draft request, package, result, and evidence contracts
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P0-03, P0-04; use P0-05 findings when available; D04.
 - **Work:** Specify target inputs versus reference history, many-to-many source-to-business-item mapping, coverage, partial results, version pinning, late lookups, and the boundary between public criteria and private expectations.
 - **Deliverable:** Minimal contract documents and illustrative examples; no SQL migration or public API is created.
@@ -67,7 +67,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-07 — Draft local state, configuration, and recovery semantics
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-02; foundation portion of D04.
 - **Work:** Define job versus attempt, immutable collected evidence, waiting reasons, cancellation, retry versus improvement experiment, artifact ownership, configuration precedence, named limits, and version changes. Model only the states needed by the first slice. Coordinate identifiers with P0-06 as it develops, without making unresolved personal mail semantics a prerequisite for foundation storage.
 - **Deliverable:** A small lifecycle/ownership document and foundation storage proposal.
@@ -75,7 +75,7 @@ the work-unit and validation rules in the master plan.
 
 ### P0-08 — Record foundation readiness and remaining first-run blockers
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-02, P0-07; the foundation subset of D04.
 - **Work:** Review the concrete foundation proposal before schema/interface implementation where the direction is unresolved. Record accepted portions and keep personal, executor, and provider decisions attached to later tasks. Do not reopen Go + SQLite.
 - **Deliverable:** A decision log and a ready list for Phase 1.
@@ -86,3 +86,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Foundation evidence: [ADR 0001](../decisions/0001-local-core.md), [core contract](../contracts/core-v1.md), and [mail meanings/case catalog](../contracts/mail-review-v1.md). Full executor and personal semantic validation remain pending.
