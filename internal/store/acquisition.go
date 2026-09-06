@@ -107,8 +107,12 @@ func (s *Store) RecordCoverage(ctx context.Context, connection, job string, fing
 	}
 	defer tx.Rollback()
 	var status string
-	if err = tx.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id=?", job).Scan(&status); err != nil {
+	var request string
+	if err = tx.QueryRowContext(ctx, "SELECT status,request_json FROM jobs WHERE id=?", job).Scan(&status, &request); err != nil {
 		return err
+	}
+	if (Job{Request: json.RawMessage(request)}).IsExperiment() {
+		return errors.New("candidate experiments cannot advance production source coverage")
 	}
 	if status != Completed && status != Partial {
 		return errors.New("only an available validated report can advance source coverage")

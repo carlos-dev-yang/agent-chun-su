@@ -205,6 +205,10 @@ func (o *options) experiment() *cobra.Command {
 		}
 		request["experiment_of"] = j.ID
 		request["candidate_digest"] = candidate
+		if acquisition, ok := request["acquisition_id"]; ok {
+			request["source_acquisition_id"] = acquisition
+			delete(request, "acquisition_id")
+		}
 		created, err := s.Submit(cmd.Context(), j.Workgroup, input, request, c.Limits.MaxArtifactBytes)
 		if err != nil {
 			return err

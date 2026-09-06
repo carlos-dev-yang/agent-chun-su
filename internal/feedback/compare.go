@@ -123,6 +123,9 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 	if a.Manifest == nil || b.Manifest == nil {
 		c.Comparable = false
 	} else {
+		if a.Manifest.Executor.Model == "" || b.Manifest.Executor.Model == "" {
+			c.Limitations = append(c.Limitations, "executor model was not explicitly pinned; matching implicit defaults are not established")
+		}
 		if a.Manifest.InputDigest != b.Manifest.InputDigest {
 			c.Limitations = append(c.Limitations, "inputs/as-of/history differ")
 		}

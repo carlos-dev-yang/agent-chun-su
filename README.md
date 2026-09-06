@@ -45,6 +45,8 @@ bin/chunsu jobs
 
 After choosing the existing Codex account, configure `executor.kind` as `codex` and `executor.path` as the discovered absolute executable path. The adapter currently requires Codex 0.153.4. Account sign-in belongs to Codex; Chun-su does not copy its credentials. `run JOB_ID` executes one attempt, while `worker` owns the queue in the foreground. `cancel`, `retry` and `resolve JOB_ID ANSWER` preserve the earlier attempt. Queueing and cancellation reach the current owner through a private local socket.
 
+Real Gmail disclosure is disabled by default. After a synthetic walkthrough verifies the actual executor tool boundary and the human approves the account/configuration, explicitly set `executor.live_mail_approved` to `true`. Changing executor kind/path/model or restoring a backup resets this setting. It records human authorization, not automated proof of isolation. The local feature inspection still reports `unified_exec` enabled despite its disable override; `shell_tool` is disabled. Actual tool exposure must be resolved before live use. Pin `executor.model` for comparable evaluation runs; implicit model defaults are treated as a comparison limitation.
+
 `mail validate-report INPUT.json REPORT.json` performs offline contract checks only. It does not verify tool execution or semantic quality and cannot complete a job. Source examples are synthetic; personal expectations and a live Gmail pilot remain to be reviewed.
 
 ## Feedback and controlled changes
@@ -70,3 +72,5 @@ Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIREC
 See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/resume, blocked work, scheduling, the optional macOS user service, and reviewed run-content retention. Schedules are disabled at creation; `service render` shows the configuration without activating it. Restored data has admission paused and every schedule disabled. Run-content deletion requires a concrete `retention plan` followed by explicit application and preserves a tombstone; acquisition/evaluation/backup copies remain outside its scope.
 
 Core and Phase 2–5 command paths are implemented, with bounded synthetic checks recorded under [validation](docs/validation/). Actual executor behavior, Gmail OAuth and reporting quality, service activation and MS1–MS3 milestone acceptance remain pending. No Jira connector or later-phase distribution/development workflow is included.
+
+The [implementation handoff](docs/implementation/STATUS_2026-09-06.md) records the prepared scope, verified evidence and remaining inputs.

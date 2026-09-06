@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,6 +29,7 @@ const (
 	DefaultMaxToolCalls      = 200
 	DefaultMaxEvidenceBytes  = 32 << 20
 	DefaultMaxBackupBytes    = 1 << 30
+	MaxDurationSeconds       = math.MaxInt64 / int64(time.Second)
 )
 
 type Limits struct {
@@ -45,9 +47,10 @@ type Limits struct {
 }
 
 type Executor struct {
-	Kind  string `json:"kind"`
-	Path  string `json:"path"`
-	Model string `json:"model,omitempty"`
+	Kind             string `json:"kind"`
+	Path             string `json:"path"`
+	Model            string `json:"model,omitempty"`
+	LiveMailApproved bool   `json:"live_mail_approved"`
 }
 
 type Config struct {
@@ -147,6 +150,19 @@ func (c Config) Validate() error {
 	l := c.Limits
 	if l.TimeoutSeconds <= 0 || l.LockWaitSeconds <= 0 || l.MaxAttempts <= 0 || l.MaxArtifactBytes <= 0 || l.MaxSourceBytes <= 0 || l.MaxMessages <= 0 || l.RetryDelaySeconds <= 0 || l.PollSeconds <= 0 || l.MaxToolCalls <= 0 || l.MaxEvidenceBytes <= 0 || l.MaxBackupBytes <= 0 {
 		return errors.New("operational limits must be positive")
+	}
+	for _, seconds := range []int{l.TimeoutSeconds, l.LockWaitSeconds, l.RetryDelaySeconds, l.PollSeconds} {
+		if int64(seconds) > MaxDurationSeconds {
+			return errors.New("configured duration exceeds supported range")
+		}
+	}
+	for _, size := range []int64{l.MaxArtifactBytes, l.MaxSourceBytes, l.MaxEvidenceBytes, l.MaxBackupBytes} {
+		if size >= math.MaxInt64 {
+			return errors.New("configured byte budget exceeds supported range")
+		}
+	}
+	if c.Executor.Kind != "" && c.Executor.Kind != "codex" {
+		return errors.New("the current executor adapter supports kind codex")
 	}
 	if c.MailMode != "changes" && c.MailMode != "changes_and_open" {
 		return errors.New("mail_mode must be changes or changes_and_open")

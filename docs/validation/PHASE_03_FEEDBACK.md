@@ -19,3 +19,5 @@ Comparison preserves both runs and all attempts, including failure and interrupt
 - Rejected adoption with that incomparable record, then recorded an explicit validation rejection and verified that the active digest stayed unchanged.
 
 These are implementation walkthroughs. No generated test suite was created. No real AI output, human-approved golden expectations, useful quality improvement, real adoption or rollback has been demonstrated. The technical candidate did not claim an actual semantic improvement. Those remain necessary before MS1 can be declared complete.
+
+Final integration review additionally rejected validation-actor adoption before any active-control mutation. Comparisons now mark unpinned model defaults as a limitation. A synthetic Gmail-origin candidate was admitted independently of its production acquisition, with matching input and semantic request digests. Seeded publication of its experimental result did not advance production source coverage or replace production history. Those publication records were deliberately synthetic checkpoints, not actual AI outcomes.

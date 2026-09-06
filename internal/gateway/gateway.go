@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"chunsu/internal/config"
@@ -84,6 +85,9 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 	found := false
 	for _, art := range artifacts {
 		if art.Kind == "input" && art.Path == j.InputRef {
+			if art.Digest != manifest.InputDigest {
+				return errors.New("gateway input differs from the pinned manifest")
+			}
 			b, e := s.ReadArtifact(art, c.Limits.MaxArtifactBytes)
 			if e != nil {
 				return e
@@ -103,37 +107,60 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 	for _, m := range snapshot.Messages {
 		sources[m.ID] = m
 	}
-	var calls atomic.Int64
-	var evidenceBytes atomic.Int64
+	var mu sync.Mutex
+	var calls, evidenceBytes int64
+	entries, readErr := os.ReadDir(filepath.Join(root, EvidenceDir(jobID, attemptID)))
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		return readErr
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			return errors.New("invalid prior lookup journal entry")
+		}
+		info, e := entry.Info()
+		if e != nil {
+			return e
+		}
+		calls++
+		evidenceBytes += info.Size()
+		if calls > int64(c.Limits.MaxToolCalls) || evidenceBytes > c.Limits.MaxEvidenceBytes {
+			return errors.New("prior lookup journal exceeds the pinned budget")
+		}
+	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "chunsu-mail", Version: "1"}, nil)
 	mcp.AddTool(server, &mcp.Tool{Name: ToolName, Description: "Read one source from this immutable mail snapshot. No live APIs, file paths, or write actions are available."}, func(callCtx context.Context, _ *mcp.CallToolRequest, in Input) (*mcp.CallToolResult, Output, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		out := Output{}
+		if calls >= int64(c.Limits.MaxToolCalls) {
+			return nil, Output{Status: "budget_exhausted"}, errors.New("source lookup budget exhausted")
+		}
+		calls++
+		if int64(len(in.SourceID)) > c.Limits.MaxSourceBytes {
+			return nil, out, errors.New("invalid source ID length")
+		}
 		current, e := s.Job(callCtx, jobID)
 		if e != nil {
 			return nil, out, errors.New("gateway state unavailable")
 		}
 		if current.Status != store.Running || current.CurrentAttempt != attemptID {
-			return nil, Output{Status: "revoked"}, errors.New("attempt access revoked")
+			out = Output{Status: "revoked", Detail: "attempt access revoked"}
 		}
-		if snapshot.Origin != nil {
+		if out.Status == "" && snapshot.Origin != nil {
 			connection, e := gmail.LoadConnection(root, snapshot.Origin.ConnectionID, c)
 			if e != nil || gmail.PolicyDigest(connection.Policy) != snapshot.Origin.PolicyDigest {
-				return nil, Output{Status: "connection_revoked"}, errors.New("connection access was revoked or its scope changed")
+				out = Output{Status: "connection_revoked", Detail: "connection access was revoked or its scope changed"}
 			}
 		}
-		if calls.Add(1) > int64(c.Limits.MaxToolCalls) {
-			return nil, Output{Status: "budget_exhausted"}, errors.New("source lookup budget exhausted")
-		}
-		if m, ok := sources[in.SourceID]; ok {
-			out = Output{Status: "available", Source: &m}
-			if m.ContentStatus == "unavailable" {
-				out.Status = "unavailable"
+		if out.Status == "" {
+			if m, ok := sources[in.SourceID]; ok {
+				out = Output{Status: "available", Source: &m}
+				if m.ContentStatus == "unavailable" {
+					out.Status = "unavailable"
+				}
+			} else {
+				out = Output{Status: "outside_scope", Detail: "source is not in this attempt's snapshot"}
 			}
-		} else {
-			out = Output{Status: "outside_scope", Detail: "source is not in this attempt's snapshot"}
-		}
-		if int64(len(in.SourceID)) > c.Limits.MaxSourceBytes {
-			return nil, out, errors.New("invalid source ID length")
 		}
 		ev := Evidence{Tool: ToolName, SourceID: in.SourceID, At: time.Now().UTC().Format(time.RFC3339Nano), Result: out}
 		b, e := json.Marshal(ev)
@@ -143,15 +170,16 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 		if int64(len(b)) > c.Limits.MaxArtifactBytes {
 			return nil, out, errors.New("lookup evidence exceeds configured limit")
 		}
-		if evidenceBytes.Add(int64(len(b))) > c.Limits.MaxEvidenceBytes {
+		if int64(len(b)) > c.Limits.MaxEvidenceBytes-evidenceBytes {
 			return nil, Output{Status: "budget_exhausted"}, errors.New("lookup evidence byte budget exhausted")
 		}
 		if e = files.Write(root, filepath.Join(EvidenceDir(jobID, attemptID), files.ID()+".json"), b, false); e != nil {
 			return nil, out, fmt.Errorf("cannot preserve lookup evidence: %w", e)
 		}
+		evidenceBytes += int64(len(b))
 		current, e = s.Job(callCtx, jobID)
 		if e != nil || current.Status != store.Running || current.CurrentAttempt != attemptID {
-			return nil, Output{Status: "revoked"}, errors.New("attempt access revoked")
+			return nil, Output{Status: "revoked", Detail: "attempt access revoked"}, nil
 		}
 		return nil, out, nil
 	})

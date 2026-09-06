@@ -206,10 +206,22 @@ func (o *options) configuration() *cobra.Command {
 			c.MailMode = args[1]
 		case "executor.kind":
 			c.Executor.Kind = args[1]
+			c.Executor.LiveMailApproved = false
 		case "executor.path":
 			c.Executor.Path = args[1]
+			c.Executor.LiveMailApproved = false
 		case "executor.model":
 			c.Executor.Model = args[1]
+			c.Executor.LiveMailApproved = false
+		case "executor.live_mail_approved":
+			approved, e := strconv.ParseBool(args[1])
+			if e != nil {
+				return errors.New("live-mail approval must be true or false")
+			}
+			if approved && (c.Executor.Kind == "" || c.Executor.Path == "") {
+				return errors.New("select the executor before approving live-mail disclosure")
+			}
+			c.Executor.LiveMailApproved = approved
 		default:
 			v, e := strconv.Atoi(args[1])
 			if e != nil {

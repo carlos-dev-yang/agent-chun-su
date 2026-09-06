@@ -42,6 +42,13 @@ type Job struct {
 	Request        json.RawMessage `json:"request"`
 }
 
+func (j Job) IsExperiment() bool {
+	var request struct {
+		ExperimentOf string `json:"experiment_of"`
+	}
+	return json.Unmarshal(j.Request, &request) != nil || request.ExperimentOf != ""
+}
+
 type Attempt struct {
 	ID         string `json:"id"`
 	JobID      string `json:"job_id"`

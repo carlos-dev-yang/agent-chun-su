@@ -28,3 +28,9 @@ P2-07 is not started. Actual model output, effective tool inventory, private-ans
 The prototype records process-start intent and process identity. An unidentifiable surviving process group blocks recovery instead of risking a reused PID. Reports are local artifacts; they are never treated as proof that the user read them. Unsupported attachments always remain an explicit acquisition limitation.
 
 The small management channel was added to support cancellation during a manual attempt. Background activation, scheduling and Phase 5 completion remain separate work. No Gmail reads, mail changes or Jira implementation occurred.
+
+## Final integration review checkpoint
+
+The real MCP server was exercised again with synthetic stored attempts. Its inventory contained only `mail_source_get`; a revoked request retained a denial record without source content. Restarting the server preserved the existing lookup budget, and a deliberately mismatched manifest/input digest was rejected. Requests after a full journal budget return an error; they do not create unbounded extra journal entries. These protocol checks still do not establish the real executor's entire tool inventory.
+
+The installed Codex feature registry recognizes the configured feature names. A local override inspection disabled the requested facilities except that `unified_exec` remained reported as enabled; `shell_tool` was false and host skill discovery was skipped. An initial `features list` command rejected exec-specific flags. No model invocation was attempted to resolve tool exposure. This is a remaining boundary question; real Gmail disclosure is disabled by default until a synthetic actual-executor walkthrough and explicit human approval. Version output buffering and preflight time limits were also bounded before collection.

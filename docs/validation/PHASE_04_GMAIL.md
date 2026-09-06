@@ -24,3 +24,13 @@ The same Keychain operation will not be retried until the user confirms the loca
 Successful Keychain storage, live OAuth/account verification, refresh/revocation, provider pagination/retries, actual before/after label observations, the full selected-executor boundary, real mail reports and user usefulness review remain unverified. Live connection handling is blocked on the Keychain/account prerequisites. Saved-mode development, report records and local operations preparation remain independent.
 
 No generated test suite was created. All local records used in these checks were explicitly synthetic and kept out of Git.
+
+## Final integration review checkpoint
+
+- An offline query preview fixed a seven-day window at the declared as-of time, preserved a quoted literal operator, handled a negated year bound, and refused unsupported week syntax. No provider query was sent.
+- Seeded prior local report selection retained an interpretation only inside its source/time envelope and excluded a future report. Generic feedback was not automatically treated as a human correction.
+- Seeded production publication repaired deliberately missing coverage without rerunning an executor. A candidate experiment did not advance production coverage.
+- Report rendering neutralized terminal control characters and escaped literal Markdown/HTML syntax. This was a synthetic presentation checkpoint, not a model-generated report.
+- A declared-live envelope using a disabled-by-default disclosure setting was blocked before executor inspection or invocation. All account/source markers were synthetic. Changing the executor and restoring a backup reset the approval setting.
+
+Code review also separated token-refresh transport/provider failures from authentication repair and bounded large `Retry-After` values. Live HTTP, refresh, calendar-date edge cases and OAuth behavior remain unverified. A prior report is context, not proof that its interpretation was correct; human usefulness and correction policy still require review.

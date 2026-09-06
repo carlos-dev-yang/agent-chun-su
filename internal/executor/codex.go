@@ -2,6 +2,7 @@ package executor
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -30,7 +31,17 @@ type ProcessRecord struct {
 	Identity platform.ProcessIdentity `json:"identity"`
 }
 
-var disabledFeatures = []string{"apps", "plugins", "hooks", "browser_use", "browser_use_external", "browser_use_full_cdp_access", "computer_use", "in_app_browser", "in_app_local_automation", "image_generation", "multi_agent", "remote_plugin", "shell_snapshot", "shell_tool", "skill_mcp_dependency_install", "skill_search", "sleep_tool", "tool_suggest", "unified_exec", "view_image", "workspace_dependencies", "code_mode_host"}
+var disabledFeatures = []string{
+	"apps", "plugins", "plugin_sharing", "recommended_plugins", "hooks",
+	"browser_use", "browser_use_external", "browser_use_full_cdp_access", "computer_use",
+	"in_app_browser", "in_app_local_automation", "in_app_chat", "in_app_dictation", "in_app_updates",
+	"image_generation", "multi_agent", "multi_agent_v2", "remote_plugin", "goals",
+	"memories", "chronicle", "external_agent_memory_import", "enable_mcp_apps",
+	"shell_snapshot", "shell_tool", "skill_mcp_dependency_install", "skill_search",
+	"sleep_tool", "tool_suggest", "unified_exec", "view_image", "workspace_dependencies",
+	"code_mode_host", "code_mode", "code_mode_only", "deferred_executor", "standalone_web_search",
+	"auth_elicitation", "tool_call_mcp_elicitation", "request_permissions_tool", "unbounded_connection_retries",
+}
 
 type Result struct {
 	Final       []byte          `json:"-"`
@@ -62,14 +73,33 @@ func ProfileArgs(directory string) []string {
 func Version(ctx context.Context, path string) (string, error) {
 	cmd := exec.CommandContext(ctx, path, "--version")
 	cmd.Env = MinimalEnv()
-	b, err := cmd.Output()
+	buffer := &limitedBuffer{limit: MaxVersionBytes}
+	cmd.Stdout = buffer
+	err := cmd.Run()
 	if err != nil {
 		return "", errors.New("cannot inspect executor version")
 	}
-	if len(b) > MaxVersionBytes {
+	if buffer.overflow {
 		return "", errors.New("invalid executor version output")
 	}
-	return strings.TrimSpace(string(b)), nil
+	return strings.TrimSpace(buffer.String()), nil
+}
+
+type limitedBuffer struct {
+	bytes.Buffer
+	limit    int
+	overflow bool
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	remaining := b.limit - b.Len()
+	if n > remaining {
+		b.overflow = true
+		p = p[:remaining]
+	}
+	_, _ = b.Buffer.Write(p)
+	return n, nil
 }
 
 func Arguments(binary, root string, p workgroup.Package) []string {
@@ -101,6 +131,9 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	if p.Executor.Kind != "codex" || p.Executor.Path == "" {
 		return result, errors.New("configure the selected Codex executor before running")
 	}
+	if p.Snapshot.Origin != nil && !p.Snapshot.Synthetic && !p.Executor.LiveMailApproved {
+		return result, errors.New("live-mail disclosure is disabled; validate the actual executor boundary with synthetic sources, then explicitly approve this executor configuration")
+	}
 	versionCtx, versionCancel := context.WithTimeout(ctx, time.Duration(p.Limits.LockWaitSeconds)*time.Second)
 	version, err := Version(versionCtx, p.Executor.Path)
 	versionCancel()
@@ -111,7 +144,9 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	if version != TestedVersion {
 		return result, fmt.Errorf("executor version %q needs boundary revalidation; supported version is %s", version, TestedVersion)
 	}
-	login := exec.CommandContext(ctx, p.Executor.Path, "login", "status")
+	loginCtx, loginCancel := context.WithTimeout(ctx, time.Duration(p.Limits.LockWaitSeconds)*time.Second)
+	defer loginCancel()
+	login := exec.CommandContext(loginCtx, p.Executor.Path, "login", "status")
 	login.Env = MinimalEnv()
 	if err = login.Run(); err != nil {
 		result.Outcome = "waiting_auth"

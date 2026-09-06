@@ -131,7 +131,11 @@ func (c Collector) Collect(ctx context.Context, connection Connection, resumeID,
 		if c.ReservedID != "" {
 			a.ID = c.ReservedID
 		}
-		state.EffectiveQuery = "(" + connection.Policy.Query + ") before:" + strconv.FormatInt(asOf.Unix(), 10)
+		var queryErr error
+		state.EffectiveQuery, queryErr = ResolveQuery(connection.Policy.Query, asOf, connection.Policy.Timezone)
+		if queryErr != nil {
+			return a, queryErr
+		}
 		if continueID != "" {
 			parent, previous, err := c.state(ctx, continueID)
 			if err != nil {
@@ -306,6 +310,13 @@ func (c Collector) Collect(ctx context.Context, connection Connection, resumeID,
 	snapshot := mail.Snapshot{Version: mail.Version, AsOf: a.AsOf, Timezone: connection.Policy.Timezone, Collection: mail.Collection{Status: "complete", Errors: append([]string{}, state.Errors...), Scope: fmt.Sprintf("Query: %s; batch limit: %d; thread history: %t within %d days; no separate attachment, image or calendar reads", connection.Policy.Query, connection.Policy.BatchSize, connection.Policy.ThreadHistory, connection.Policy.HistoryDays)}, Messages: []mail.Message{}, PriorInterpretations: []mail.Interpretation{}, Origin: &mail.Origin{Provider: "gmail", ConnectionID: connection.ID, AcquisitionID: a.ID, PolicyDigest: state.PolicyDigest}}
 	for _, source := range state.Sources {
 		snapshot.Messages = append(snapshot.Messages, source.Message)
+	}
+	prior, gaps, historyErr := c.PriorReports(ctx, snapshot)
+	if historyErr != nil {
+		snapshot.Collection.Errors = append(snapshot.Collection.Errors, "local prior report history is unavailable; inspect retained evidence")
+	} else {
+		snapshot.PriorInterpretations = prior
+		snapshot.Collection.Errors = append(snapshot.Collection.Errors, gaps...)
 	}
 	if state.NextPageToken != "" {
 		snapshot.Collection.Errors = append(snapshot.Collection.Errors, "additional mailbox pages remain; continue the acquisition explicitly")

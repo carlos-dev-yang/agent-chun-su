@@ -25,6 +25,8 @@ Collection attempts resume a durable checkpoint and retain provider `not_before`
 
 Use the same `--home` on every command, or set `CHUNSU_HOME` to one private directory. Select and validate an absolute executor path before running work.
 
+Until the binary is on your PATH, use `bin/chunsu` in place of `chunsu` below. See the [README](../../README.md) for the single-binary build/setup sequence. Real Gmail disclosure additionally requires the reviewed `executor.live_mail_approved` setting; a changed executor or restored root must be reviewed again.
+
 ```sh
 chunsu status
 chunsu worker
@@ -88,7 +90,7 @@ chunsu --home NEW_DATA_DIRECTORY status
 
 The backup uses a consistent SQLite `VACUUM INTO` image that includes committed WAL contents, plus declared files and SHA-256 hashes. It excludes Keychain values, sockets, locks, transient staging files, service registration and recursive backup directories. Treat backup contents as private mail/work data. A failed creation has no completed manifest and must not be called a successful backup.
 
-Restore requires a separate new data root, verifies references, disables connections and all schedules, pauses admission, and changes pending jobs to require review. It creates fresh unused secret references, so reconnecting a restored copy cannot delete the original root's Keychain references. Reconnect accounts and review work before explicitly unpausing or enabling a schedule. No launchd registration is restored. Unsupported schema versions fail without resetting data.
+Restore requires a separate new data root, verifies references, disables connections and all schedules, resets live-mail disclosure approval, pauses admission, and changes pending jobs to require review. It creates fresh unused secret references, so reconnecting a restored copy cannot delete the original root's Keychain references. Reconnect accounts and review work before explicitly unpausing or enabling a schedule. No launchd registration is restored. Unsupported schema versions fail without resetting data.
 
 Retention is an explicit, reviewable logical deletion:
 

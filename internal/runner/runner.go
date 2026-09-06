@@ -126,6 +126,10 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	}
 	a, err := r.Store.StartAttempt(ctx, jobID, r.Config.Executor.Kind, r.Config.Limits.MaxAttempts)
 	if err != nil {
+		if errors.Is(err, store.ErrAttemptBudget) {
+			out.Status = store.WaitingInput
+			out.Diagnostic = err.Error()
+		}
 		return out, err
 	}
 	out.AttemptID = a.ID
@@ -227,7 +231,7 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	}
 	art, err := r.Store.SaveArtifact(finishCtx, jobID, a.ID, "report_markdown", mail.Render(report, validation, p.Snapshot.Synthetic), r.Config.Limits.MaxArtifactBytes)
 	if err != nil {
-		e := finish(store.WaitingInput, "local report publication failed; use publish to retry presentation", false)
+		e := finish(store.WaitingInput, store.PublicationRequired, false)
 		return out, errors.Join(err, e)
 	}
 	out.ReportPath = filepath.Join(r.Store.Root, art.Path)
@@ -237,7 +241,7 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	if err = finish(validation.OperationalStatus, "", false); err != nil {
 		return out, err
 	}
-	if p.Snapshot.Origin != nil && (out.Status == store.Completed || out.Status == store.Partial) {
+	if p.Snapshot.Origin != nil && !j.IsExperiment() && (out.Status == store.Completed || out.Status == store.Partial) {
 		if err = r.Store.RecordCoverage(finishCtx, p.Snapshot.Origin.ConnectionID, jobID, gmail.CoverageForReport(p.Snapshot, report)); err != nil {
 			_ = r.Store.AddEvent(finishCtx, jobID, a.ID, "coverage.pending", map[string]string{"reason": "source coverage update failed after report publication"})
 			return out, err

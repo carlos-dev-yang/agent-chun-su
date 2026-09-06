@@ -32,3 +32,9 @@ Checks actually run on synthetic data in a separate short temporary data root:
 - Built the CLI and ran focused vet on the changed operations and directly related packages.
 
 Not run: actual scheduled Gmail retrieval, provider retry timing, full executor cancellation, launchd start/stop/remove, real sleep/wake or DST transitions, process/power interruption during physical deletion, secure erasure, and long-duration resource/reliability measurements. UTC interval arithmetic and a missed due timestamp are not a real sleep/wake test. The [runbook](../setup/LOCAL_OPERATIONS.md) is an implementation policy draft, not the user's approval to activate background work.
+
+## Final integration review checkpoint — P5-02/P5-03/P5-09
+
+A seeded job with an exhausted attempt budget moved from queued to waiting_input without launching an executor; it no longer stops the worker as an unclassified queue error. A deliberately mismatched process-start identity refused recovery and left an unrelated self-created process group alive. Compatible schema-3-shaped synthetic data upgraded to schema 4 without losing jobs. Restore reset the newly added live-mail disclosure approval as well as other active controls.
+
+One paused foreground-core sample reported RSS 23,168 KiB and CPU 0.8% about 0.4 seconds after startup. No executor was running. This is one short observation, not a peak-memory figure, steady-state CPU measurement or long-duration benchmark. The native core built with CGO disabled, and whole-module vet passed for this cross-cutting implementation. No new test files were created.

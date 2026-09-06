@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 )
 
 func (s *Store) CompletePublication(ctx context.Context, job, attempt, status, artifact string) error {
@@ -20,7 +19,7 @@ func (s *Store) CompletePublication(ctx context.Context, job, attempt, status, a
 	if err != nil {
 		return err
 	}
-	if j.CurrentAttempt != attempt || j.Status != WaitingInput || !(strings.HasPrefix(j.Diagnostic, "local report publication failed") || j.Diagnostic == "interrupted attempt requires recovery review") {
+	if j.CurrentAttempt != attempt || j.Status != WaitingInput || !(j.Diagnostic == PublicationRequired || j.Diagnostic == RecoveryRequired) {
 		return errors.New("job is not waiting for publication recovery")
 	}
 	if _, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=?,diagnostic='' WHERE id=?", status, now(), job); err != nil {

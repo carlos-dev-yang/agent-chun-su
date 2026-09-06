@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"strings"
+	"unicode"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -176,9 +178,16 @@ func CompileSchema(data []byte) (*jsonschema.Schema, error) {
 func Render(r Report, v Validation, synthetic bool) []byte {
 	var b strings.Builder
 	text := func(s string) string {
-		s = strings.ReplaceAll(s, "<", "&lt;")
-		s = strings.ReplaceAll(s, ">", "&gt;")
-		return strings.NewReplacer("[", "\\[", "]", "\\]", "*", "\\*", "`", "\\`", "#", "\\#").Replace(s)
+		var safe strings.Builder
+		for _, r := range s {
+			if unicode.IsControl(r) && r != '\n' && r != '\t' {
+				fmt.Fprintf(&safe, "\\u%04x", r)
+			} else {
+				safe.WriteRune(r)
+			}
+		}
+		s = html.EscapeString(safe.String())
+		return strings.NewReplacer("\\", "\\\\", "!", "\\!", "[", "\\[", "]", "\\]", "*", "\\*", "`", "\\`", "#", "\\#").Replace(s)
 	}
 	fmt.Fprintf(&b, "# Mail review\n\nAs of: %s (%s)  \nOperational status: %s  \nSemantic evaluation: %s\n", text(r.AsOf), text(r.Timezone), v.OperationalStatus, v.SemanticEvaluation)
 	if synthetic {

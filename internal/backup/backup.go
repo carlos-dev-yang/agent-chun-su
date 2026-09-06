@@ -232,6 +232,10 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 	if err != nil {
 		return destination, err
 	}
+	c.Executor.LiveMailApproved = false
+	if err = config.Save(destination, c); err != nil {
+		return destination, err
+	}
 	s, err := store.Open(ctx, destination, c, false)
 	if err != nil {
 		return destination, err

@@ -10,21 +10,24 @@ import (
 )
 
 const (
-	Queued           = "queued"
-	Running          = "running"
-	RetryWait        = "retry_wait"
-	WaitingInput     = "waiting_input"
-	WaitingAuth      = "waiting_auth"
-	Completed        = "completed"
-	Partial          = "partial"
-	Failed           = "failed"
-	Cancelled        = "cancelled"
-	Interrupted      = "interrupted"
-	Purged           = "purged"
-	Retiring         = "retiring"
-	ContentAvailable = "available"
-	RecoveryRequired = "interrupted attempt requires recovery review"
+	Queued              = "queued"
+	Running             = "running"
+	RetryWait           = "retry_wait"
+	WaitingInput        = "waiting_input"
+	WaitingAuth         = "waiting_auth"
+	Completed           = "completed"
+	Partial             = "partial"
+	Failed              = "failed"
+	Cancelled           = "cancelled"
+	Interrupted         = "interrupted"
+	Purged              = "purged"
+	Retiring            = "retiring"
+	ContentAvailable    = "available"
+	RecoveryRequired    = "interrupted attempt requires recovery review"
+	PublicationRequired = "local report publication failed; use publish to retry presentation"
 )
+
+var ErrAttemptBudget = errors.New("attempt budget exhausted; review the limit or submit a separate experiment")
 
 func (s *Store) StartAttempt(ctx context.Context, jobID, executor string, maxAttempts int) (Attempt, error) {
 	var a Attempt
@@ -48,7 +51,16 @@ func (s *Store) StartAttempt(ctx context.Context, jobID, executor string, maxAtt
 		return a, err
 	}
 	if count >= maxAttempts {
-		return a, errors.New("attempt budget exhausted; submit a separate experiment for changed inputs or controls")
+		if _, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=?,diagnostic=? WHERE id=?", WaitingInput, now(), ErrAttemptBudget.Error(), jobID); err != nil {
+			return a, err
+		}
+		if _, err = tx.ExecContext(ctx, "INSERT INTO events(job_id,attempt_id,kind,created_at,data_json) VALUES(?,?,?,?,?)", jobID, j.CurrentAttempt, "job.budget_exhausted", now(), `{}`); err != nil {
+			return a, err
+		}
+		if err = tx.Commit(); err != nil {
+			return a, err
+		}
+		return a, ErrAttemptBudget
 	}
 	a = Attempt{ID: files.ID(), JobID: jobID, Ordinal: count + 1, Status: Running, StartedAt: now(), Executor: executor}
 	_, err = tx.ExecContext(ctx, "INSERT INTO attempts(id,job_id,ordinal,status,started_at,executor) VALUES(?,?,?,?,?,?)", a.ID, jobID, a.Ordinal, a.Status, a.StartedAt, executor)

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
@@ -74,6 +75,12 @@ type Connection struct {
 func (p Policy) Validate(c config.Config) error {
 	if !mailmodel.Nonempty(p.Query) || p.BatchSize <= 0 || p.BatchSize > c.Limits.MaxMessages || p.BatchSize > ProviderMaxPage || p.HistoryDays <= 0 || p.Retention != "manual" {
 		return errors.New("choose a nonempty query, bounded batch size, positive history window and manual retention")
+	}
+	if int64(len(p.Query)) > c.Limits.MaxSourceBytes {
+		return errors.New("Gmail query exceeds source byte limit")
+	}
+	if _, err := ResolveQuery(p.Query, time.Now(), p.Timezone); err != nil {
+		return err
 	}
 	cfg := c
 	cfg.Timezone = p.Timezone

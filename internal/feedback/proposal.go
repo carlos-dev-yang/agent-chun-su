@@ -77,6 +77,9 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	if !mail.Nonempty(actor) || !mail.Nonempty(reason) || (actorKind != "human" && actorKind != "validation") {
 		return store.Record{}, errors.New("an explicit human or isolated validation decision needs an actor and reason")
 	}
+	if (action == "adopt" || action == "rollback") && actorKind != "human" {
+		return store.Record{}, errors.New("only an explicit human decision may change active controls")
+	}
 	var p Proposal
 	if err := s.load(ctx, id, "proposal", &p); err != nil {
 		return store.Record{}, err

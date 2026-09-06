@@ -24,6 +24,7 @@ import (
 func (o *options) gmail() *cobra.Command {
 	cmd := &cobra.Command{Use: "gmail", Short: "Connect one scoped Gmail account and collect read-only mail snapshots"}
 	cmd.AddCommand(o.gmailConnect(false), o.gmailConnect(true), o.gmailCollect(false), o.gmailCollect(true))
+	cmd.AddCommand(o.gmailQuery(), o.gmailHistory())
 	cmd.AddCommand(&cobra.Command{Use: "keychain-check", Short: "Write, verify and delete a random non-production Keychain marker", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		k, err := secrets.Open()
 		if err != nil {

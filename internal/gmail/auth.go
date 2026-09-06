@@ -196,6 +196,20 @@ func (s *persistTokenSource) Token() (*oauth2.Token, error) {
 	defer s.mu.Unlock()
 	token, err := s.inner.Token()
 	if err != nil {
+		if s.ctx.Err() != nil {
+			return nil, s.ctx.Err()
+		}
+		var retrieve *oauth2.RetrieveError
+		if errors.As(err, &retrieve) {
+			if retrieve.Response != nil && (retrieve.Response.StatusCode == http.StatusTooManyRequests || retrieve.Response.StatusCode >= http.StatusInternalServerError) {
+				return nil, &APIError{Kind: "transient_provider", Status: retrieve.Response.StatusCode, RetryAfterSeconds: int64(retryDelay(retrieve.Response.Header.Get("Retry-After"), 0) / time.Second)}
+			}
+		} else {
+			var transport *url.Error
+			if errors.As(err, &transport) {
+				return nil, &APIError{Kind: "transient_network", RetryAfterSeconds: int64(retryBase / time.Second)}
+			}
+		}
 		return nil, &APIError{Kind: "waiting_auth"}
 	}
 	if token.RefreshToken != "" && token.RefreshToken != s.previous {
@@ -220,11 +234,17 @@ func OpenClient(ctx context.Context, connection Connection, c config.Config) (*C
 	}
 	clientSecret, err := k.Get(ctx, connection.ClientSecretRef)
 	if err != nil {
-		return nil, err
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, &APIError{Kind: "waiting_auth"}
 	}
 	refresh, err := k.Get(ctx, connection.RefreshRef)
 	if err != nil {
-		return nil, err
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, &APIError{Kind: "waiting_auth"}
 	}
 	httpCtx := context.WithValue(ctx, oauth2.HTTPClient, plainHTTP())
 	flow := oauthConfig(connection, clientSecret, "")

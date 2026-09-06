@@ -87,7 +87,7 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 	if err = json.Unmarshal(j.Request, &request); err != nil {
 		return p, err
 	}
-	for _, key := range []string{"origin", "source_name", "admission", "experiment_of", "candidate_digest"} {
+	for _, key := range []string{"origin", "source_name", "admission", "experiment_of", "candidate_digest", "connection_id", "acquisition_id", "source_acquisition_id"} {
 		delete(request, key)
 	}
 	requestData, err := json.Marshal(request)

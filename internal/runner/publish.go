@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
-	"strings"
 
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
@@ -24,7 +23,7 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	}
 	out.AttemptID = j.CurrentAttempt
 	out.Status = j.Status
-	if j.Status == store.Running || j.Status == store.Cancelled {
+	if j.Status == store.Running || j.Status == store.Cancelled || j.Status == store.Retiring || j.Status == store.Purged {
 		return out, errors.New("this job is not eligible for publication")
 	}
 	artifacts, err := r.Store.Artifacts(ctx, jobID)
@@ -74,11 +73,12 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 			}
 		}
 	}
-	publicationWait := j.Status == store.WaitingInput && (strings.HasPrefix(j.Diagnostic, "local report publication failed") || j.Diagnostic == "interrupted attempt requires recovery review")
-	if out.ReportPath != "" && !publicationWait {
+	publicationWait := j.Status == store.WaitingInput && (j.Diagnostic == store.PublicationRequired || j.Diagnostic == store.RecoveryRequired)
+	existingPublication := out.ReportPath != "" && (j.Status == store.Completed || j.Status == store.Partial)
+	if out.ReportPath != "" && !publicationWait && !existingPublication {
 		return out, nil
 	}
-	if !publicationWait {
+	if !publicationWait && !existingPublication {
 		return out, errors.New("job does not have a recoverable presentation checkpoint")
 	}
 	if generated.Outcome != "generated" || generated.ExitCode != 0 {
@@ -126,12 +126,14 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 			return out, err
 		}
 	}
-	if err = r.Store.CompletePublication(ctx, j.ID, j.CurrentAttempt, validation.OperationalStatus, art.ID); err != nil {
-		return out, err
+	if publicationWait {
+		if err = r.Store.CompletePublication(ctx, j.ID, j.CurrentAttempt, validation.OperationalStatus, art.ID); err != nil {
+			return out, err
+		}
 	}
 	out.Status = validation.OperationalStatus
 	out.ReportPath = filepath.Join(r.Store.Root, art.Path)
-	if snapshot.Origin != nil && (out.Status == store.Completed || out.Status == store.Partial) {
+	if snapshot.Origin != nil && !j.IsExperiment() && (out.Status == store.Completed || out.Status == store.Partial) {
 		err = r.Store.RecordCoverage(ctx, snapshot.Origin.ConnectionID, j.ID, gmail.CoverageForReport(snapshot, report))
 	}
 	return out, err

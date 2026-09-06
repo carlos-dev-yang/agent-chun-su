@@ -83,7 +83,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-09 — Demonstrate repeated operation and close MS3
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-03, P5-06, P5-07, P5-08.
 - **Work:** Run bounded restart, cancellation, authentication-loss, provider-failure, missed-schedule, and restore walkthroughs. Measure core resource use separately from the executor and record actual user intervention.
 - **Deliverable:** The MS3 operations evidence note and unresolved limitations.
