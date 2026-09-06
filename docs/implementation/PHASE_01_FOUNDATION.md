@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Foundation implemented; executor lifecycle and interruption evidence continue in Phase 2  
 **Goal:** Create the smallest runnable program that can preserve requests, attempts, artifacts, and failures for the upcoming mail feedback loop.
 
 **Entry conditions:** P0-08 is complete for foundation decisions. No live account or selected model is required.
@@ -19,7 +19,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-01 — Create the Go module and CLI shell
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P0-08.
 - **Work:** Create the selected module and a narrow entry point with version/help and clear error output. Add source/runtime ignore rules and build instructions. Keep module and release metadata configurable.
 - **Deliverable:** `go.mod`, dependency lock information, `cmd/chunsu/`, minimal CLI code, and a repository README.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-02 — Implement local paths and idempotent setup
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P1-01; foundation portion of D04.
 - **Work:** Resolve OS user paths plus an explicit override. Create non-secret configuration and runtime directories without replacing existing controls or records. Use an explicit temporary data root for validation.
 - **Deliverable:** Path/configuration handling and a first `setup` command; command spelling follows the reviewed CLI contract.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-03 — Open SQLite and initialize its versioned schema
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P1-02; reviewed storage contract from P0-07.
 - **Work:** Implement embedded DB access and the minimum schema for jobs, attempts, events, and artifact references. Configure foreign keys, durability, local WAL use, and named lock-wait limits. Avoid holding transactions during external work.
 - **Deliverable:** The SQLite store and initial migration with schema-version checks.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-04 — Persist minimal lifecycle transitions
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P1-03.
 - **Work:** Record request admission and attempt start/finish/cancel/wait facts atomically where required. Preserve request and attempt identities, initial failures, and retry ancestry. Use one controller owner for this stage.
 - **Deliverable:** The minimal lifecycle service and event records.
@@ -51,7 +51,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-05 — Store and collect artifacts safely
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P1-03; foundation artifact contract accepted in P0-08.
 - **Work:** Write through controller-owned staging, finalize an artifact, then record its reference. Constrain accepted paths, symlinks, sizes, and filenames with named policy. Preserve provenance and content identity.
 - **Deliverable:** Artifact storage and collection helpers, without a general object-storage abstraction.
@@ -59,7 +59,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-06 — Expose inspection and mode-aware diagnostics
 
-- **Status:** not_started
+- **Status:** complete
 - **Depends on:** P1-04, P1-05.
 - **Work:** Add narrow job/status/log/artifact inspection and `doctor` output. Separate human-readable output from machine-readable output under a reviewed option. Avoid logging content or secrets by default.
 - **Deliverable:** Inspection commands and diagnostics.
@@ -67,7 +67,7 @@ the work-unit and validation rules in the master plan.
 
 ### P1-07 — Demonstrate the foundation checkpoint
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P1-06.
 - **Work:** Build and format the affected code, perform a local setup/persist/reopen/interruption walkthrough in a temporary data root, and run relevant existing checks if present. Record unimplemented capabilities honestly.
 - **Deliverable:** A Phase 1 completion note under `docs/validation/`.
@@ -78,3 +78,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Current evidence: [Foundation checkpoint](../validation/PHASE_01_FOUNDATION.md).
