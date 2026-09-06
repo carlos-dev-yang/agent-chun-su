@@ -27,3 +27,6 @@ config.local.json
 /bin/
 /dist/
 .DS_Store
+
+client_secret_*.json
+client-secret-*.json
