@@ -128,7 +128,8 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 		}
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "chunsu-mail", Version: "1"}, nil)
-	mcp.AddTool(server, &mcp.Tool{Name: ToolName, Description: "Read one source from this immutable mail snapshot. No live APIs, file paths, or write actions are available."}, func(callCtx context.Context, _ *mcp.CallToolRequest, in Input) (*mcp.CallToolResult, Output, error) {
+	closedWorld, destructive := false, false
+	mcp.AddTool(server, &mcp.Tool{Name: ToolName, Description: "Read one source from this immutable mail snapshot. No live APIs, file paths, or write actions are available.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: &destructive, OpenWorldHint: &closedWorld}}, func(callCtx context.Context, _ *mcp.CallToolRequest, in Input) (*mcp.CallToolResult, Output, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		out := Output{}

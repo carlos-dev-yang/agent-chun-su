@@ -11,17 +11,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"chunsu/internal/files"
+	"chunsu/internal/mail"
 	"chunsu/internal/platform"
 	"chunsu/internal/workgroup"
 )
 
 const TestedVersion = "codex-cli 0.153.4"
+const TestedModel = "gpt-5.5"
 const Profile = "chunsu_mail"
 const ProcessFile = "process.json"
 const MaxVersionBytes = 4096
@@ -44,14 +47,16 @@ var disabledFeatures = []string{
 }
 
 type Result struct {
-	Final       []byte          `json:"-"`
-	ExitCode    int             `json:"exit_code"`
-	DurationMS  int64           `json:"duration_ms"`
-	ThreadID    string          `json:"thread_id,omitempty"`
-	Usage       json.RawMessage `json:"usage,omitempty"`
-	StderrBytes int64           `json:"stderr_bytes"`
-	Outcome     string          `json:"outcome"`
-	Version     string          `json:"version"`
+	Final         []byte          `json:"-"`
+	ExitCode      int             `json:"exit_code"`
+	DurationMS    int64           `json:"duration_ms"`
+	ThreadID      string          `json:"thread_id,omitempty"`
+	Usage         json.RawMessage `json:"usage,omitempty"`
+	StderrBytes   int64           `json:"stderr_bytes"`
+	Outcome       string          `json:"outcome"`
+	Version       string          `json:"version"`
+	FailureCode   string          `json:"failure_code,omitempty"`
+	ObservedTools []string        `json:"observed_tools,omitempty"`
 }
 
 func MinimalEnv() []string {
@@ -68,6 +73,35 @@ func MinimalEnv() []string {
 func ProfileArgs(directory string) []string {
 	fs := fmt.Sprintf("{ %s = %s, %s = %s }", strconv.Quote(":minimal"), strconv.Quote("read"), strconv.Quote(directory), strconv.Quote("read"))
 	return []string{"-c", "default_permissions=" + strconv.Quote(Profile), "-c", "permissions." + Profile + ".filesystem=" + fs, "-c", "permissions." + Profile + ".network.enabled=false"}
+}
+
+// macOS permits writes in system temporary directories even under the tested
+// read-only custom profile. Keep host controls and execution packages outside
+// those exceptions; resolve symlinks before deciding whether a root is supported.
+func CheckDataRoot(root string) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return errors.New("cannot resolve the executor data root")
+	}
+	resolved, err = filepath.Abs(resolved)
+	if err != nil {
+		return err
+	}
+	const systemTemporaryDirectory = "/tmp"
+	for _, temporary := range []string{os.TempDir(), systemTemporaryDirectory} {
+		canonical, err := filepath.EvalSymlinks(temporary)
+		if err != nil {
+			return errors.New("cannot verify the macOS temporary-directory boundary")
+		}
+		relative, err := filepath.Rel(canonical, resolved)
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return errors.New("executor data root is inside a macOS temporary-directory write exception; use a private data directory outside system temporary storage")
+		}
+	}
+	return nil
 }
 
 func Version(ctx context.Context, path string) (string, error) {
@@ -103,7 +137,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 }
 
 func Arguments(binary, root string, p workgroup.Package) []string {
-	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", p.Directory, "--output-schema", filepath.Join(p.Directory, "report.schema.json")}
+	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", p.Directory, "--output-schema", filepath.Join(p.Directory, mail.ExecutorSchemaName)}
 	args = append(args, ProfileArgs(p.Directory)...)
 	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "--enable", "skip_host_skill_discovery")
 	for _, f := range disabledFeatures {
@@ -116,6 +150,9 @@ func Arguments(binary, root string, p workgroup.Package) []string {
 	}
 	server := fmt.Sprintf("{ command = %s, args = [%s], enabled = true, required = true, enabled_tools = [%s] }", strconv.Quote(binary), strings.Join(quoted, ","), strconv.Quote("mail_source_get"))
 	args = append(args, "-c", "mcp_servers={ chunsu_mail = "+server+" }")
+	// The human-authorized snapshot is the whole read scope. No per-message
+	// approval is needed; the gateway enforces exact IDs and revocation itself.
+	args = append(args, "-c", `mcp_servers.chunsu_mail.tools.mail_source_get.approval_mode="approve"`)
 	if p.Executor.Model != "" {
 		args = append(args, "--model", p.Executor.Model)
 	}
@@ -130,6 +167,12 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	result := Result{ExitCode: -1, Outcome: "not_started"}
 	if p.Executor.Kind != "codex" || p.Executor.Path == "" {
 		return result, errors.New("configure the selected Codex executor before running")
+	}
+	if err := CheckDataRoot(root); err != nil {
+		return result, err
+	}
+	if p.Executor.Model != TestedModel {
+		return result, fmt.Errorf("executor model %q needs boundary revalidation; select the verified direct-tool model %s", p.Executor.Model, TestedModel)
 	}
 	if p.Snapshot.Origin != nil && !p.Snapshot.Synthetic && !p.Executor.LiveMailApproved {
 		return result, errors.New("live-mail disclosure is disabled; validate the actual executor boundary with synthetic sources, then explicitly approve this executor configuration")
@@ -225,9 +268,15 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			Type     string          `json:"type"`
 			ThreadID string          `json:"thread_id"`
 			Usage    json.RawMessage `json:"usage"`
-			Item     struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
+			Message  string          `json:"message"`
+			Error    struct {
+				Message string `json:"message"`
+			} `json:"error"`
+			Item struct {
+				Type   string `json:"type"`
+				Text   string `json:"text"`
+				Server string `json:"server"`
+				Tool   string `json:"tool"`
 			} `json:"item"`
 		}
 		if e := json.Unmarshal(line, &event); e != nil {
@@ -235,6 +284,20 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			break
 		}
 		switch event.Type {
+		case "error", "turn.failed":
+			for _, message := range []string{event.Message, event.Error.Message} {
+				var failure struct {
+					Error struct {
+						Code string `json:"code"`
+					} `json:"error"`
+				}
+				if json.Unmarshal([]byte(message), &failure) == nil {
+					switch failure.Error.Code {
+					case "invalid_json_schema", "rate_limit_exceeded", "insufficient_quota", "model_not_found", "context_length_exceeded", "invalid_api_key":
+						result.FailureCode = failure.Error.Code
+					}
+				}
+			}
 		case "thread.started":
 			result.ThreadID = event.ThreadID
 		case "turn.completed":
@@ -242,6 +305,21 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 		case "item.completed":
 			if event.Item.Type == "agent_message" {
 				result.Final = []byte(event.Item.Text)
+			}
+			tool := ""
+			switch event.Item.Type {
+			case "mcp_tool_call":
+				// Record capability names only, never their arguments or result payloads.
+				if event.Item.Server == "chunsu_mail" && event.Item.Tool == "mail_source_get" {
+					tool = "chunsu_mail.mail_source_get"
+				} else {
+					tool = "unexpected_mcp_tool"
+				}
+			case "command_execution", "file_change", "web_search":
+				tool = event.Item.Type
+			}
+			if tool != "" && !mail.Contains(result.ObservedTools, tool) {
+				result.ObservedTools = append(result.ObservedTools, tool)
 			}
 		}
 		// Reasoning and tool item payloads are deliberately not persisted.
@@ -279,6 +357,9 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	}
 	if err != nil {
 		result.Outcome = "failed"
+		if result.FailureCode != "" {
+			return result, fmt.Errorf("executor failed: %s (exit %d); raw diagnostic content was not retained", result.FailureCode, result.ExitCode)
+		}
 		return result, fmt.Errorf("executor exited with code %d; raw diagnostic content was not retained", result.ExitCode)
 	}
 	if len(result.Final) == 0 {
