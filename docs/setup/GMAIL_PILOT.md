@@ -11,6 +11,21 @@ Status: connector prepared; the pilot account and a local Desktop app client fil
 
 Google requires an enabled Gmail API and an OAuth client for the installed-app flow. If a client is not already available, create a project/client in Google Cloud, configure the consent audience and permitted test account, and download a Desktop app client file. The initial account consent uses the system browser; subsequent operation uses the terminal. See [Google's installed-app authorization guide](https://developers.google.com/identity/protocols/oauth2/native-app) and [Gmail Go setup prerequisites](https://developers.google.com/workspace/gmail/api/quickstart/go).
 
+## Keychain authentication failure before sign-in
+
+If the storage preflight reports `errSecAuthFailed (-25293)`, Google sign-in has not started. An unlocked Keychain status alone does not verify that a credential can be stored. The current pilot reproduced this failure both through Chun-su and through Apple's native Keychain API; the underlying macOS cause is still unresolved.
+
+After confirming that the default Keychain is the intended login Keychain, the user can reauthenticate it in their own Terminal. Run these commands one at a time; proceed to unlock only if the lock command succeeds:
+
+```sh
+security lock-keychain
+security unlock-keychain
+```
+
+This temporarily locks the default Keychain; other applications may need it unlocked again. Enter its password only at the local password prompt. The command uses an interactive password prompt when `-p` is omitted, as shown in [Apple's unlock implementation](https://github.com/apple-oss-distributions/SecurityTool/blob/main/keychain_unlock.c). This is a diagnostic reauthentication step, not a verified repair for every cause of `-25293`.
+
+After a successful unlock, run `bin/chunsu gmail keychain-check` from the checkout once. A successful result reports `keychain: verified` and `deleted: true`. Only then retry the connection command. If unlock or marker storage fails, retain the new error and stop repeating the same attempt; do not reset/delete the Keychain or paste its password into chat. The preflight has no plaintext fallback.
+
 ## Concrete connection behavior
 
 The connector opens a temporary loopback callback, generates state and PKCE values, requests only `gmail.readonly`, checks the returned scope and the authenticated account, then stores the refresh token and desktop client secret in separate macOS Keychain entries. Access tokens remain in memory. General configuration stores opaque secret references. An unsupported or unavailable Keychain has no plaintext fallback.

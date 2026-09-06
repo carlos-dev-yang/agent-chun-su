@@ -30,8 +30,16 @@ After the initial repeated failure, retries were paused and the user was asked a
 
 - The user reported no login/Keychain state change and explicitly requested another authentication attempt. The CLI's random-marker `gmail keychain-check` exited 1 with `macOS Keychain is unavailable or locked; no plaintext fallback is used`. The probe did not reach successful storage verification, and no Google OAuth flow or mail read was started.
 - The latest connector error is generic. The native authentication code recorded for the earlier checks cannot be assumed to be newly reproduced by this output. An unlocked status alone does not identify or resolve the storage failure.
-- A comparison in the foreground Terminal app was attempted, but the computer-use tool denied control of Terminal for safety reasons before a command was entered. This tool restriction does not explain the separate Keychain failure. A direct user-run connection command can compare the execution context; that comparison has not run.
+- A comparison in the foreground Terminal app was attempted, but the computer-use tool denied control of Terminal for safety reasons before a command was entered. This tool restriction does not explain the separate Keychain failure. The user subsequently reported the same generic error after running the connection command themselves.
 - No authentication settings, Keychain access rules or plaintext-storage fallback were changed. Further diagnosis needs evidence beyond another identical automated probe.
+
+## Native failure diagnosis and error reporting
+
+- Replaced the generic unavailable/locked error with the failed operation, native exit status and an allowlisted macOS error name/code. Only exact known diagnostic messages with matching exit status are classified; raw native output is withheld because interactive mode can echo secret-bearing input. Missing items are distinguished from missing Keychains. Cancellation and diagnostic-marker cleanup failures remain visible.
+- Connection errors now identify whether credential storage failed before Google sign-in or while saving the returned credentials. The preflight still runs before opening the browser.
+- The rebuilt CLI's random-marker check reported `Keychain store failed`, `security exit 51`, and `errSecAuthFailed (-25293)`. A separate direct `SecKeychainAddGenericPassword` call, using only a random non-production marker, also returned `-25293` before a successful write. This reproduces the failure without the command-line bridge. It does not establish the underlying macOS cause or prove that the user supplied an incorrect password.
+- Formatting, a native CGO-disabled CLI build and focused vet of `internal/secrets`, `internal/gmail` and `internal/cli` passed. Only the native authentication-failure path and missing-marker cleanup were exercised; successful storage and other native error cases remain unverified. No generated test code was added.
+- The next diagnostic step is a user-side reauthentication of the default login Keychain, followed by one marker check after that state change. No Keychain reset, access-rule change, credential-backend change, Google OAuth request or mail read was performed.
 
 ## Not run / remaining evidence
 

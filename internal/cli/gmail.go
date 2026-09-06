@@ -25,7 +25,7 @@ func (o *options) gmail() *cobra.Command {
 	cmd := &cobra.Command{Use: "gmail", Short: "Connect one scoped Gmail account and collect read-only mail snapshots"}
 	cmd.AddCommand(o.gmailConnect(false), o.gmailConnect(true), o.gmailCollect(false), o.gmailCollect(true))
 	cmd.AddCommand(o.gmailQuery(), o.gmailHistory())
-	cmd.AddCommand(&cobra.Command{Use: "keychain-check", Short: "Write, verify and delete a random non-production Keychain marker", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	cmd.AddCommand(&cobra.Command{Use: "keychain-check", Short: "Write, verify and delete a random non-production Keychain marker", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) (result error) {
 		k, err := secrets.Open()
 		if err != nil {
 			return err
@@ -34,10 +34,16 @@ func (o *options) gmail() *cobra.Command {
 		defer cancel()
 		ref := files.ID()
 		marker := files.ID()
+		cleanupNeeded := true
 		defer func() {
+			if !cleanupNeeded {
+				return
+			}
 			cleanup, done := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(gmail.DefaultHTTPTimeoutSeconds)*time.Second)
 			defer done()
-			_ = k.Delete(cleanup, ref)
+			if err := k.Delete(cleanup, ref); err != nil {
+				result = errors.Join(result, fmt.Errorf("remove non-production Keychain marker: %w", err))
+			}
 		}()
 		if err = k.Set(ctx, ref, marker); err != nil {
 			return err
@@ -45,8 +51,9 @@ func (o *options) gmail() *cobra.Command {
 		if err = k.Delete(ctx, ref); err != nil {
 			return err
 		}
-		if _, err = k.Get(ctx, ref); !errors.Is(err, secrets.ErrMissing) {
-			return errors.New("Keychain marker deletion could not be verified")
+		cleanupNeeded = false
+		if _, err = k.Get(ctx, ref); !errors.Is(err, secrets.ErrMissing) || ctx.Err() != nil {
+			return errors.Join(errors.New("Keychain marker deletion could not be verified"), err, ctx.Err())
 		}
 		return output(cmd, map[string]any{"keychain": "verified", "material": "random non-production marker", "deleted": true})
 	}})

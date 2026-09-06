@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -66,7 +67,7 @@ func Connect(parent context.Context, root string, c config.Config, clientData []
 	cleanupErr := deleteReferences(parent, k, markerRef)
 	finishPreflight()
 	if err != nil || cleanupErr != nil {
-		return connection, errors.Join(err, cleanupErr)
+		return connection, fmt.Errorf("Gmail credential storage preflight failed before Google sign-in: %w", errors.Join(err, cleanupErr))
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(DefaultAuthTimeoutSeconds)*time.Second)
 	defer cancel()
@@ -160,11 +161,11 @@ func Connect(parent context.Context, root string, c config.Config, clientData []
 		return Connection{}, errors.New("this desktop client file has no client secret; the current connector requires the downloaded Desktop app credentials")
 	}
 	if err = k.Set(ctx, connection.ClientSecretRef, clientSecret); err != nil {
-		return Connection{}, err
+		return Connection{}, fmt.Errorf("save Gmail OAuth client credential: %w", err)
 	}
 	if err = k.Set(ctx, connection.RefreshRef, token.RefreshToken); err != nil {
 		_ = deleteReferences(ctx, k, connection.RefreshRef, connection.ClientSecretRef)
-		return Connection{}, err
+		return Connection{}, fmt.Errorf("save Gmail refresh credential: %w", err)
 	}
 	if err = SaveConnection(root, connection, previous != nil); err != nil {
 		_ = deleteReferences(ctx, k, connection.RefreshRef, connection.ClientSecretRef)
