@@ -58,3 +58,9 @@ The initial rubric in `examples/evaluation/` is a draft. Actual personal expecta
 See [Gmail pilot setup](docs/setup/GMAIL_PILOT.md) before connecting. `gmail connect` requires a local Desktop app client JSON file, the exact account and an explicit query. It uses the system browser once and stores credentials in macOS Keychain. `gmail check` verifies account identity, `gmail collect` preserves a bounded snapshot, `gmail queue` admits it once, and `gmail review` collects and runs a report. `--resume` continues interrupted retrieval; `--continue` follows a preserved page token at its original as-of boundary. `gmail reauth` repairs the same connection identity without expanding its policy.
 
 `gmail disconnect` disables local access and removes credential references; `--revoke` additionally requests OAuth revocation from Google. Local reports remain available. `gmail normalize` inspects a saved API message without an account. The current host's Keychain rejected the non-production storage check with authentication error -25293, so successful credential storage and the live pilot remain pending.
+
+## Reports and local recovery
+
+`report JOB_ID` reads the verified Markdown result; `--path` prints its path. `publish JOB_ID` recovers a failed presentation stage from preserved structured output and source evidence, without another AI run. Neither command infers that a person acknowledged the report.
+
+Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIRECTORY NEW_DATA_DIRECTORY`. Backups include a consistent SQLite image and declared evidence files, with hashes. Restore requires a separate new directory and leaves connections disabled and pending jobs awaiting review. Credential values are never backed up; account reconnection is explicit.

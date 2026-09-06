@@ -230,6 +230,16 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 
 func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attempt) (map[string]bool, error) {
 	observed := map[string]bool{}
+	preserved := map[string]bool{}
+	artifacts, err := r.Store.Artifacts(ctx, j.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, art := range artifacts {
+		if art.AttemptID == a.ID && art.Kind == "source_lookup" {
+			preserved[art.Digest] = true
+		}
+	}
 	relative := gateway.EvidenceDir(j.ID, a.ID)
 	entries, err := os.ReadDir(filepath.Join(r.Store.Root, relative))
 	if errors.Is(err, os.ErrNotExist) {
@@ -263,6 +273,9 @@ func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attemp
 		}
 		if evidence.Result.Source != nil && evidence.Result.Source.ID == evidence.SourceID {
 			observed[evidence.SourceID] = true
+		}
+		if preserved[files.Digest(b)] {
+			continue
 		}
 		if _, e = r.Store.SaveArtifact(ctx, j.ID, a.ID, "source_lookup", b, r.Config.Limits.MaxArtifactBytes); e != nil {
 			return nil, e

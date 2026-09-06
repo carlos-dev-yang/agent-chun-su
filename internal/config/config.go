@@ -27,6 +27,7 @@ const (
 	DefaultPollSeconds       = 2
 	DefaultMaxToolCalls      = 200
 	DefaultMaxEvidenceBytes  = 32 << 20
+	DefaultMaxBackupBytes    = 1 << 30
 )
 
 type Limits struct {
@@ -40,6 +41,7 @@ type Limits struct {
 	PollSeconds       int   `json:"poll_seconds"`
 	MaxToolCalls      int   `json:"max_tool_calls"`
 	MaxEvidenceBytes  int64 `json:"max_evidence_bytes"`
+	MaxBackupBytes    int64 `json:"max_backup_bytes"`
 }
 
 type Executor struct {
@@ -68,6 +70,7 @@ func Defaults() Config {
 		RetryDelaySeconds: DefaultRetryDelaySeconds, PollSeconds: DefaultPollSeconds,
 		MaxToolCalls:     DefaultMaxToolCalls,
 		MaxEvidenceBytes: DefaultMaxEvidenceBytes,
+		MaxBackupBytes:   DefaultMaxBackupBytes,
 	}}
 }
 
@@ -142,7 +145,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("unsupported configuration version %d", c.Version)
 	}
 	l := c.Limits
-	if l.TimeoutSeconds <= 0 || l.LockWaitSeconds <= 0 || l.MaxAttempts <= 0 || l.MaxArtifactBytes <= 0 || l.MaxSourceBytes <= 0 || l.MaxMessages <= 0 || l.RetryDelaySeconds <= 0 || l.PollSeconds <= 0 || l.MaxToolCalls <= 0 || l.MaxEvidenceBytes <= 0 {
+	if l.TimeoutSeconds <= 0 || l.LockWaitSeconds <= 0 || l.MaxAttempts <= 0 || l.MaxArtifactBytes <= 0 || l.MaxSourceBytes <= 0 || l.MaxMessages <= 0 || l.RetryDelaySeconds <= 0 || l.PollSeconds <= 0 || l.MaxToolCalls <= 0 || l.MaxEvidenceBytes <= 0 || l.MaxBackupBytes <= 0 {
 		return errors.New("operational limits must be positive")
 	}
 	if c.MailMode != "changes" && c.MailMode != "changes_and_open" {

@@ -38,6 +38,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker())
 	root.AddCommand(o.feedback(), o.workgroup(), o.experiment())
 	root.AddCommand(o.gmail())
+	root.AddCommand(o.report(), o.publish(), o.backup(), o.restore(), o.verifyBackup())
 	return root
 }
 
@@ -233,6 +234,8 @@ func (o *options) configuration() *cobra.Command {
 				c.Limits.MaxToolCalls = v
 			case "limits.max_evidence_bytes":
 				c.Limits.MaxEvidenceBytes = int64(v)
+			case "limits.max_backup_bytes":
+				c.Limits.MaxBackupBytes = int64(v)
 			default:
 				return errors.New("unknown configuration key")
 			}

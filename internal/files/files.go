@@ -176,10 +176,26 @@ func Write(root, name string, data []byte, replace bool) error {
 	} else if err = r.Rename(tmp, name); err != nil {
 		return err
 	}
-	d, err := r.Open(dir)
-	if err != nil {
-		return err
+	return syncParents(r, dir)
+}
+
+func syncParents(root *os.Root, dir string) error {
+	for {
+		d, err := root.Open(dir)
+		if err != nil {
+			return err
+		}
+		err = d.Sync()
+		closeErr := d.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if dir == "." {
+			return nil
+		}
+		dir = filepath.Dir(dir)
 	}
-	defer d.Close()
-	return d.Sync()
 }

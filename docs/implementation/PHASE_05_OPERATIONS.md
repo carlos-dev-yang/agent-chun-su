@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** Operations preparation in progress; no background activation or live reliability claim  
 **Goal:** Make useful manual mail reporting repeatable without losing work, silently duplicating delivery, or requiring constant supervision.
 
 **Entry conditions:** P4-09 establishes a useful manual pilot. The user chooses the operating policy before background activation.
@@ -27,7 +27,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-02 — Complete durable queue ownership and restart recovery
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-01, P1-04.
 - **Work:** Add execution eligibility, one-owner coordination, attempt fencing, and interrupted-work reconciliation. Keep transactions short and process/network activity outside DB write transactions. Treat in-memory notifications as wakeups only.
 - **Deliverable:** A durable local queue and restart reconciler.
@@ -35,7 +35,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-03 — Implement stage-specific retries, waits, and resume
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-02, P2-06.
 - **Work:** Distinguish provider retry, executor retry, user input, authentication repair, missing evidence, and delivery retry. Record budgets and next eligible conditions; terminal answers resume the correct request and stage.
 - **Deliverable:** Queue-aware retry/cancel/resolve commands and blocked-reason presentation.
@@ -43,7 +43,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-04 — Connect CLI and service through a protected management channel
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-02.
 - **Work:** Add a user-local management channel and single-owner behavior. If the service owns state, CLI operations go through it rather than mutating the database concurrently. Enforce the executor boundary around this channel.
 - **Deliverable:** A local management interface and service-mode entry point.
@@ -67,7 +67,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-07 — Make result availability and delivery recovery explicit
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-03.
 - **Work:** Finalize local report pointers and stage-specific delivery records. If an external channel is later selected, prepare and authorize that adapter separately, including deduplication and uncertain-result recovery.
 - **Deliverable:** Durable local report availability and delivery-state inspection.
@@ -75,7 +75,7 @@ the work-unit and validation rules in the master plan.
 
 ### P5-08 — Provide consistent backup, restore, and retention operation
 
-- **Status:** not_started
+- **Status:** in_progress
 - **Depends on:** P5-02, P4-02.
 - **Work:** Quiesce relevant writes and preserve DB, referenced artifacts, controls, and non-secret configuration consistently. Exclude secrets, transient files, and backup recursion. Restore to an explicit separate data root; apply the chosen retention policy with traceable limitations.
 - **Deliverable:** Backup/restore commands and an operational retention runbook.
@@ -94,3 +94,5 @@ the work-unit and validation rules in the master plan.
 Record task IDs, changed artifacts, checks actually run, checks not run,
 remaining risks or decisions, and newly ready work in the phase completion note.
 A successful check for one scenario does not establish every phase capability.
+
+Current evidence: [Local operations checkpoints](../validation/PHASE_05_OPERATIONS.md).
