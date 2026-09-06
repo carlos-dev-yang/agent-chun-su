@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "provider": "jira",
+  "format": "cloud-v3",
+  "synthetic": true,
+  "policy": {
+    "version": 1,
+    "connection_id": "synthetic-jira-0001",
+    "project_keys": ["DEMO"],
+    "subject": {"id": "person-a", "display_name": "Example Owner"},
+    "selection": "assigned_or_sprint",
+    "sprint_ids": ["7"],
+    "timezone": "Asia/Seoul",
+    "max_issues": 20,
+    "max_pages": 1,
+    "max_context_entries": 10,
+    "mapping": {
+      "version": 1,
+      "identity_field": "accountId",
+      "sprint_field": "customfield_12001",
+      "story_points_field": "customfield_12002"
+    }
+  },
+  "pages": [
+    {
+      "cursor": "",
+      "captured_at": "2026-09-06T03:01:00Z",
+      "body": {
+        "isLast": false,
+        "nextPageToken": "demo-second-page",
+        "issues": [
+          {
+            "id": "101", "key": "DEMO-1",
+            "fields": {
+              "project": {"id": "1", "key": "DEMO"},
+              "summary": "Review the example integration",
+              "description": {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Review with "}, {"type": "mention", "attrs": {"id": "person-b", "text": "Example Reviewer"}}]}]},
+              "status": {"id": "10", "name": "In progress", "statusCategory": {"key": "indeterminate"}},
+              "assignee": {"accountId": "person-a", "displayName": "Example Owner"},
+              "created": "2026-09-01T09:00:00.000+0900",
+              "updated": "2026-09-06T11:59:00.000+0900",
+              "resolutiondate": null, "resolution": null, "duedate": "2026-09-07",
+              "customfield_12001": [],
+              "customfield_12002": 3, "customfield_12003": 5,
+              "timetracking": {"originalEstimateSeconds": 3600, "remainingEstimateSeconds": 0, "timeSpentSeconds": 3600},
+              "comment": {"startAt": 0, "total": 0, "comments": []},
+              "issuelinks": [{"type": {"name": "Blocks"}, "outwardIssue": {"id": "102", "key": "DEMO-2"}}]
+            },
+            "changelog": {"startAt": 0, "total": 0, "histories": []}
+          },
+          {
+            "id": "102", "key": "DEMO-2",
+            "fields": {
+              "project": {"id": "1", "key": "DEMO"},
+              "summary": "Another person's sprint issue",
+              "description": "Sprint membership does not make this the subject's workload.",
+              "status": {"id": "11", "name": "To do", "statusCategory": {"key": "new"}},
+              "assignee": {"accountId": "person-b", "displayName": "Example Reviewer"},
+              "created": "2026-09-02T00:00:00Z", "updated": "2026-09-05T00:00:00Z",
+              "resolutiondate": null, "resolution": null, "duedate": null,
+              "customfield_12001": [{"id": 7, "name": "Example sprint", "state": "active", "originBoardId": 9, "startDate": "2026-09-01T00:00:00Z", "endDate": "2026-09-14T09:00:00Z"}],
+              "customfield_12002": null, "customfield_12003": 8,
+              "issuelinks": []
+            }
+          },
+          {
+            "id": "103", "key": "DEMO-3",
+            "fields": {
+              "project": {"id": "1", "key": "DEMO"},
+              "summary": "Completed example with a later comment",
+              "description": null,
+              "status": {"id": "12", "name": "Done", "statusCategory": {"key": "done"}},
+              "assignee": {"accountId": "person-a"},
+              "created": "2026-09-01T00:00:00Z", "updated": "2026-09-06T03:02:30Z",
+              "resolutiondate": "2026-09-04T00:00:00Z", "resolution": {"name": "Done"}, "duedate": "2026-09-04",
+              "customfield_12001": [], "customfield_12002": 0,
+              "comment": {"startAt": 0, "total": 2, "comments": [{"id": "201", "author": {"accountId": "person-b"}, "created": "2026-09-05T00:00:00Z", "body": "Thanks for finishing this."}]},
+              "issuelinks": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "cursor": "demo-second-page",
+      "captured_at": "2026-09-06T03:02:00Z",
+      "body": {
+        "isLast": true,
+        "issues": [
+          {
+            "id": "101", "key": "DEMO-1",
+            "fields": {
+              "project": {"id": "1", "key": "DEMO"},
+              "summary": "A conflicting observation of the integration",
+              "assignee": {"accountId": "person-a"},
+              "status": {"id": "12", "name": "Done", "statusCategory": {"key": "done"}},
+              "updated": "2026-09-06T03:01:30Z",
+              "customfield_12001": [], "customfield_12002": 3, "customfield_12003": 5
+            }
+          },
+          {
+            "id": "102", "key": "DEMO-2",
+            "fields": {
+              "project": {"id": "1", "key": "DEMO"},
+              "summary": "Another person's sprint issue",
+              "description": "Sprint membership does not make this the subject's workload.",
+              "status": {"id": "11", "name": "To do", "statusCategory": {"key": "new"}},
+              "assignee": {"accountId": "person-b", "displayName": "Example Reviewer"},
+              "created": "2026-09-02T00:00:00Z", "updated": "2026-09-05T00:00:00Z",
+              "resolutiondate": null, "resolution": null, "duedate": null,
+              "customfield_12001": [{"id": 7, "name": "Example sprint", "state": "active", "originBoardId": 9, "startDate": "2026-09-01T00:00:00Z", "endDate": "2026-09-14T09:00:00Z"}],
+              "customfield_12002": null, "customfield_12003": 8,
+              "issuelinks": []
+            }
+          },
+          {"id": "104", "key": "OTHER-4", "fields": {"project": {"id": "2", "key": "OTHER"}, "assignee": {"accountId": "person-a"}}},
+          {"id": "105", "key": "DEMO-5", "fields": {"project": {"id": "1", "key": "DEMO"}, "summary": "Missing selection evidence"}},
+          {"id": "106", "key": "DEMO-6", "fields": {"project": {"id": "1", "key": "DEMO"}, "assignee": {"accountId": "person-b"}, "customfield_12001": []}}
+        ]
+      }
+    }
+  ]
+}

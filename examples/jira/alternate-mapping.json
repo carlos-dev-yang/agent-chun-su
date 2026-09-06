@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "identity_field": "accountId",
+  "sprint_field": "customfield_12001",
+  "story_points_field": "customfield_12003"
+}

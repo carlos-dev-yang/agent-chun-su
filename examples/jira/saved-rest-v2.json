@@ -1,0 +1,27 @@
+{
+  "version": 1, "provider": "jira", "format": "rest-v2", "synthetic": true,
+  "policy": {
+    "version": 1, "connection_id": "synthetic-jira-0002", "project_keys": ["DEMO"],
+    "subject": {"id": "example-user"}, "selection": "assigned", "sprint_ids": [],
+    "timezone": "Asia/Seoul", "max_issues": 20, "max_pages": 1, "max_context_entries": 10,
+    "mapping": {"version": 1, "identity_field": "key", "sprint_field": "customfield_12001"}
+  },
+  "pages": [{
+    "cursor": "", "captured_at": "2026-09-06T03:00:00Z",
+    "body": {"startAt": 0, "maxResults": 20, "total": 1, "issues": [{
+      "id": "301", "key": "DEMO-301",
+      "fields": {
+        "project": {"id": "1", "key": "DEMO"}, "summary": "Saved REST v2 response shape",
+        "assignee": {"key": "example-user", "displayName": "Example Owner"},
+        "description": "Legacy markup is retained as plain text; no remote resources are read.",
+        "status": {"id": "10", "name": "In progress", "statusCategory": {"key": "indeterminate"}},
+        "created": "2026-09-01T09:00:00.000+0900", "updated": "2026-09-05T09:00:00.000+0900",
+        "duedate": "2026-09-07", "resolution": null, "resolutiondate": null,
+        "customfield_12001": ["com.example.Sprint[id=7,state=ACTIVE]"],
+        "timetracking": {"originalEstimateSeconds": 0},
+        "comment": {"comments": [], "total": null}, "issuelinks": []
+      },
+      "changelog": {"startAt": 0, "total": 0, "histories": []}
+    }]}
+  }]
+}

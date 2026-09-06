@@ -1,0 +1,10 @@
+{
+  "version": 1, "provider": "jira", "format": "cloud-v3", "synthetic": true,
+  "policy": {
+    "version": 1, "connection_id": "synthetic-jira-0001", "project_keys": ["DEMO"],
+    "subject": {"id": "person-a"}, "selection": "assigned", "sprint_ids": [],
+    "timezone": "Asia/Seoul", "max_issues": 20, "max_pages": 1, "max_context_entries": 10,
+    "mapping": {"version": 1, "identity_field": "accountId"}
+  },
+  "pages": [{"cursor": "", "captured_at": "2026-09-06T03:00:00Z", "body": {"isLast": true, "issues": []}}]
+}
