@@ -17,14 +17,21 @@ Text normalization supports MIME charsets, plain-text preference, HTML text, bou
 - A manually seeded synthetic acquisition verified that repeated queue admission returns the same job and repairs a deliberately cleared acquisition/job link. This is a persistence walkthrough, not a provider pagination test.
 - Keychain validation attempted a random non-production marker. The native bridge and a narrowly scoped diagnostic attempt both failed to create the marker. macOS reported authentication error `-25293` (native process exit 51), with the message that the user name or passphrase was incorrect. Lookup/deletion of that diagnostic marker returned item-not-found. No Gmail token was involved.
 
-The same Keychain operation will not be retried until the user confirms the local Keychain state has changed. No plaintext fallback was added. The user has been asked to check the login Keychain without sharing secrets in chat; the pilot account and local Desktop app client-file path were subsequently supplied.
+After the initial repeated failure, retries were paused and the user was asked about the login Keychain state without sharing secrets in chat. The pilot account and local Desktop app client-file path were subsequently supplied. The explicit user-authorized retry below supersedes that earlier pause; no plaintext fallback was added.
 
 ## Pilot preparation follow-up
 
 - Validated the supplied JSON as a Desktop client with the required fields without printing credential values. Restricted the regular local file to owner read/write and excluded it through the repository-local Git exclude file, preserving the user's separate ignore-file edit. No credential file was staged.
 - Initialized the default private application root. Readiness inspection reported valid configuration, schema 4 and SQLite 3.53.4; the executor remains unconfigured and the connection list is empty.
-- A read-only native `SecKeychainGetStatus` query returned success and status bits 7: unlocked, readable and writable, as defined by the installed SDK header. This is a status observation, not a successful write/read/delete check or evidence that the earlier authentication error is resolved. No additional Keychain write was attempted.
+- A read-only native `SecKeychainGetStatus` query returned success and status bits 7: unlocked, readable and writable, as defined by the installed SDK header. This is a status observation, not a successful write/read/delete check or evidence that the earlier authentication error is resolved. No additional Keychain write was attempted during that preparation step.
 - OAuth consent, token storage, account verification and message collection were not run. File shape does not verify Google API activation, the test-user list or granted scopes. Account-specific values remain outside the committed documentation.
+
+## User-authorized authentication retry
+
+- The user reported no login/Keychain state change and explicitly requested another authentication attempt. The CLI's random-marker `gmail keychain-check` exited 1 with `macOS Keychain is unavailable or locked; no plaintext fallback is used`. The probe did not reach successful storage verification, and no Google OAuth flow or mail read was started.
+- The latest connector error is generic. The native authentication code recorded for the earlier checks cannot be assumed to be newly reproduced by this output. An unlocked status alone does not identify or resolve the storage failure.
+- A comparison in the foreground Terminal app was attempted, but the computer-use tool denied control of Terminal for safety reasons before a command was entered. This tool restriction does not explain the separate Keychain failure. A direct user-run connection command can compare the execution context; that comparison has not run.
+- No authentication settings, Keychain access rules or plaintext-storage fallback were changed. Further diagnosis needs evidence beyond another identical automated probe.
 
 ## Not run / remaining evidence
 
