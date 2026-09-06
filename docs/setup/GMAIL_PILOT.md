@@ -1,11 +1,11 @@
 # Gmail Pilot Setup
 
-Status: connector implementation in progress. No Gmail account has been connected or read.
+Status: connector prepared; the pilot account and a local Desktop app client file have been supplied and the file format checked. No Gmail account has been connected or read. Keychain storage verification remains pending.
 
 ## Information needed for the first pilot
 
-- The exact Gmail account to use.
-- A Google OAuth **Desktop app** client JSON file available locally. Provide its file path, not token or secret values in chat.
+- The exact Gmail account to use (supplied for the current pilot; keep account-specific setup outside Git).
+- A Google OAuth **Desktop app** client JSON file available locally (supplied and checked for the current pilot). Provide its file path, not token or secret values in chat. The local file is restricted to owner read/write and excluded from Git.
 - A reviewed query and batch size. Proposed starting scope: `in:inbox newer_than:7d`, at most 20 listed messages per batch, body review only, no separate attachment downloads and no calendar access. Related-thread history is opt-in and bounded by a declared age/message limit.
 - The selected executor account. The existing Codex login is available, but its use is awaiting the user's response.
 

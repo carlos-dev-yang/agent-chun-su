@@ -8,7 +8,7 @@ The terminal connector supports Desktop app OAuth with state/PKCE and a temporar
 
 Schema 3 adds acquisition checkpoints and per-source report coverage. A checkpoint is an immutable file published before its database reference. Collection, pending source retrieval, next-page continuation, job admission and reported source coverage are separate facts. The collector preserves failures and current gaps separately. Only a validated locally available result can advance coverage; coverage is not a Gmail read-state change or human acknowledgment. Snapshot-origin and connection-policy checks bind the source gateway to the selected scope.
 
-Text normalization supports MIME charsets, plain-text preference, HTML text, bounded UTF-8 output, explicit missing text and unsupported attachments. It neither loads tracking resources nor separately downloads/executes attachments. The initial retention policy is manual; records are not silently deleted. The first account, query and actual executor choice remain pending user input; see [pilot setup](../setup/GMAIL_PILOT.md).
+Text normalization supports MIME charsets, plain-text preference, HTML text, bounded UTF-8 output, explicit missing text and unsupported attachments. It neither loads tracking resources nor separately downloads/executes attachments. The initial retention policy is manual; records are not silently deleted. The pilot account and client file have now been supplied; the actual executor choice and live execution boundary remain pending. See [pilot setup](../setup/GMAIL_PILOT.md).
 
 ## Checks actually run
 
@@ -17,7 +17,14 @@ Text normalization supports MIME charsets, plain-text preference, HTML text, bou
 - A manually seeded synthetic acquisition verified that repeated queue admission returns the same job and repairs a deliberately cleared acquisition/job link. This is a persistence walkthrough, not a provider pagination test.
 - Keychain validation attempted a random non-production marker. The native bridge and a narrowly scoped diagnostic attempt both failed to create the marker. macOS reported authentication error `-25293` (native process exit 51), with the message that the user name or passphrase was incorrect. Lookup/deletion of that diagnostic marker returned item-not-found. No Gmail token was involved.
 
-The same Keychain operation will not be retried until the user confirms the local Keychain state has changed. No plaintext fallback was added. The user has been asked to check the login Keychain and to provide the pilot account/scope and local Desktop app client-file path, without sharing secrets in chat.
+The same Keychain operation will not be retried until the user confirms the local Keychain state has changed. No plaintext fallback was added. The user has been asked to check the login Keychain without sharing secrets in chat; the pilot account and local Desktop app client-file path were subsequently supplied.
+
+## Pilot preparation follow-up
+
+- Validated the supplied JSON as a Desktop client with the required fields without printing credential values. Restricted the regular local file to owner read/write and excluded it through the repository-local Git exclude file, preserving the user's separate ignore-file edit. No credential file was staged.
+- Initialized the default private application root. Readiness inspection reported valid configuration, schema 4 and SQLite 3.53.4; the executor remains unconfigured and the connection list is empty.
+- A read-only native `SecKeychainGetStatus` query returned success and status bits 7: unlocked, readable and writable, as defined by the installed SDK header. This is a status observation, not a successful write/read/delete check or evidence that the earlier authentication error is resolved. No additional Keychain write was attempted.
+- OAuth consent, token storage, account verification and message collection were not run. File shape does not verify Google API activation, the test-user list or granted scopes. Account-specific values remain outside the committed documentation.
 
 ## Not run / remaining evidence
 
