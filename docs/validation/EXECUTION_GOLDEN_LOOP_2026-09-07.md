@@ -246,6 +246,16 @@ API 권한이 표시되지 않았다. 이 확인만으로 실계정 자동 수�
 `ABRNUQIIIC5ZTJTI6TNXTJ7X4U`다. 이는 저장 응답 reader의 확인이며 실제
 Jira 재수집이나 Jira AI 보고서 실행으로 세지 않는다.
 
+### 2026-09-08 실제 원문으로 이어서 확인
+
+승인된 Jira 범위에서 새 GET 응답 26건을 확보했고 기존 수집기로 세
+acquisition을 저장·재조회했다. 실제 응답과 다시 꺼낸 원문은 바이트 단위로
+일치했다. 이 경로도 reader는 `saved-responses-v1`이며 live connector나
+공통 Jira 보고서 실행 완료가 아니다. 독립 기대값, 수집 ID, 발견한 제한과
+검증 과정의 중단·복원은 [실제 원문 점검 기록](JIRA_REAL_SOURCE_INGESTION_2026-09-08.md)에
+보존한다. 기존 메일 10회와 평가 10건은 그대로이며 Jira AI 실행을 더해
+집계하지 않는다.
+
 ## 완료를 위해 남은 증거
 
 1. 제안 상태인 Jira 연결 설정·수집 정책·보고서 계약 확정 후 실제 수집과
@@ -257,9 +267,10 @@ Jira 재수집이나 Jira AI 보고서 실행으로 세지 않는다.
 ## 검증과 보존
 
 최초 코드에 대한 CGO-disabled native build와 gateway/workgroup/executor/
-runner/feedback/jira/cli의 focused vet는 통과했다. 실계정 재수집,
-Jira executor 실행, 장기 일별 실행, 일정 활성화는 아직 수행하지 않았다.
-향후 검증 결과는 실제 실행 후 추가하며 이 기록을 완료로 취급하지 않는다.
+runner/feedback/jira/cli의 focused vet는 통과했다. 9월 7일 점검에서는
+실계정 재수집을 수행하지 않았으며, 다음 날 실제 Jira 조회와 기존 수집
+경로를 위 후속 기록에서 검증했다. Jira executor 실행, 장기 일별 실행,
+일정 활성화는 아직 수행하지 않았다. 이 기록을 전체 완료로 취급하지 않는다.
 
 런타임 결과는 기본 애플리케이션 홈의 `validation/20260907-gate-loop/`에
 별도 보존한다. 계정 원문·인증정보·DB·빌드 산출물은 Git에 포함하지 않는다.

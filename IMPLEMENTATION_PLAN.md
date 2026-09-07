@@ -37,6 +37,11 @@ records actual attempts and checks. The manual Jira report does not establish
 common-framework execution, and neither synthetic success nor AI evaluation
 establishes human acceptance or authorization to enable schedules.
 
+On 2026-09-08, a fresh authorized Jira GET capture was ingested as three
+non-synthetic saved-reader acquisitions. The [real-source checkpoint](docs/validation/JIRA_REAL_SOURCE_INGESTION_2026-09-08.md)
+records raw-byte preservation and remaining v1/report limitations. This does
+not implement the live connector or complete Jira executor/gateway evaluation.
+
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
 open decisions remain explicit dependencies of the tasks that need them.
