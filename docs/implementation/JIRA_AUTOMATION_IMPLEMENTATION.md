@@ -3,21 +3,24 @@
 Date: 2026-09-07.
 
 Update: the user approved the grouped direction and requested one report first,
-explicitly requiring undated TODO and overdue issues to appear. The first manual
+explicitly requiring undated TODO and overdue issues to appear. On 2026-09-08
+the user accepted this integration proposal and required the work instructions
+to be managed as Skills and explicitly injected into the executor. The first manual
 [report checkpoint](../validation/PHASE_06_JIRA_FIRST_REPORT.md) uses
 `own_assigned_14d_grouped_v1` and bounded descriptions. Actual schedule timing is
-still unselected. The pending-selection statements below describe the proposal
-before that approval; application integration remains work to implement.
+still unselected. Alternatives below are retained for context; the selected
+grouped scope and bounded descriptions do not require reselection. Application
+integration and explicit Skill delivery remain work to implement.
 
 The user's subsequent concise Markdown layout is recorded in the
 [report presentation guide](JIRA_REPORT_PRESENTATION.md) and applied to the
 manual report. It does not mark the runtime report contract as implemented.
 
-Status: implementation requested; the specific report selection, exact new
-report/profile contracts and schedule choice remain pending review. The user has
-authorized the Jira Cloud read-only collection and report feature, including
-the already verified API access. The recommendations below are not active
-controls until selected. This feature does not include comments, transitions,
+Status: integration implementation authorized, with explicit Skill injection
+required. The user has authorized the Jira Cloud read-only collection and report
+feature, including the already verified API access. This approval does not
+establish implementation completion or enable a recurring schedule. This feature
+does not include comments, transitions,
 field changes, reassignment, ticket implementation, or autonomous source-code
 work derived from Jira issues.
 
@@ -35,11 +38,11 @@ disabled until their timing is chosen. An optional weekday 09:00 Asia/Seoul
 schedule requires a distinct calendar recurrence change. The initial manual
 and elapsed-interval implementation needs no database migration.
 
-## Decisions requiring review
+## Selected behavior and deferred schedule
 
 ### Report selection
 
-Recommended `own_assigned_14d_grouped_v1`:
+Selected `own_assigned_14d_grouped_v1`:
 
 - include issues assigned to the authenticated user whose status category is
   not Done and whose due date is before today;
@@ -64,7 +67,7 @@ start-date field as the start date.
 
 ### Schedule
 
-Recommended `manual_validation`: collect and run one report only when requested.
+Initial mode `manual_validation`: collect and run one report only when requested.
 Alternative `weekdays_0900`: one run at 09:00 Monday through Friday in
 `Asia/Seoul`, with existing missed-run and intervention behavior preserved.
 
@@ -75,11 +78,11 @@ change until the manual report is accepted.
 
 ### Source content
 
-Recommended `metadata_and_description`: collect the bounded issue fields below
+Selected `metadata_and_description`: collect the bounded issue fields below
 and a bounded description so the report can explain work meaningfully. Exclude
-comments, attachments and changelog from the first report. The previously
-verified manual probe read metadata only; description access will therefore be
-new read scope and must be identified in the connection policy and report.
+comments, attachments and changelog from the first report. Bounded descriptions
+were included in the approved manual report and the 2026-09-08 real-source
+capture. The implemented connection policy and report must retain that scope.
 
 An alternative `metadata_only` avoids description reads but may produce a less
 useful report. Neither option permits executor access to Jira APIs directly.
@@ -186,6 +189,42 @@ correctness remains a separate evaluation rather than a schema guarantee. Markdo
 rendering links each item to preserved local source evidence and makes partial
 coverage visible.
 
+## Explicit Skill delivery
+
+The current implementation is not yet a Skill-loading implementation. Mail has
+a Markdown `guide.md` that the host combines with the pinned request and source
+index into `instructions.md`; the executor receives that text through stdin.
+The actual mail package contains `instructions.md`, `source-index.json`,
+`report.schema.json` and `executor.schema.json`. It has no `SKILL.md`. Host Skill
+discovery is disabled by the current adapter. The two files under `docs/skills/`
+are host procedures, not automatically registered or injected runtime Skills.
+There is no Jira workgroup Skill or Jira runtime package yet.
+
+The user-required implementation must provide the following:
+
+1. Keep each workgroup's canonical `SKILL.md`, its declared supporting documents
+   and output schema outside the executor, under host/user ownership.
+2. Select and pin the workgroup Skill and schema version before each attempt.
+   Preserve Skill identity, exact content hashes and declared dependencies in
+   that attempt's evidence; do not resolve a moving latest version mid-run.
+3. Deliver the selected Skill explicitly through the executor adapter, together
+   with only its needed supporting files. Preserve the isolated package and
+   scoped gateway. Do not rely on host-wide discovery or optional model choice
+   as evidence that the required Skill was supplied.
+4. Reject a missing, mismatched or changed required Skill before execution.
+   Verify the prepared package and actual adapter invocation. Identical Skill
+   delivery does not guarantee identical model output; the execution gate and
+   independent evaluation must still check the result.
+5. Give the independent evaluator its own pinned evaluation instructions.
+   Keep golden expected answers and private evaluation records out of the
+   report executor package.
+6. Demonstrate explicit Skill delivery in a real synthetic executor run before
+   the corresponding real-data run. Record source lookups, boundary checks and
+   output validation, rather than treating a created Markdown file as completion.
+
+This section records the accepted requirement and observed gap. It does not
+claim that the Skill assets or loading path have already been implemented.
+
 ## Minimal integration work
 
 1. Implement the Cloud profile, Keychain reference reader and bounded GET
@@ -193,7 +232,9 @@ coverage visible.
    acquisition replay assumptions while preserving raw-page-first checkpoints.
 2. Add start-date/status/date-window fields to the versioned Jira model and
    normalizer. Preserve compatibility with existing version-1 saved evidence.
-3. Add `workgroups/jira-report` guide and schema. Select active bundles by job
+3. Add the `workgroups/jira-report` Skill and schema, and implement explicit
+   selected-Skill delivery as specified above. Adapt the mail instruction path
+   with compatibility for its preserved bundles. Select active bundles by job
    workgroup rather than the current mail-only path.
 4. Extract a small workgroup runtime interface used by package preparation,
    runner and publication recovery: parse input, verify origin, build source
@@ -230,8 +271,8 @@ generic controller.
 
 ## Completion evidence and bounded commits
 
-Do not create test code. Use existing checks and controlled inputs in coherent
-batches:
+The subsequent user request authorizes execution-gate and golden-loop testing.
+Use focused tests and controlled inputs in coherent batches:
 
 1. Profile and connector increment: controlled HTTP responses demonstrate
    route/method/origin restrictions, identity binding, pagination, retry/auth

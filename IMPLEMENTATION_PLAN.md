@@ -42,6 +42,12 @@ non-synthetic saved-reader acquisitions. The [real-source checkpoint](docs/valid
 records raw-byte preservation and remaining v1/report limitations. This does
 not implement the live connector or complete Jira executor/gateway evaluation.
 
+The user subsequently accepted the Jira integration proposal and required
+workgroup instructions to be managed as Skills and explicitly injected into
+each executor attempt. The proposal records this approval and the delivery
+requirements. Jira integration and Skill delivery are authorized work, not
+completed functionality; their prior contract-confirmation blocker is resolved.
+
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
 open decisions remain explicit dependencies of the tasks that need them.
