@@ -57,5 +57,12 @@ YAML 조회 정보, 대상 표, 짧은 집계와 하이라이트, 세 그룹 상
 Go 테스트는 실행하지 않았다. 자동 생성에 반영할
 [표시 기준](../implementation/JIRA_REPORT_PRESENTATION.md)을 기록했다.
 
+추가 피드백으로 조회 정보 표를 콜론 구분 줄로, 현황을 중첩 불릿으로 바꿨다.
+MD에는 노출되던 HTML 태그와 날짜 셀의 반복 라벨을 제거했다.
+날짜 두 줄·좁은 상태 열·넓은 확인 내용 열을 지정한 비공개 HTML 보기 파일도
+만들었다. MD와 HTML의 26개 상세 항목·날짜 일치를 확인했다.
+앱 브라우저의 로컬 파일 URL 정책으로 HTML 화면 확인은 차단됐으며,
+실제 렌더링을 확인했다고 간주하지 않는다. 런타임 변경·Go 테스트는 없다.
+
 [구현안](../implementation/JIRA_AUTOMATION_IMPLEMENTATION.md),
 [앞선 접근 확인](PHASE_06_JIRA_LIVE_ACCESS.md).
