@@ -28,6 +28,8 @@ const TestedModel = "gpt-5.5"
 const Profile = "chunsu_mail"
 const ProcessFile = "process.json"
 const MaxVersionBytes = 4096
+const PermittedObservedTool = "chunsu_mail.mail_source_get"
+const CapabilityViolation = "capability_violation"
 
 type ProcessRecord struct {
 	State    string                   `json:"state"`
@@ -57,6 +59,15 @@ type Result struct {
 	Version       string          `json:"version"`
 	FailureCode   string          `json:"failure_code,omitempty"`
 	ObservedTools []string        `json:"observed_tools,omitempty"`
+}
+
+func HasCapabilityViolation(observed []string) bool {
+	for _, tool := range observed {
+		if tool != PermittedObservedTool {
+			return true
+		}
+	}
+	return false
 }
 
 func MinimalEnv() []string {
@@ -311,7 +322,7 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			case "mcp_tool_call":
 				// Record capability names only, never their arguments or result payloads.
 				if event.Item.Server == "chunsu_mail" && event.Item.Tool == "mail_source_get" {
-					tool = "chunsu_mail.mail_source_get"
+					tool = PermittedObservedTool
 				} else {
 					tool = "unexpected_mcp_tool"
 				}

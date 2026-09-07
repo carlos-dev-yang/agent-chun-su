@@ -196,6 +196,11 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		e := finish(store.WaitingInput, "lookup evidence collection failed: "+err.Error(), false)
 		return out, errors.Join(err, e)
 	}
+	if executor.HasCapabilityViolation(generated.ObservedTools) {
+		cause := errors.New(executor.CapabilityViolation)
+		e := finish(store.Failed, executor.CapabilityViolation, false)
+		return out, errors.Join(cause, e)
+	}
 	if execErr != nil {
 		status := store.Failed
 		retry := true
@@ -225,6 +230,11 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	if _, err = r.Store.SaveArtifact(finishCtx, jobID, a.ID, "validation", b, r.Config.Limits.MaxArtifactBytes); err != nil {
 		return out, err
 	}
+	if missingRequiredSourceLookups(p.Snapshot, observed) {
+		cause := errors.New(requiredSourceLookupsMissing)
+		e := finish(store.Failed, requiredSourceLookupsMissing, false)
+		return out, errors.Join(cause, e)
+	}
 	if validationErr != nil {
 		e := finish(store.Failed, "result contract: "+validationErr.Error(), true)
 		return out, errors.Join(validationErr, e)
@@ -248,6 +258,17 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		}
 	}
 	return out, nil
+}
+
+const requiredSourceLookupsMissing = "required_source_lookups_missing"
+
+func missingRequiredSourceLookups(snapshot mail.Snapshot, observed map[string]bool) bool {
+	for _, source := range snapshot.Messages {
+		if source.Scope == mail.Target && !observed[source.ID] {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attempt) (map[string]bool, error) {

@@ -248,6 +248,13 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 				return store.Record{}, errors.New("every rubric criterion needs a judgment, including unknown outcomes")
 			}
 		}
+		if e.Outcome == "pass" {
+			for _, judgment := range e.Judgments {
+				if judgment.Outcome != "pass" {
+					return store.Record{}, errors.New("passing evaluation requires every criterion to pass")
+				}
+			}
+		}
 		e.ExpectationsStatus = c.ReviewStatus + "; rubric=" + rubric.ReviewStatus
 		payload = e
 	case "feedback", "finding":
