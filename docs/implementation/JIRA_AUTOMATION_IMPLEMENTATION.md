@@ -9,6 +9,10 @@ explicitly requiring undated TODO and overdue issues to appear. The first manual
 still unselected. The pending-selection statements below describe the proposal
 before that approval; application integration remains work to implement.
 
+The user's subsequent concise Markdown layout is recorded in the
+[report presentation guide](JIRA_REPORT_PRESENTATION.md) and applied to the
+manual report. It does not mark the runtime report contract as implemented.
+
 Status: implementation requested; the specific report selection, exact new
 report/profile contracts and schedule choice remain pending review. The user has
 authorized the Jira Cloud read-only collection and report feature, including
