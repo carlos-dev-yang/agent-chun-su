@@ -79,6 +79,11 @@ does not remove these acquisition copies. Keep real source bundles outside Git.
 
 ## Later connection work
 
+Use the [connection preparation checklist](JIRA_CONNECTION_PREPARATION.md) for
+deployment, authentication, scope and the implementation/validation sequence.
+The [September 7 readiness check](../implementation/STATUS_2026-09-07.md)
+records the current source inspection and rerun saved-input walkthrough.
+
 The next dependent unit is selecting Cloud or the company's deployed Data
 Center version, base service identity, authentication mode and a concrete
 project/user/sprint scope. Actual custom field IDs must be discovered or

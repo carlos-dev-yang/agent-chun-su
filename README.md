@@ -94,4 +94,4 @@ See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/res
 
 Core and Phase 2–5 command paths and the approved Phase 6 saved ingestion subset are implemented. [Validation records](docs/validation/) distinguish synthetic checks, actual restricted executor runs and the bounded live Gmail candidate pilot. Broader lifecycle/reliability checks, personal reporting quality, service activation and MS1–MS4 milestone acceptance remain pending. Live Jira access, Jira AI reporting and later-phase distribution/development workflows are not included.
 
-The [implementation handoff](docs/implementation/STATUS_2026-09-06.md) records the prepared scope, verified evidence and remaining inputs.
+The [latest readiness check](docs/implementation/STATUS_2026-09-07.md) records the project structure, rerun saved Jira checks and remaining connection inputs. The [Jira connection preparation](docs/setup/JIRA_CONNECTION_PREPARATION.md) separates required deployment/scope decisions from later metadata discovery. The [September 6 handoff](docs/implementation/STATUS_2026-09-06.md) preserves the earlier execution evidence.
