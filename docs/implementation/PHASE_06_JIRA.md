@@ -2,7 +2,13 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Approved saved ingestion subset implemented and checked; live HTTP connection and Jira reporting deferred
+**Status:** Saved ingestion subset implemented; user-authorized manual Cloud board access checked on 2026-09-07; application live connector and Jira reporting remain unimplemented
+
+Latest evidence: the user selected Cloud, project `SWMPFE` and board `1704`,
+registered a Keychain token, and authorized actual board inspection. The
+[manual live access record](../validation/PHASE_06_JIRA_LIVE_ACCESS.md) supersedes
+the earlier provider/access deferral below for this bounded inspection only.
+It does not complete P6-02b or MS4.
 
 **Goal:** Prove that a second workgroup fits the existing execution, evidence, evaluation, and proposal structure.
 
