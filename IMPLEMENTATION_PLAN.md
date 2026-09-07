@@ -28,6 +28,15 @@ Jira report execution remain deferred.
 This does not authorize tenant access or complete the full Phase 6 report loop.
 Task acceptance scenarios are planned checks until evidence is recorded.
 
+On 2026-09-07 the user subsequently authorized read-only Jira access and a
+bounded grouped manual report, then requested a mail/Jira execution-gate and
+independent golden-evaluation loop. The [Jira integration proposal](docs/implementation/JIRA_AUTOMATION_IMPLEMENTATION.md)
+records the selected source scope and remaining exact integration contracts.
+The [execution/evaluation checkpoint](docs/validation/EXECUTION_GOLDEN_LOOP_2026-09-07.md)
+records actual attempts and checks. The manual Jira report does not establish
+common-framework execution, and neither synthetic success nor AI evaluation
+establishes human acceptance or authorization to enable schedules.
+
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
 open decisions remain explicit dependencies of the tasks that need them.

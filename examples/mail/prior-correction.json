@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "as_of": "2026-09-05T18:00:00+09:00",
+  "timezone": "Asia/Seoul",
+  "collection": {
+    "status": "complete",
+    "errors": [],
+    "scope": "Synthetic prior-report and explicit-correction fixture; no live account"
+  },
+  "messages": [
+    {
+      "id": "billing-failure",
+      "thread_id": "alpha-subscription",
+      "received_at": "2026-09-04T09:00:00+09:00",
+      "scope": "reference",
+      "channel": "email",
+      "from": "billing@example.invalid",
+      "subject": "Alpha subscription payment failed",
+      "body": "The Alpha subscription payment failed. Update the payment method by September 6 to avoid service interruption.",
+      "content_status": "complete",
+      "attachments": []
+    },
+    {
+      "id": "billing-resolved",
+      "thread_id": "alpha-subscription",
+      "received_at": "2026-09-05T10:00:00+09:00",
+      "scope": "target",
+      "channel": "email",
+      "from": "billing@example.invalid",
+      "subject": "Alpha subscription payment recovered",
+      "body": "The automatic retry succeeded and the Alpha subscription renewal is paid. No payment-method update is required at this time.",
+      "content_status": "complete",
+      "attachments": []
+    }
+  ],
+  "prior_interpretations": [
+    {
+      "as_of": "2026-09-04T12:00:00+09:00",
+      "source_ids": ["billing-failure"],
+      "text": "Previous AI report: payment-method update is an open high-priority task.",
+      "kind": "previous_report"
+    },
+    {
+      "as_of": "2026-09-05T11:00:00+09:00",
+      "source_ids": ["billing-failure", "billing-resolved"],
+      "text": "Human correction: the automatic retry succeeded. Do not present the payment-method update as an open task unless newer evidence contradicts the recovery notice.",
+      "kind": "human_correction"
+    }
+  ]
+}

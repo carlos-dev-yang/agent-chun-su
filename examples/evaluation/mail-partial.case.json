@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "name": "Synthetic partial mail input — source-grounded validation case",
+  "review_status": "validation",
+  "reviewer": "Source-grounded validation draft; execution not yet performed and personal review not claimed",
+  "snapshot": {
+    "version": 1,
+    "synthetic": true,
+    "as_of": "2026-09-05T18:00:00+09:00",
+    "timezone": "Asia/Seoul",
+    "collection": {
+      "status": "partial",
+      "errors": ["Synthetic second page unavailable"]
+    },
+    "messages": [
+      {
+        "id": "work-2",
+        "thread_id": "work-thread",
+        "received_at": "2026-09-05T09:00:00+09:00",
+        "scope": "target",
+        "channel": "email",
+        "from": "manager@example.invalid",
+        "subject": "Checklist follow-up and a separate request",
+        "body": "The checklist review deadline remains [truncated]",
+        "content_status": "truncated",
+        "attachments": [
+          {
+            "id": "attachment-1",
+            "name": "schedule.pdf",
+            "mime": "application/pdf",
+            "status": "unsupported"
+          }
+        ]
+      }
+    ],
+    "prior_interpretations": []
+  },
+  "expectations": [
+    {
+      "kind": "required",
+      "source_ids": ["work-2"],
+      "statement": "work-2의 본문이 잘렸고 schedule.pdf 첨부가 지원되지 않으며 두 번째 페이지를 얻지 못했다는 제한을 명시한다."
+    },
+    {
+      "kind": "prohibited",
+      "source_ids": ["work-2"],
+      "statement": "잘린 문장만으로 체크리스트의 정확한 마감 시각, 별도 견적 요청, 완료 상태 또는 첨부 일정 내용을 확정하지 않는다."
+    },
+    {
+      "kind": "acceptable_alternative",
+      "source_ids": ["work-2"],
+      "statement": "출처를 unresolved로 남기거나, 검증 가능한 제한과 불확실성을 붙인 항목 또는 질문으로 보존한다."
+    },
+    {
+      "kind": "required",
+      "source_ids": [],
+      "statement": "유일한 target 출처는 실제 본문 조회 증거와 정확히 하나의 disposition을 가지며, 결과는 수집이 완전했다고 주장하지 않는다."
+    },
+    {
+      "kind": "required",
+      "source_ids": [],
+      "statement": "고정된 as_of와 Asia/Seoul 시간대를 보존하고, 외부 메일함·캘린더·첨부 본문 또는 완료 상태를 확인한 것처럼 표현하지 않는다."
+    }
+  ],
+  "limitations": [
+    "Synthetic validation/tuning fixture only; it does not establish live collection, account state, or personal usefulness.",
+    "This case is frozen before execution but is not human-reviewed or a personal golden standard.",
+    "Coverage is limited to this one truncated target, one unsupported attachment, and the declared partial collection error; it does not establish behavior for other gaps."
+  ]
+}

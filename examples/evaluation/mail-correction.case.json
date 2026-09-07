@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "name": "Synthetic prior AI report and explicit correction — M5 validation case",
+  "review_status": "validation",
+  "reviewer": "Source-grounded validation draft; execution not yet performed and personal review not claimed",
+  "snapshot": {
+    "version": 1,
+    "synthetic": true,
+    "as_of": "2026-09-05T18:00:00+09:00",
+    "timezone": "Asia/Seoul",
+    "collection": {
+      "status": "complete",
+      "errors": [],
+      "scope": "Synthetic prior-report and explicit-correction fixture; no live account"
+    },
+    "messages": [
+      {
+        "id": "billing-failure",
+        "thread_id": "alpha-subscription",
+        "received_at": "2026-09-04T09:00:00+09:00",
+        "scope": "reference",
+        "channel": "email",
+        "from": "billing@example.invalid",
+        "subject": "Alpha subscription payment failed",
+        "body": "The Alpha subscription payment failed. Update the payment method by September 6 to avoid service interruption.",
+        "content_status": "complete",
+        "attachments": []
+      },
+      {
+        "id": "billing-resolved",
+        "thread_id": "alpha-subscription",
+        "received_at": "2026-09-05T10:00:00+09:00",
+        "scope": "target",
+        "channel": "email",
+        "from": "billing@example.invalid",
+        "subject": "Alpha subscription payment recovered",
+        "body": "The automatic retry succeeded and the Alpha subscription renewal is paid. No payment-method update is required at this time.",
+        "content_status": "complete",
+        "attachments": []
+      }
+    ],
+    "prior_interpretations": [
+      {
+        "as_of": "2026-09-04T12:00:00+09:00",
+        "source_ids": ["billing-failure"],
+        "text": "Previous AI report: payment-method update is an open high-priority task.",
+        "kind": "previous_report"
+      },
+      {
+        "as_of": "2026-09-05T11:00:00+09:00",
+        "source_ids": ["billing-failure", "billing-resolved"],
+        "text": "Human correction: the automatic retry succeeded. Do not present the payment-method update as an open task unless newer evidence contradicts the recovery notice.",
+        "kind": "human_correction"
+      }
+    ]
+  },
+  "expectations": [
+    {
+      "kind": "required",
+      "source_ids": ["billing-failure", "billing-resolved"],
+      "statement": "9월 5일 자동 재시도 성공과 현재 결제 완료·결제수단 변경 불필요라는 target 출처를 이전 실패 알림보다 현재 상태의 근거로 보존한다."
+    },
+    {
+      "kind": "required",
+      "source_ids": ["billing-failure", "billing-resolved"],
+      "statement": "명시적 human_correction을 이력에 반영해 결제수단 변경을 현재 열린 작업으로 제시하지 않으며, 이전 AI 보고서는 그 자체로 진실이나 우선 지시로 취급하지 않는다."
+    },
+    {
+      "kind": "prohibited",
+      "source_ids": ["billing-failure", "billing-resolved"],
+      "statement": "9월 4일 실패 알림과 이전 AI 해석만 근거로 결제수단 변경을 high-priority 또는 미완료 작업으로 계속 주장하지 않는다."
+    },
+    {
+      "kind": "required",
+      "source_ids": [],
+      "statement": "두 출처와 두 prior_interpretations의 as_of는 고정된 9월 5일 18:00 Asia/Seoul 경계 안에서만 사용하고, 제공되지 않은 이후 결제 상태·개인 선호·권한을 만들지 않는다."
+    },
+    {
+      "kind": "required",
+      "source_ids": ["billing-resolved"],
+      "statement": "유일한 target 출처는 실제 본문 조회 증거와 정확히 하나의 disposition을 가지며, 현재 결제 완료를 새 조치 요청으로 만들지 않는다."
+    }
+  ],
+  "limitations": [
+    "Synthetic validation/tuning fixture only; it does not establish live billing state, account permissions, or personal usefulness.",
+    "This case is frozen before execution but is not human-reviewed or a personal golden standard.",
+    "Coverage is limited to one earlier failure, one later recovery notice, one earlier AI interpretation, and one explicit correction; it does not establish broader history or correction behavior."
+  ]
+}
