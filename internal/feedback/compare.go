@@ -111,6 +111,9 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 		c.AttemptCount += len(r.Attempts)
 		for _, a := range r.Attempts {
 			if a.Status == store.Failed || a.Status == store.Interrupted || a.Status == store.Cancelled {
+				if waitingForInputAfterReport(r, a) {
+					continue
+				}
 				c.FailedOrInterruptedAttempts++
 			}
 		}
@@ -165,4 +168,16 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 	}
 	record, err := s.Store.PutRecord(ctx, "comparison", "", c, s.Config.Limits.MaxArtifactBytes)
 	return record, c, err
+}
+
+func waitingForInputAfterReport(r RunEvidence, a store.Attempt) bool {
+	if a.Status != store.Failed || a.ID != r.Job.CurrentAttempt || r.Job.Status != store.WaitingInput || r.Job.Diagnostic != "" {
+		return false
+	}
+	for _, artifact := range r.Artifacts {
+		if artifact.AttemptID == a.ID && artifact.Kind == "report_markdown" {
+			return true
+		}
+	}
+	return false
 }
