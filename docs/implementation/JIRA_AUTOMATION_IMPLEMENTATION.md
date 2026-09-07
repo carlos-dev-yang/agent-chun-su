@@ -2,6 +2,13 @@
 
 Date: 2026-09-07.
 
+Update: the user approved the grouped direction and requested one report first,
+explicitly requiring undated TODO and overdue issues to appear. The first manual
+[report checkpoint](../validation/PHASE_06_JIRA_FIRST_REPORT.md) uses
+`own_assigned_14d_grouped_v1` and bounded descriptions. Actual schedule timing is
+still unselected. The pending-selection statements below describe the proposal
+before that approval; application integration remains work to implement.
+
 Status: implementation requested; the specific report selection, exact new
 report/profile contracts and schedule choice remain pending review. The user has
 authorized the Jira Cloud read-only collection and report feature, including
