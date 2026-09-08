@@ -3,6 +3,7 @@ package workgroup
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -11,32 +12,47 @@ import (
 	"chunsu/workgroups"
 )
 
-const BundleVersion = 1
+const BundleVersion = 2
 const ActivePath = "workgroups/mail-review/active.json"
 
 type Bundle struct {
-	Version int             `json:"version"`
-	Guide   string          `json:"guide"`
-	Schema  json.RawMessage `json:"schema"`
+	Version   int             `json:"version"`
+	Guide     string          `json:"guide"`
+	Schema    json.RawMessage `json:"schema"`
+	Workgroup string          `json:"workgroup,omitempty"`
+	Skill     *Skill          `json:"skill,omitempty"`
 }
+
 type Selection struct {
 	Digest     string `json:"digest"`
 	Reason     string `json:"reason"`
 	DecisionID string `json:"decision_id,omitempty"`
 }
 
-func Default() (Bundle, error) {
-	guide, err := workgroups.Assets.ReadFile("mail-review/guide.md")
+func Default() (Bundle, error) { return DefaultFor(mail.Workgroup) }
+
+func DefaultFor(id string) (Bundle, error) {
+	if !allowedWorkgroup(id) {
+		return Bundle{}, errors.New("unsupported workgroup")
+	}
+	skill, err := readEmbeddedSkill(id)
 	if err != nil {
 		return Bundle{}, err
 	}
-	schema, err := workgroups.Assets.ReadFile("mail-review/report.schema.json")
+	schema, err := workgroups.Assets.ReadFile(filepath.ToSlash(filepath.Join(id, "report.schema.json")))
 	if err != nil {
 		return Bundle{}, err
 	}
-	return Bundle{Version: BundleVersion, Guide: string(guide), Schema: schema}, nil
+	b := Bundle{Version: BundleVersion, Schema: schema, Workgroup: id, Skill: &skill}
+	return b, b.Validate()
 }
-func BundlePath(digest string) (string, error) {
+
+func BundlePath(digest string) (string, error) { return bundlePathFor(mail.Workgroup, digest) }
+
+func bundlePathFor(id, digest string) (string, error) {
+	if !allowedWorkgroup(id) {
+		return "", errors.New("unsupported workgroup")
+	}
 	if !files.ValidDigest(digest) {
 		return "", errors.New("invalid workgroup digest")
 	}
@@ -45,13 +61,28 @@ func BundlePath(digest string) (string, error) {
 			return "", errors.New("invalid workgroup digest")
 		}
 	}
-	return filepath.ToSlash(filepath.Join("workgroups", mail.Workgroup, "versions", digest+".json")), nil
+	return filepath.ToSlash(filepath.Join("workgroups", id, "versions", digest+".json")), nil
 }
-func Put(root string, b Bundle) (string, error) {
-	if b.Version != BundleVersion || !mail.Nonempty(b.Guide) || !json.Valid(b.Schema) {
-		return "", errors.New("invalid workgroup bundle")
+
+func ActivePathFor(id string) (string, error) {
+	if !allowedWorkgroup(id) {
+		return "", errors.New("unsupported workgroup")
 	}
-	if _, err := mail.CompileSchema(b.Schema); err != nil {
+	return filepath.ToSlash(filepath.Join("workgroups", id, "active.json")), nil
+}
+
+func Put(root string, b Bundle) (string, error) {
+	if b.Version == 1 {
+		if err := b.Validate(); err != nil {
+			return "", err
+		}
+		skill, err := legacyMailSkill(b.Guide)
+		if err != nil {
+			return "", err
+		}
+		b = Bundle{Version: BundleVersion, Schema: b.Schema, Workgroup: mail.Workgroup, Skill: &skill}
+	}
+	if err := b.Validate(); err != nil {
 		return "", err
 	}
 	data, err := json.Marshal(b)
@@ -59,7 +90,7 @@ func Put(root string, b Bundle) (string, error) {
 		return "", err
 	}
 	digest := files.Digest(data)
-	p, err := BundlePath(digest)
+	p, err := bundlePathFor(b.Workgroup, digest)
 	if err != nil {
 		return "", err
 	}
@@ -73,14 +104,21 @@ func Put(root string, b Bundle) (string, error) {
 	}
 	return digest, err
 }
-func Install(root string, limit int64) error {
-	if _, err := files.Read(root, ActivePath, limit); err == nil {
-		_, _, e := Active(root, limit)
+
+func Install(root string, limit int64) error { return InstallFor(root, mail.Workgroup, limit) }
+
+func InstallFor(root, id string, limit int64) error {
+	activePath, err := ActivePathFor(id)
+	if err != nil {
+		return err
+	}
+	if _, err := files.Read(root, activePath, limit); err == nil {
+		_, _, e := ActiveFor(root, id, limit)
 		return e
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	b, err := Default()
+	b, err := DefaultFor(id)
 	if err != nil {
 		return err
 	}
@@ -88,12 +126,17 @@ func Install(root string, limit int64) error {
 	if err != nil {
 		return err
 	}
-	data, _ := json.Marshal(Selection{Digest: digest, Reason: "initial built-in public guide; personal policy not yet reviewed"})
-	return files.Write(root, ActivePath, data, false)
+	data, _ := json.Marshal(Selection{Digest: digest, Reason: "initial built-in public skill; personal policy not yet reviewed"})
+	return files.Write(root, activePath, data, false)
 }
+
 func Load(root, digest string, limit int64) (Bundle, error) {
+	return LoadFor(root, mail.Workgroup, digest, limit)
+}
+
+func LoadFor(root, id, digest string, limit int64) (Bundle, error) {
 	var b Bundle
-	p, err := BundlePath(digest)
+	p, err := bundlePathFor(id, digest)
 	if err != nil {
 		return b, err
 	}
@@ -107,20 +150,85 @@ func Load(root, digest string, limit int64) (Bundle, error) {
 	if err = mail.Decode(data, &b); err != nil {
 		return b, err
 	}
-	if b.Version != BundleVersion {
-		return b, errors.New("unsupported workgroup bundle version")
+	if b.Version == 1 {
+		if id != mail.Workgroup {
+			return b, errors.New("legacy bundle belongs to mail-review")
+		}
+	} else if b.Version == BundleVersion && b.Workgroup != id {
+		return b, errors.New("workgroup bundle does not match requested workgroup")
+	}
+	if err = b.Validate(); err != nil {
+		return b, err
 	}
 	return b, nil
 }
+
 func Active(root string, limit int64) (Bundle, string, error) {
+	return ActiveFor(root, mail.Workgroup, limit)
+}
+
+func ActiveFor(root, id string, limit int64) (Bundle, string, error) {
+	activePath, err := ActivePathFor(id)
+	if err != nil {
+		return Bundle{}, "", err
+	}
 	var selected Selection
-	data, err := files.Read(root, ActivePath, limit)
+	data, err := files.Read(root, activePath, limit)
 	if err != nil {
 		return Bundle{}, "", err
 	}
 	if err = mail.Decode(data, &selected); err != nil {
 		return Bundle{}, "", err
 	}
-	b, err := Load(root, selected.Digest, limit)
+	b, err := LoadFor(root, id, selected.Digest, limit)
 	return b, selected.Digest, err
+}
+
+func (b Bundle) Validate() error {
+	if !json.Valid(b.Schema) {
+		return errors.New("invalid workgroup schema")
+	}
+	if _, err := mail.CompileSchema(b.Schema); err != nil {
+		return err
+	}
+	switch b.Version {
+	case 1:
+		if !mail.Nonempty(b.Guide) || b.Workgroup != "" || b.Skill != nil {
+			return errors.New("invalid legacy workgroup bundle")
+		}
+		return nil
+	case BundleVersion:
+		if !allowedWorkgroup(b.Workgroup) {
+			return errors.New("unsupported workgroup")
+		}
+		_, err := b.SelectedSkill()
+		return err
+	default:
+		return errors.New("unsupported workgroup bundle version")
+	}
+}
+
+func allowedWorkgroup(id string) bool {
+	return id == mail.Workgroup || id == "jira-report"
+}
+
+func readEmbeddedSkill(id string) (Skill, error) {
+	data, err := workgroups.Assets.ReadFile(filepath.ToSlash(filepath.Join(id, "SKILL.md")))
+	if err != nil {
+		return Skill{}, err
+	}
+	return parseSkill(data)
+}
+
+func legacyMailSkill(guide string) (Skill, error) {
+	base, err := readEmbeddedSkill(mail.Workgroup)
+	if err != nil {
+		return Skill{}, err
+	}
+	base.Markdown = skillDocument(base.Name, base.Description, guide)
+	return base, base.Validate()
+}
+
+func skillDocument(name, description, body string) string {
+	return fmt.Sprintf("---\nname: %s\ndescription: %s\n---\n\n%s", name, description, body)
 }

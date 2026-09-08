@@ -374,6 +374,16 @@ func NormalizePage(page Page, policy Policy, response Reference, remaining int, 
 				i.DueDate = ""
 			}
 		}
+		if policy.Mapping.StartField != "" {
+			i.StartDate = str(fields[policy.Mapping.StartField])
+			i.Availability["start_date"] = presence(fields[policy.Mapping.StartField])
+			if i.Availability["start_date"] == Available {
+				if _, e := time.Parse(time.DateOnly, i.StartDate); e != nil {
+					i.Availability["start_date"] = Invalid
+					i.StartDate = ""
+				}
+			}
+		}
 		tracking := obj(fields["timetracking"])
 		i.Availability["timetracking"] = presence(fields["timetracking"])
 		if i.Availability["timetracking"] == Available && tracking == nil {

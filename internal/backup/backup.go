@@ -14,6 +14,7 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/files"
 	"chunsu/internal/gmail"
+	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
@@ -233,6 +234,9 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 		return destination, err
 	}
 	c.Executor.LiveMailApproved = false
+	c.Executor.LiveJiraApproved = false
+	c.Executor.LiveJiraPolicyDigest = ""
+	c.Executor.LiveJiraValidationJobID = ""
 	if err = config.Save(destination, c); err != nil {
 		return destination, err
 	}
@@ -248,7 +252,20 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 		return destination, err
 	}
 	for name := range manifest.Files {
-		if strings.HasPrefix(name, "state/connections/") {
+		if strings.HasPrefix(name, "state/connections/jira-cloud/") && strings.Count(strings.TrimSuffix(name, ".json"), "/") == 3 && strings.HasSuffix(name, ".json") {
+			id := strings.TrimSuffix(filepath.Base(name), ".json")
+			profile, e := jira.ReadProfile(destination, id, c)
+			if e != nil {
+				return destination, e
+			}
+			profile.Active = false
+			profile.Secret = jira.SecretRef{}
+			if e = jira.SaveProfile(destination, profile, true); e != nil {
+				return destination, e
+			}
+			continue
+		}
+		if strings.HasPrefix(name, "state/connections/") && strings.Count(strings.TrimSuffix(name, ".json"), "/") == 2 && strings.HasSuffix(name, ".json") {
 			id := strings.TrimSuffix(filepath.Base(name), ".json")
 			connection, e := gmail.ReadConnection(destination, id, c)
 			if e != nil {

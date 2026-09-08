@@ -123,6 +123,9 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 		c.Limitations = append(c.Limitations, r.Gaps...)
 	}
 	a, b := c.Runs[0], c.Runs[1]
+	if a.Job.Workgroup != b.Job.Workgroup {
+		return store.Record{}, c, errors.New("cannot compare runs from different workgroups")
+	}
 	if a.Manifest == nil || b.Manifest == nil {
 		c.Comparable = false
 	} else {
@@ -143,8 +146,14 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 		if string(x) != string(y) {
 			c.Limitations = append(c.Limitations, "operational budgets differ")
 		}
-		x, _ = json.Marshal(a.Manifest.Executor)
-		y, _ = json.Marshal(b.Manifest.Executor)
+		leftExecutor, rightExecutor := a.Manifest.Executor, b.Manifest.Executor
+		// Every candidate Jira Skill needs its own completed synthetic boundary
+		// proof. Its job ID identifies that proof, rather than the executor's
+		// behavior, so it is deliberately excluded from same-input comparison.
+		leftExecutor.LiveJiraValidationJobID = ""
+		rightExecutor.LiveJiraValidationJobID = ""
+		x, _ = json.Marshal(leftExecutor)
+		y, _ = json.Marshal(rightExecutor)
 		if string(x) != string(y) {
 			c.Limitations = append(c.Limitations, "executor configuration differs")
 		}
@@ -156,7 +165,7 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 		c.Limitations = append(c.Limitations, "one or both runs have no semantic evaluation")
 	} else {
 		x, y := a.Evaluations[0], b.Evaluations[0]
-		if x.RubricID != y.RubricID || x.CaseID != y.CaseID || x.Reviewer != y.Reviewer || x.ReviewerKind != y.ReviewerKind {
+		if x.RubricID != y.RubricID || x.CaseID != y.CaseID || x.Reviewer != y.Reviewer || x.ReviewerKind != y.ReviewerKind || x.Workgroup != y.Workgroup || x.EvaluatorSkillID == "" || y.EvaluatorSkillID == "" || x.EvaluatorSkillID != y.EvaluatorSkillID || x.EvaluatorSkillHash != y.EvaluatorSkillHash {
 			c.Limitations = append(c.Limitations, "evaluation rules, cases or reviewers differ; comparable rejudgment is required")
 		}
 		if x.Outcome == "unevaluable" || y.Outcome == "unevaluable" {

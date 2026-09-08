@@ -1,14 +1,22 @@
 package cli
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"chunsu/internal/config"
 	"chunsu/internal/control"
+	"chunsu/internal/files"
 	"chunsu/internal/gmail"
+	"chunsu/internal/jira"
 	"chunsu/internal/runner"
 	"chunsu/internal/schedule"
+	"chunsu/internal/store"
+	"chunsu/internal/workgroup"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +55,7 @@ func (o *options) queueControl(operation string) *cobra.Command {
 }
 
 func (o *options) schedule() *cobra.Command {
-	cmd := &cobra.Command{Use: "schedule", Short: "Manage opt-in elapsed-interval Gmail schedules (stop the worker to edit)"}
+	cmd := &cobra.Command{Use: "schedule", Short: "Manage opt-in elapsed-interval schedules (stop the worker to edit)"}
 	var interval time.Duration
 	var name string
 	add := &cobra.Command{Use: "add CONNECTION_ID", Short: "Create a disabled schedule using the connection's report timezone", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
@@ -56,11 +64,11 @@ func (o *options) schedule() *cobra.Command {
 			return err
 		}
 		defer close()
-		connection, err := gmail.ReadConnection(s.Root, args[0], c)
+		connectionID, timezone, err := scheduleProfile(s.Root, args[0], c)
 		if err != nil {
 			return err
 		}
-		v, err := s.AddSchedule(cmd.Context(), connection.ID, strings.TrimSpace(name), connection.Policy.Timezone, interval)
+		v, err := s.AddSchedule(cmd.Context(), connectionID, strings.TrimSpace(name), timezone, interval)
 		if err != nil {
 			return err
 		}
@@ -81,11 +89,8 @@ func (o *options) schedule() *cobra.Command {
 				return err
 			}
 			if operation == "enable" {
-				if _, err = gmail.LoadConnection(s.Root, v.ConnectionID, c); err != nil {
+				if err = validateScheduleEnable(cmd.Context(), s, v, c); err != nil {
 					return err
-				}
-				if c.Executor.Path == "" || c.Executor.Kind == "" {
-					return errors.New("select and validate the executor before enabling scheduling")
 				}
 			}
 			if err = s.EnableSchedule(cmd.Context(), v.ID, operation == "enable"); err != nil {
@@ -147,4 +152,87 @@ func (o *options) schedule() *cobra.Command {
 		return output(cmd, v)
 	}})
 	return cmd
+}
+
+func scheduleProfile(root, id string, c config.Config) (string, string, error) {
+	path, err := jira.ProfilePath(id)
+	if err != nil {
+		return "", "", err
+	}
+	if _, err = os.Stat(filepath.Join(root, path)); err == nil {
+		profile, err := jira.ReadProfile(root, id, c)
+		if err != nil {
+			return "", "", err
+		}
+		return profile.ID, profile.Timezone, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", "", err
+	}
+	connection, err := gmail.ReadConnection(root, id, c)
+	if err != nil {
+		return "", "", err
+	}
+	return connection.ID, connection.Policy.Timezone, nil
+}
+
+func validateScheduleEnable(ctx context.Context, s *store.Store, schedule store.Schedule, c config.Config) error {
+	root := s.Root
+	path, err := jira.ProfilePath(schedule.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if _, err = os.Stat(filepath.Join(root, path)); err == nil {
+		profile, err := jira.LoadProfile(root, schedule.ConnectionID, c)
+		if err != nil {
+			return err
+		}
+		if profile.Timezone != schedule.Timezone {
+			return errors.New("Jira profile timezone changed; review and replace the schedule")
+		}
+		if !c.Executor.LiveJiraApproved || c.Executor.LiveJiraPolicyDigest != profile.ReportPolicyDigest() {
+			return errors.New("approve Jira live disclosure after validating the Jira executor boundary before enabling scheduling")
+		}
+		proof, err := activeJiraProofPackage(root, c, profile)
+		if err != nil {
+			return err
+		}
+		if err = runner.VerifyJiraLiveProof(ctx, s, c, proof); err != nil {
+			return err
+		}
+	} else if errors.Is(err, os.ErrNotExist) {
+		connection, err := gmail.LoadConnection(root, schedule.ConnectionID, c)
+		if err != nil {
+			return err
+		}
+		if connection.Policy.Timezone != schedule.Timezone {
+			return errors.New("connection timezone changed; review and replace the schedule")
+		}
+	} else {
+		return err
+	}
+	if c.Executor.Path == "" || c.Executor.Kind == "" {
+		return errors.New("select and validate the executor before enabling scheduling")
+	}
+	return nil
+}
+
+func activeJiraProofPackage(root string, c config.Config, profile jira.Profile) (workgroup.Package, error) {
+	bundle, digest, err := workgroup.ActiveFor(root, "jira-report", c.Limits.MaxArtifactBytes)
+	if err != nil {
+		return workgroup.Package{}, err
+	}
+	skill, err := bundle.SelectedSkill()
+	if err != nil {
+		return workgroup.Package{}, err
+	}
+	return workgroup.Package{
+		Workgroup:       "jira-report",
+		WorkgroupDigest: digest,
+		Skill: workgroup.SkillIdentity{
+			Name:        skill.Name,
+			Description: skill.Description,
+			Digest:      files.Digest([]byte(skill.Markdown)),
+		},
+		JiraSnapshot: &jira.ReportInput{ReportPolicyDigest: profile.ReportPolicyDigest(), Snapshot: jira.Snapshot{Synthetic: false}},
+	}, nil
 }

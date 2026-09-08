@@ -16,6 +16,7 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
 	"chunsu/internal/gmail"
+	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/platform"
 	"chunsu/internal/store"
@@ -40,10 +41,27 @@ type Outcome struct {
 func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 	switch req.Operation {
 	case "queue":
-		if _, err := mail.ParseSnapshot(req.Input, r.Config.Limits); err != nil {
-			return nil, err
+		workgroupID := req.Workgroup
+		if workgroupID == "" {
+			workgroupID = mail.Workgroup
 		}
-		return r.Store.Submit(ctx, mail.Workgroup, req.Input, map[string]any{"origin": "saved", "admission": "management"}, r.Config.Limits.MaxArtifactBytes)
+		switch workgroupID {
+		case mail.Workgroup:
+			if _, err := mail.ParseSnapshot(req.Input, r.Config.Limits); err != nil {
+				return nil, err
+			}
+		case "jira-report":
+			if _, err := jira.ParseReportInput(req.Input); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, errors.New("unsupported queue workgroup")
+		}
+		request := map[string]any{"origin": "saved", "admission": "management"}
+		if req.SourceName != "" {
+			request["source_name"] = req.SourceName
+		}
+		return r.Store.Submit(ctx, workgroupID, req.Input, request, r.Config.Limits.MaxArtifactBytes)
 	case "cancel":
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -167,10 +185,24 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		e := finish(store.Failed, "package preparation: "+err.Error(), false)
 		return out, errors.Join(err, e)
 	}
+	if p.Workgroup == "jira-report" && p.JiraSnapshot != nil && !p.JiraSnapshot.Snapshot.Synthetic {
+		if e := VerifyJiraLiveProof(ctx, r.Store, r.Config, p); e != nil {
+			e = finish(store.WaitingInput, e.Error(), false)
+			return out, errors.Join(errors.New("live Jira disclosure proof is no longer valid"), e)
+		}
+	}
 	if p.Snapshot.Origin != nil {
 		connection, e := gmail.LoadConnection(r.Store.Root, p.Snapshot.Origin.ConnectionID, r.Config)
 		if e != nil || gmail.PolicyDigest(connection.Policy) != p.Snapshot.Origin.PolicyDigest {
 			cause := errors.New("live connection is disabled, unavailable or has a different policy; review the original acquisition before retry")
+			e = finish(store.WaitingInput, cause.Error(), false)
+			return out, errors.Join(cause, e)
+		}
+	}
+	if p.JiraSnapshot != nil && !p.JiraSnapshot.Snapshot.Synthetic {
+		profile, e := jira.LoadProfile(r.Store.Root, p.JiraSnapshot.Policy.ConnectionID, r.Config)
+		if e != nil || !profile.Active || profile.SiteHost != p.JiraSnapshot.SiteHost || profile.ReportPolicyDigest() != p.JiraSnapshot.ReportPolicyDigest || p.Executor.LiveJiraPolicyDigest != p.JiraSnapshot.ReportPolicyDigest {
+			cause := errors.New("live Jira profile is disabled, unavailable or has a different reviewed report policy; review the original acquisition before retry")
 			e = finish(store.WaitingInput, cause.Error(), false)
 			return out, errors.Join(cause, e)
 		}
@@ -196,7 +228,7 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		e := finish(store.WaitingInput, "lookup evidence collection failed: "+err.Error(), false)
 		return out, errors.Join(err, e)
 	}
-	if executor.HasCapabilityViolation(generated.ObservedTools) {
+	if executor.HasCapabilityViolation(generated.ObservedTools, p.Workgroup) {
 		cause := errors.New(executor.CapabilityViolation)
 		e := finish(store.Failed, executor.CapabilityViolation, false)
 		return out, errors.Join(cause, e)
@@ -221,6 +253,13 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	}
 	if err = r.Store.AddEvent(finishCtx, jobID, a.ID, "result.generated", map[string]any{"bytes": len(generated.Final)}); err != nil {
 		return out, err
+	}
+	if p.Workgroup == "jira-report" {
+		jiraOut, jiraErr := r.completeJiraResult(finishCtx, out, finish, j, a, p, generated.Final, observed)
+		if jiraOut.Status == "" {
+			jiraOut.Status, jiraOut.Diagnostic = out.Status, out.Diagnostic
+		}
+		return jiraOut, jiraErr
 	}
 	report, validation, validationErr := mail.ValidateReport(generated.Final, p.Bundle.Schema, p.Snapshot, p.Mode, observed)
 	if validationErr != nil {
@@ -261,6 +300,165 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 }
 
 const requiredSourceLookupsMissing = "required_source_lookups_missing"
+
+// VerifyJiraLiveProof rechecks the approval evidence immediately before a
+// live executor invocation. The synthetic proof must use this exact selected
+// bundle; an inactive candidate remains eligible for comparison without
+// changing the human-owned active workgroup pointer.
+func VerifyJiraLiveProof(ctx context.Context, s *store.Store, c config.Config, p workgroup.Package) error {
+	if !c.Executor.LiveJiraApproved || c.Executor.LiveJiraValidationJobID == "" || p.JiraSnapshot == nil || p.JiraSnapshot.Snapshot.Synthetic {
+		return errors.New("live Jira disclosure is not approved with a synthetic proof")
+	}
+	if c.Executor.LiveJiraPolicyDigest != p.JiraSnapshot.ReportPolicyDigest {
+		return errors.New("live Jira report policy differs from the approved policy digest")
+	}
+	bundle, err := workgroup.LoadFor(s.Root, "jira-report", p.WorkgroupDigest, c.Limits.MaxArtifactBytes)
+	if err != nil {
+		return err
+	}
+	skill, err := bundle.SelectedSkill()
+	if err != nil {
+		return err
+	}
+	if p.Skill.Name != skill.Name || p.Skill.Description != skill.Description || p.Skill.Digest != files.Digest([]byte(skill.Markdown)) {
+		return errors.New("live Jira package does not use its selected Jira Skill")
+	}
+	return verifyJiraSyntheticProof(ctx, s, c, c.Executor.LiveJiraValidationJobID, p.WorkgroupDigest, skill)
+}
+
+// VerifyJiraSyntheticProof verifies the durable evidence needed to approve
+// live Jira disclosure for the current executor and the proof attempt's
+// preserved selected Jira Skill. It never treats an empty synthetic snapshot
+// as a boundary demonstration.
+func VerifyJiraSyntheticProof(ctx context.Context, s *store.Store, c config.Config, jobID string) error {
+	return verifyJiraSyntheticProof(ctx, s, c, jobID, "", workgroup.Skill{})
+}
+
+func verifyJiraSyntheticProof(ctx context.Context, s *store.Store, c config.Config, jobID, requiredDigest string, requiredSkill workgroup.Skill) error {
+	if jobID == "" || !files.ValidID(jobID) {
+		return errors.New("Jira live disclosure proof requires a valid synthetic job ID")
+	}
+	if c.Executor.Kind == "" || c.Executor.Path == "" {
+		return errors.New("select the executor before approving live Jira disclosure")
+	}
+	j, err := s.Job(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("read Jira disclosure proof: %w", err)
+	}
+	if j.Workgroup != "jira-report" {
+		return errors.New("Jira live disclosure proof must be a jira-report job")
+	}
+	inputArtifact, err := s.InputArtifact(ctx, j)
+	if err != nil {
+		return err
+	}
+	input, err := s.ReadArtifact(inputArtifact, c.Limits.MaxArtifactBytes)
+	if err != nil {
+		return err
+	}
+	inputSnapshot, err := jira.ParseReportInput(input)
+	if err != nil {
+		return err
+	}
+	if !inputSnapshot.Snapshot.Synthetic {
+		return errors.New("Jira live disclosure proof must use a synthetic snapshot")
+	}
+	required, err := gateway.JiraSourceIDs(input)
+	if err != nil {
+		return err
+	}
+	if len(required) == 0 {
+		return errors.New("Jira live disclosure proof requires at least one synthetic Jira source")
+	}
+	attempts, err := s.Attempts(ctx, j.ID)
+	if err != nil {
+		return err
+	}
+	artifacts, err := s.Artifacts(ctx, j.ID)
+	if err != nil {
+		return err
+	}
+	for _, attempt := range attempts {
+		if attempt.Status != store.Completed {
+			continue
+		}
+		if err := verifyJiraSyntheticAttempt(s, c, j, attempt, artifacts, required, requiredDigest, requiredSkill); err == nil {
+			return nil
+		}
+	}
+	return errors.New("Jira live disclosure proof has no completed synthetic attempt with the selected Skill, matching executor, allowed tool result, and every source lookup")
+}
+
+func verifyJiraSyntheticAttempt(s *store.Store, c config.Config, j store.Job, attempt store.Attempt, artifacts []store.Artifact, required []string, requiredDigest string, requiredSkill workgroup.Skill) error {
+	var manifest workgroup.Package
+	var result executor.Result
+	lookedUp := map[string]bool{}
+	for _, artifact := range artifacts {
+		if artifact.AttemptID != attempt.ID {
+			continue
+		}
+		data, err := s.ReadArtifact(artifact, c.Limits.MaxArtifactBytes)
+		if err != nil {
+			return err
+		}
+		switch artifact.Kind {
+		case "package_manifest":
+			if err = mail.Decode(data, &manifest); err != nil {
+				return err
+			}
+		case "executor_result":
+			if err = mail.Decode(data, &result); err != nil {
+				return err
+			}
+		case "source_lookup":
+			var evidence gateway.Evidence
+			if err = mail.Decode(data, &evidence); err != nil {
+				return err
+			}
+			if evidence.Tool != gateway.JiraToolName || evidence.Result.Issue == nil {
+				return errors.New("synthetic Jira proof has invalid lookup evidence")
+			}
+			if evidence.Result.Issue.ID != evidence.SourceID {
+				return errors.New("synthetic Jira proof lookup does not bind its source ID")
+			}
+			lookedUp[evidence.SourceID] = true
+		}
+	}
+	if manifest.Version != workgroup.BundleVersion || manifest.JobID != j.ID || manifest.AttemptID != attempt.ID || manifest.Workgroup != "jira-report" || !manifest.Synthetic {
+		return errors.New("synthetic Jira proof package is invalid")
+	}
+	bundle, err := workgroup.LoadFor(s.Root, "jira-report", manifest.WorkgroupDigest, c.Limits.MaxArtifactBytes)
+	if err != nil {
+		return fmt.Errorf("load synthetic Jira proof bundle: %w", err)
+	}
+	skill, err := bundle.SelectedSkill()
+	if err != nil {
+		return err
+	}
+	if manifest.Skill.Name != skill.Name || manifest.Skill.Description != skill.Description || manifest.Skill.Digest != files.Digest([]byte(skill.Markdown)) {
+		return errors.New("synthetic Jira proof package does not contain its selected Jira Skill")
+	}
+	if requiredDigest != "" && (manifest.WorkgroupDigest != requiredDigest || manifest.Skill.Name != requiredSkill.Name || manifest.Skill.Description != requiredSkill.Description || manifest.Skill.Digest != files.Digest([]byte(requiredSkill.Markdown))) {
+		return errors.New("synthetic Jira proof does not match the selected live Jira Skill")
+	}
+	if manifest.Executor.Kind != c.Executor.Kind || manifest.Executor.Path != c.Executor.Path || manifest.Executor.Model != c.Executor.Model {
+		return errors.New("synthetic Jira proof used a different executor configuration")
+	}
+	if result.Outcome != "generated" || result.ExitCode != 0 || len(result.ObservedTools) == 0 {
+		return errors.New("synthetic Jira proof has no successful observed tool result")
+	}
+	for _, tool := range result.ObservedTools {
+		if tool != executor.PermittedJiraTool {
+			return errors.New("synthetic Jira proof observed a forbidden tool")
+		}
+	}
+	for _, id := range required {
+		if !lookedUp[id] {
+			return errors.New("synthetic Jira proof did not preserve every required source lookup")
+		}
+	}
+	return nil
+}
 
 func missingRequiredSourceLookups(snapshot mail.Snapshot, observed map[string]bool) bool {
 	for _, source := range snapshot.Messages {
@@ -311,10 +509,17 @@ func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attemp
 		if e = mail.Decode(b, &evidence); e != nil {
 			return nil, e
 		}
-		if evidence.Tool != gateway.ToolName {
+		expectedTool, expectedErr := gateway.ToolForWorkgroup(j.Workgroup)
+		if expectedErr != nil || evidence.Tool != expectedTool {
 			return nil, errors.New("unknown lookup evidence tool")
 		}
 		if evidence.Result.Source != nil && evidence.Result.Source.ID == evidence.SourceID {
+			observed[evidence.SourceID] = true
+		}
+		if evidence.Result.Issue != nil {
+			if evidence.Result.Issue.ID != evidence.SourceID {
+				return nil, errors.New("jira_lookup_evidence_decode")
+			}
 			observed[evidence.SourceID] = true
 		}
 		if preserved[files.Digest(b)] {
@@ -325,6 +530,69 @@ func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attemp
 		}
 	}
 	return observed, nil
+}
+
+func (r *Runner) completeJiraResult(ctx context.Context, out Outcome, finish func(string, string, bool) error, j store.Job, a store.Attempt, p workgroup.Package, raw []byte, observed map[string]bool) (Outcome, error) {
+	if p.JiraSnapshot == nil {
+		return out, errors.New("Jira package is missing its pinned input")
+	}
+	report, validation, validationErr := jira.ValidateReport(raw, p.Bundle.Schema, *p.JiraSnapshot, observed)
+	if validationErr != nil {
+		validation.Gaps = append(validation.Gaps, validationErr.Error())
+	}
+	b, _ := json.MarshalIndent(validation, "", "  ")
+	if _, err := r.Store.SaveArtifact(ctx, j.ID, a.ID, "validation", b, r.Config.Limits.MaxArtifactBytes); err != nil {
+		return out, err
+	}
+	inputArt, err := r.Store.InputArtifact(ctx, j)
+	if err != nil {
+		return out, err
+	}
+	input, err := r.Store.ReadArtifact(inputArt, r.Config.Limits.MaxArtifactBytes)
+	if err != nil {
+		return out, err
+	}
+	ids, err := gateway.JiraSourceIDs(input)
+	if err != nil {
+		return out, err
+	}
+	for _, id := range ids {
+		if !observed[id] {
+			cause := errors.New(requiredSourceLookupsMissing)
+			e := finish(store.Failed, requiredSourceLookupsMissing, false)
+			return out, errors.Join(cause, e)
+		}
+	}
+	if validationErr != nil {
+		e := finish(store.Failed, "result contract: "+validationErr.Error(), true)
+		return out, errors.Join(validationErr, e)
+	}
+	index, err := jira.BuildSourceIndex(*p.JiraSnapshot)
+	if err != nil {
+		return out, err
+	}
+	sourceData, err := json.MarshalIndent(index, "", "  ")
+	if err != nil {
+		return out, err
+	}
+	sources, err := r.Store.SaveArtifact(ctx, j.ID, a.ID, "report_sources", sourceData, r.Config.Limits.MaxArtifactBytes)
+	if err != nil {
+		e := finish(store.WaitingInput, store.PublicationRequired, false)
+		return out, errors.Join(err, e)
+	}
+	art, err := r.Store.SaveArtifact(ctx, j.ID, a.ID, "report_markdown", jira.RenderMarkdown(report, validation, index, p.JiraSnapshot.Policy.TodoStatusID, filepath.Base(sources.Path)), r.Config.Limits.MaxArtifactBytes)
+	if err != nil {
+		e := finish(store.WaitingInput, store.PublicationRequired, false)
+		return out, errors.Join(err, e)
+	}
+	out.ReportPath = filepath.Join(r.Store.Root, art.Path)
+	if err = r.Store.AddEvent(ctx, j.ID, a.ID, "report.available", map[string]string{"artifact_id": art.ID, "availability": "local", "acknowledgment": "unknown"}); err != nil {
+		return out, err
+	}
+	if err = finish(validation.OperationalStatus, "", false); err != nil {
+		return out, err
+	}
+	return out, nil
 }
 
 func Recover(ctx context.Context, s *store.Store, c config.Config) (int, error) {

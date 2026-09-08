@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
+	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/store"
 )
@@ -40,14 +42,25 @@ type Case struct {
 	ReviewStatus string        `json:"review_status"`
 	Reviewer     string        `json:"reviewer"`
 	Snapshot     mail.Snapshot `json:"snapshot"`
-	Expectations []Expectation `json:"expectations"`
-	Limitations  []string      `json:"limitations"`
+	// Workgroup is explicit for new cases. An omitted value remains the
+	// historical mail-review representation so existing cases retain both their
+	// JSON shape and fingerprint.
+	Workgroup    string            `json:"workgroup,omitempty"`
+	JiraSnapshot *jira.ReportInput `json:"jira_snapshot,omitempty"`
+	Expectations []Expectation     `json:"expectations"`
+	Limitations  []string          `json:"limitations"`
 }
 type Judgment struct {
 	CriterionID string   `json:"criterion_id"`
 	Outcome     string   `json:"outcome"`
 	Reason      string   `json:"reason"`
 	SourceIDs   []string `json:"source_ids"`
+}
+type EvaluatorSkill struct {
+	Version   int    `json:"version"`
+	Name      string `json:"name"`
+	Workgroup string `json:"workgroup"`
+	Content   string `json:"content"`
 }
 type Evaluation struct {
 	Version            int        `json:"version"`
@@ -63,6 +76,9 @@ type Evaluation struct {
 	Limitations        []string   `json:"limitations"`
 	CheckingSeconds    *int       `json:"checking_seconds"`
 	ExpectationsStatus string     `json:"expectations_status,omitempty"`
+	Workgroup          string     `json:"workgroup,omitempty"`
+	EvaluatorSkillID   string     `json:"evaluator_skill_id,omitempty"`
+	EvaluatorSkillHash string     `json:"evaluator_skill_hash,omitempty"`
 }
 type Finding struct {
 	Version     int      `json:"version"`
@@ -83,6 +99,100 @@ func outcome(s string) bool       { return s == "pass" || s == "fail" || s == "u
 func fingerprint(snapshot mail.Snapshot) string {
 	b, _ := json.Marshal(snapshot)
 	return files.Digest(b)
+}
+
+func caseWorkgroup(c Case) string {
+	if c.Workgroup == "" {
+		return mail.Workgroup
+	}
+	return c.Workgroup
+}
+
+// caseFingerprint retains the legacy mail byte contract. New Jira cases bind
+// the declared workgroup with their typed report input so equal source IDs from
+// different domains cannot compare as the same input.
+func caseFingerprint(c Case) string {
+	if c.JiraSnapshot == nil {
+		return fingerprint(c.Snapshot)
+	}
+	b, _ := json.Marshal(struct {
+		Workgroup string            `json:"workgroup"`
+		Snapshot  *jira.ReportInput `json:"snapshot"`
+	}{caseWorkgroup(c), c.JiraSnapshot})
+	return files.Digest(b)
+}
+
+func caseSources(c Case, limits config.Limits) (map[string]bool, error) {
+	sources := map[string]bool{}
+	if c.JiraSnapshot == nil {
+		if caseWorkgroup(c) != mail.Workgroup {
+			return nil, errors.New("non-mail case requires its typed workgroup input")
+		}
+		b, _ := json.Marshal(c.Snapshot)
+		snapshot, err := mail.ParseSnapshot(b, limits)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range snapshot.Messages {
+			sources[m.ID] = true
+		}
+		return sources, nil
+	}
+	if caseWorkgroup(c) != "jira-report" {
+		return nil, errors.New("Jira case requires a jira-report input")
+	}
+	data, err := json.Marshal(c.JiraSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	input, err := jira.ParseReportInput(data)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Jira case input: %w", err)
+	}
+	for _, issue := range input.Snapshot.Issues {
+		if issue.ID == "" || sources[issue.ID] {
+			return nil, errors.New("Jira case contains an invalid or duplicate source")
+		}
+		sources[issue.ID] = true
+	}
+	return sources, nil
+}
+
+func validateEvaluatorSkill(skill EvaluatorSkill) error {
+	lines := strings.Split(skill.Content, "\n")
+	if len(lines) < 5 || strings.TrimSpace(lines[0]) != "---" {
+		return errors.New("evaluator Skill requires name and description front matter")
+	}
+	name, description, end := "", "", -1
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "---" {
+			end = i
+			break
+		}
+		key, value, found := strings.Cut(line, ":")
+		if !found {
+			return errors.New("evaluator Skill front matter is invalid")
+		}
+		switch strings.TrimSpace(key) {
+		case "name":
+			if name != "" {
+				return errors.New("evaluator Skill name is duplicated")
+			}
+			name = strings.TrimSpace(value)
+		case "description":
+			if description != "" {
+				return errors.New("evaluator Skill description is duplicated")
+			}
+			description = strings.TrimSpace(value)
+		default:
+			return errors.New("evaluator Skill front matter has an unsupported field")
+		}
+	}
+	if end < 0 || name == "" || description == "" || name != skill.Name || strings.TrimSpace(strings.Join(lines[end+1:], "\n")) == "" {
+		return errors.New("evaluator Skill name, description and body must be present")
+	}
+	return nil
 }
 
 func (s Service) load(ctx context.Context, id, kind string, target any) error {
@@ -127,14 +237,9 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		if c.Version != Version || !mail.Nonempty(c.Name) || !validReview(c.ReviewStatus, c.Reviewer) || len(c.Expectations) == 0 || c.Limitations == nil {
 			return store.Record{}, errors.New("case requires reviewed-status metadata, expectations and limitations")
 		}
-		b, _ := json.Marshal(c.Snapshot)
-		snapshot, err := mail.ParseSnapshot(b, s.Config.Limits)
+		sources, err := caseSources(c, s.Config.Limits)
 		if err != nil {
 			return store.Record{}, err
-		}
-		sources := map[string]bool{}
-		for _, m := range snapshot.Messages {
-			sources[m.ID] = true
 		}
 		for _, e := range c.Expectations {
 			if !mail.Nonempty(e.Statement) || (e.Kind != "required" && e.Kind != "prohibited" && e.Kind != "acceptable_alternative") {
@@ -147,6 +252,18 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 			}
 		}
 		payload = c
+	case "evaluator_skill":
+		var skill EvaluatorSkill
+		if err := mail.Decode(data, &skill); err != nil {
+			return store.Record{}, err
+		}
+		if skill.Version != Version || !mail.Nonempty(skill.Name) || !mail.Nonempty(skill.Workgroup) || !mail.Nonempty(skill.Content) {
+			return store.Record{}, errors.New("evaluator Skill requires version, name, workgroup and exact content")
+		}
+		if err := validateEvaluatorSkill(skill); err != nil {
+			return store.Record{}, err
+		}
+		payload = skill
 	case "evaluation":
 		var e Evaluation
 		if err := mail.Decode(data, &e); err != nil {
@@ -208,6 +325,36 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		if err = s.load(ctx, e.CaseID, "case", &c); err != nil {
 			return store.Record{}, err
 		}
+		if e.Workgroup == "" {
+			e.Workgroup = caseWorkgroup(c)
+		}
+		if e.Workgroup != j.Workgroup || e.Workgroup != caseWorkgroup(c) {
+			return store.Record{}, errors.New("evaluation job, case and declared workgroup must match")
+		}
+		if (e.EvaluatorSkillID == "") != (e.EvaluatorSkillHash == "") {
+			return store.Record{}, errors.New("evaluation evaluator Skill pin is incomplete")
+		}
+		if e.EvaluatorSkillID == "" {
+			// Historical JSON imports predate explicit evaluator Skills. Preserve
+			// them as traceable legacy evaluations, but mark the missing pin so a
+			// later comparison cannot present them as the same evaluation rule.
+			e.Limitations = append(e.Limitations, "independent evaluator Skill was not pinned by this legacy import")
+		} else {
+			skillRecord, err := s.Store.Record(ctx, e.EvaluatorSkillID)
+			if err != nil {
+				return store.Record{}, err
+			}
+			if skillRecord.Kind != "evaluator_skill" {
+				return store.Record{}, errors.New("evaluation evaluator pin is not an evaluator Skill")
+			}
+			var skill EvaluatorSkill
+			if err = s.load(ctx, e.EvaluatorSkillID, "evaluator_skill", &skill); err != nil {
+				return store.Record{}, err
+			}
+			if skill.Workgroup != e.Workgroup || files.Digest([]byte(skill.Content)) != e.EvaluatorSkillHash {
+				return store.Record{}, errors.New("evaluation evaluator Skill content or workgroup differs from its pin")
+			}
+		}
 		input, err := s.Store.InputArtifact(ctx, j)
 		if err != nil {
 			return store.Record{}, err
@@ -216,20 +363,30 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		if err != nil {
 			return store.Record{}, err
 		}
-		snapshot, err := mail.ParseSnapshot(b, s.Config.Limits)
-		if err != nil {
-			return store.Record{}, err
+		actual := Case{Workgroup: j.Workgroup}
+		if j.Workgroup == "jira-report" {
+			input, parseErr := jira.ParseReportInput(b)
+			if parseErr != nil {
+				return store.Record{}, parseErr
+			}
+			actual.JiraSnapshot = &input
+		} else {
+			snapshot, parseErr := mail.ParseSnapshot(b, s.Config.Limits)
+			if parseErr != nil {
+				return store.Record{}, parseErr
+			}
+			actual.Snapshot = snapshot
 		}
-		if fingerprint(snapshot) != fingerprint(c.Snapshot) {
+		if caseFingerprint(actual) != caseFingerprint(c) {
 			return store.Record{}, errors.New("evaluation case input differs from the job snapshot")
 		}
 		expected := map[string]bool{}
 		for _, c := range rubric.Criteria {
 			expected[c.ID] = false
 		}
-		sources := map[string]bool{}
-		for _, m := range snapshot.Messages {
-			sources[m.ID] = true
+		sources, err := caseSources(actual, s.Config.Limits)
+		if err != nil {
+			return store.Record{}, err
 		}
 		for _, j := range e.Judgments {
 			used, exists := expected[j.CriterionID]

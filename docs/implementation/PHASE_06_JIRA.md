@@ -2,13 +2,15 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Saved ingestion subset implemented; user-authorized manual Cloud board access checked on 2026-09-07; application live connector and Jira reporting remain unimplemented
+**Status:** Approved grouped Cloud reporting and explicit Skills implemented and exercised on 2026-09-08; wider phase semantics and human acceptance remain pending
 
-Latest evidence: the user selected Cloud, project `SWMPFE` and board `1704`,
-registered a Keychain token, and authorized actual board inspection. The
-[manual live access record](../validation/PHASE_06_JIRA_LIVE_ACCESS.md) supersedes
-the earlier provider/access deferral below for this bounded inspection only.
-It does not complete P6-02b or MS4.
+Latest evidence: the [Jira/Skill integration checkpoint](../validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)
+records an application-owned 26-issue live acquisition, real Codex reports,
+independent evaluations, and a mail regression run through the shared core.
+The user selected Cloud and approved own-assigned non-Done issues grouped into
+overdue, due within 14 days, and undated TODO. This replaces the earlier access
+deferral for that scope. Capacity, sprint/history expansion, human usefulness,
+candidate adoption and active recurring operation are not complete.
 
 **Goal:** Prove that a second workgroup fits the existing execution, evidence, evaluation, and proposal structure.
 
@@ -18,14 +20,15 @@ It does not complete P6-02b or MS4.
 
 **Out of scope:** Ticket implementation, comments, field changes, transitions, reassignment, and development execution.
 
-The latest user request authorizes Jira collection preparation now, while
+The initial request authorized Jira collection preparation, while
 deferring the real account connection. This is an explicit early subset of
 Phase 6, not acceptance of the full phase's entry/exit milestones. The
 [ingestion preparation proposal](JIRA_INGESTION_PREPARATION.md) specifies the
 replaceable reader/normalizer boundary, reuse points, concrete work units and
 completion evidence. The user approved this collection and internal-data
-boundary. Cloud/Data Center selection remains open; tenant access and AI Jira
-reporting are deferred.
+boundary. At that checkpoint Cloud/Data Center selection, tenant access and AI
+Jira reporting remained deferred; the subsequent approval and evidence above
+supersede those deferrals for the selected grouped scope.
 
 The saved ingestion units P6-01a/P6-02a/P6-03a/P6-03b/P6-03c are complete for the
 documented local formats and storage seam. Their [validation record](../validation/PHASE_06_JIRA_INGESTION.md)
@@ -38,7 +41,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-01 — Define Jira reporting semantics and access scope
 
-- **Status:** in_progress
+- **Status:** approved grouped scope complete; wider sprint/capacity semantics deferred
 - **Depends on:** P3-07, P4-09; D08.
 - **Work:** Select Cloud or Data Center integration as appropriate, user identity, project/board/sprint scope, necessary history, and allowed reads. Define assigned work versus sprint work, delay versus risk, meaningful post-completion issues, and available-capacity evidence.
 - **Deliverable:** A Jira workgroup brief and concrete connection/semantic decision.
@@ -46,7 +49,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-02 — Implement one scoped Jira read connector
 
-- **Status:** in_progress — P6-02a saved/disconnected readers complete; P6-02b live HTTP provider deferred
+- **Status:** approved subset complete — saved readers and bounded read-only Cloud connector verified; history/relationship expansion deferred
 - **Depends on:** P6-01; applicable D06 data policy.
 - **Work:** Verify current official APIs and implement the chosen authentication, identity, paginated issue/history reads, relevant relationships, and rate/error handling. Reuse host secret references and gateway enforcement.
 - **Deliverable:** One Jira connector and bounded tool bindings.
@@ -54,7 +57,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-03 — Normalize Jira evidence and effective time
 
-- **Status:** in_progress — P6-03a/b/c saved normalization, preservation and mixed storage checks complete; live evidence pending
+- **Status:** approved subset complete — live raw preservation and all 26 normalized dates/statuses checked; historical analysis remains outside this scope
 - **Depends on:** P6-02.
 - **Work:** Preserve issue/history identity, as-of time, status changes, estimates, dependencies, and evidence of follow-up after completion. Handle unavailable history and partial pages explicitly.
 - **Deliverable:** A Jira input/evidence adapter using the common envelope.
@@ -62,7 +65,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-04 — Create the Jira guide and result contract
 
-- **Status:** not_started
+- **Status:** approved grouped contract complete — versioned SKILL.md, schema, public synthetic input and explicit per-attempt injection implemented for both mail and Jira
 - **Depends on:** P6-01, P6-03; review the new workgroup contract.
 - **Work:** Define report sections for assigned work, current sprint, confirmed delays/risks, post-completion follow-ups, and capacity/feasibility with stated assumptions. Keep Jira meanings in the workgroup/connector, not the generic controller.
 - **Deliverable:** `workgroups/jira-report/` with guide, schema, public examples, and scoped inputs.
@@ -78,7 +81,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-06 — Evaluate saved and live Jira reports
 
-- **Status:** not_started
+- **Status:** approved grouped subset verified — frozen synthetic/live cases and independent six-criterion evaluations; wider case coverage and human usefulness pending
 - **Depends on:** P6-05, P3-02.
 - **Work:** Prepare reviewed cases for sprint changes, blocking dependencies, incomplete history, post-completion updates, and missing capacity. Run saved cases, then the approved live scope, through existing evaluation and feedback paths.
 - **Deliverable:** Jira report/evaluation bundles and an observed-issue review.
@@ -86,7 +89,7 @@ test code. Follow the work-unit and validation rules in the master plan.
 
 ### P6-07 — Review reuse and close MS4
 
-- **Status:** not_started
+- **Status:** reuse check implemented and exercised; MS4 human usefulness/adoption evidence remains pending
 - **Depends on:** P6-06.
 - **Work:** Inspect which code and contracts changed for the second workgroup. Identify mail-specific assumptions that leaked into the core and propose only necessary corrections with both workflows in the validation scope.
 - **Deliverable:** The MS4 reuse note and focused follow-up tasks if needed.

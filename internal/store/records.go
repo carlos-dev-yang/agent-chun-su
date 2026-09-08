@@ -24,7 +24,7 @@ type Record struct {
 func (s *Store) PutRecord(ctx context.Context, kind, subject string, payload any, limit int64) (Record, error) {
 	var r Record
 	switch kind {
-	case "case", "rubric", "evaluation", "feedback", "finding", "proposal", "comparison", "decision":
+	case "case", "rubric", "evaluation", "evaluator_skill", "feedback", "finding", "proposal", "comparison", "decision":
 	default:
 		return r, errors.New("unsupported record kind")
 	}

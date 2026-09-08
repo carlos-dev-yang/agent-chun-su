@@ -182,6 +182,23 @@ func (k Keychain) Get(ctx context.Context, ref string) (string, error) {
 	}
 	return string(data), nil
 }
+
+// GetExternal reads a user-owned generic-password item without requiring the
+// application's encoded storage format. The value remains in memory only.
+func (k Keychain) GetExternal(ctx context.Context, service, account string) (string, error) {
+	if service == "" || account == "" || len(service) > MaxNativeCommandBytes || len(account) > MaxNativeCommandBytes || strings.ContainsAny(service+account, "\x00\r\n") {
+		return "", errors.New("invalid external Keychain reference")
+	}
+	out, diagnostic, err := k.invoke(ctx, "", "find-generic-password", "-s", service, "-a", account, "-w")
+	if err != nil {
+		return "", nativeFailure(ctx, "read external credential", diagnostic, err)
+	}
+	value := strings.TrimSpace(out)
+	if value == "" || len(value) > MaxSecretBytes {
+		return "", errors.New("external credential exceeds the supported secret size or is empty")
+	}
+	return value, nil
+}
 func (k Keychain) Delete(ctx context.Context, ref string) error {
 	if err := validReference(ref); err != nil {
 		return err

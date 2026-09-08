@@ -28,7 +28,8 @@ const TestedModel = "gpt-5.5"
 const Profile = "chunsu_mail"
 const ProcessFile = "process.json"
 const MaxVersionBytes = 4096
-const PermittedObservedTool = "chunsu_mail.mail_source_get"
+const PermittedMailTool = "chunsu_mail.mail_source_get"
+const PermittedJiraTool = "chunsu_jira.jira_issue_get"
 const CapabilityViolation = "capability_violation"
 
 type ProcessRecord struct {
@@ -61,9 +62,24 @@ type Result struct {
 	ObservedTools []string        `json:"observed_tools,omitempty"`
 }
 
-func HasCapabilityViolation(observed []string) bool {
+func PermittedObservedTool(workgroup string) (string, error) {
+	switch workgroup {
+	case "mail-review":
+		return PermittedMailTool, nil
+	case "jira-report":
+		return PermittedJiraTool, nil
+	default:
+		return "", errors.New("unsupported executor workgroup")
+	}
+}
+
+func HasCapabilityViolation(observed []string, workgroup string) bool {
+	permitted, err := PermittedObservedTool(workgroup)
+	if err != nil {
+		return true
+	}
 	for _, tool := range observed {
-		if tool != PermittedObservedTool {
+		if tool != permitted {
 			return true
 		}
 	}
@@ -159,11 +175,15 @@ func Arguments(binary, root string, p workgroup.Package) []string {
 	for _, a := range serverArgs {
 		quoted = append(quoted, strconv.Quote(a))
 	}
-	server := fmt.Sprintf("{ command = %s, args = [%s], enabled = true, required = true, enabled_tools = [%s] }", strconv.Quote(binary), strings.Join(quoted, ","), strconv.Quote("mail_source_get"))
-	args = append(args, "-c", "mcp_servers={ chunsu_mail = "+server+" }")
+	serverName, tool := "chunsu_mail", "mail_source_get"
+	if p.Workgroup == "jira-report" {
+		serverName, tool = "chunsu_jira", "jira_issue_get"
+	}
+	server := fmt.Sprintf("{ command = %s, args = [%s], enabled = true, required = true, enabled_tools = [%s] }", strconv.Quote(binary), strings.Join(quoted, ","), strconv.Quote(tool))
+	args = append(args, "-c", "mcp_servers={ "+serverName+" = "+server+" }")
 	// The human-authorized snapshot is the whole read scope. No per-message
 	// approval is needed; the gateway enforces exact IDs and revocation itself.
-	args = append(args, "-c", `mcp_servers.chunsu_mail.tools.mail_source_get.approval_mode="approve"`)
+	args = append(args, "-c", "mcp_servers."+serverName+".tools."+tool+`.approval_mode="approve"`)
 	if p.Executor.Model != "" {
 		args = append(args, "--model", p.Executor.Model)
 	}
@@ -185,8 +205,11 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	if p.Executor.Model != TestedModel {
 		return result, fmt.Errorf("executor model %q needs boundary revalidation; select the verified direct-tool model %s", p.Executor.Model, TestedModel)
 	}
-	if p.Snapshot.Origin != nil && !p.Snapshot.Synthetic && !p.Executor.LiveMailApproved {
+	if p.Workgroup == "mail-review" && !p.Snapshot.Synthetic && !p.Executor.LiveMailApproved {
 		return result, errors.New("live-mail disclosure is disabled; validate the actual executor boundary with synthetic sources, then explicitly approve this executor configuration")
+	}
+	if p.Workgroup == "jira-report" && p.JiraSnapshot != nil && !p.JiraSnapshot.Snapshot.Synthetic && (!p.Executor.LiveJiraApproved || p.Executor.LiveJiraValidationJobID == "" || p.Executor.LiveJiraPolicyDigest != p.JiraSnapshot.ReportPolicyDigest) {
+		return result, errors.New("live-Jira disclosure is disabled; validate the actual Jira tool boundary with synthetic sources, then explicitly approve this executor configuration")
 	}
 	versionCtx, versionCancel := context.WithTimeout(ctx, time.Duration(p.Limits.LockWaitSeconds)*time.Second)
 	version, err := Version(versionCtx, p.Executor.Path)
@@ -216,6 +239,9 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	}
 	instructions, err := files.Read(p.Directory, "instructions.md", p.Limits.MaxArtifactBytes)
 	if err != nil {
+		return result, err
+	}
+	if err = VerifySkill(p); err != nil {
 		return result, err
 	}
 	for name, digest := range p.Files {
@@ -322,7 +348,9 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			case "mcp_tool_call":
 				// Record capability names only, never their arguments or result payloads.
 				if event.Item.Server == "chunsu_mail" && event.Item.Tool == "mail_source_get" {
-					tool = PermittedObservedTool
+					tool = PermittedMailTool
+				} else if event.Item.Server == "chunsu_jira" && event.Item.Tool == "jira_issue_get" {
+					tool = PermittedJiraTool
 				} else {
 					tool = "unexpected_mcp_tool"
 				}
@@ -378,4 +406,19 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 	}
 	result.Outcome = "generated"
 	return result, nil
+}
+
+func VerifySkill(p workgroup.Package) error {
+	skill, err := p.Bundle.SelectedSkill()
+	if err != nil {
+		return err
+	}
+	if skill.Name != p.Skill.Name || skill.Description != p.Skill.Description || files.Digest([]byte(skill.Markdown)) != p.Skill.Digest {
+		return errors.New("selected Skill differs from the pinned manifest")
+	}
+	b, err := files.Read(p.Directory, "SKILL.md", p.Limits.MaxArtifactBytes)
+	if err != nil || files.Digest(b) != p.Skill.Digest || string(b) != skill.Markdown {
+		return errors.New("required Skill was not delivered intact to the executor")
+	}
+	return nil
 }

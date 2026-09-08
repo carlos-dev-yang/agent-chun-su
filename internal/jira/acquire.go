@@ -2,6 +2,7 @@ package jira
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
+	"chunsu/internal/secrets"
 	"chunsu/internal/store"
 )
 
@@ -77,6 +79,66 @@ type Record struct {
 type Collector struct {
 	Store  *store.Store
 	Config config.Config
+	// ReservedID is supplied by a durable scheduler tick. It is never derived
+	// from provider data and prevents a post-reservation collection from making
+	// an unrelated acquisition identity.
+	ReservedID string
+}
+
+type liveSource struct {
+	Version            int          `json:"version"`
+	Reader             string       `json:"reader"`
+	ConnectionID       string       `json:"connection_id"`
+	SiteHost           string       `json:"site_host"`
+	CloudID            string       `json:"cloud_id"`
+	PolicyDigest       string       `json:"policy_digest"`
+	ReportPolicy       ReportPolicy `json:"report_policy"`
+	ReportPolicyDigest string       `json:"report_policy_digest"`
+	AsOfDate           string       `json:"as_of_date"`
+}
+
+func (c Collector) nextID() (string, error) {
+	if c.ReservedID == "" {
+		return files.ID(), nil
+	}
+	if !files.ValidID(c.ReservedID) {
+		return "", errors.New("invalid reserved Jira acquisition ID")
+	}
+	return c.ReservedID, nil
+}
+func (p Profile) collectorPolicy() Policy {
+	return Policy{Version: Version, ConnectionID: p.ID, ProjectKeys: []string{p.ProjectKey}, Subject: Identity{ID: p.SubjectAccountID, DisplayName: p.ExpectedAccount}, Selection: "assigned", SprintIDs: []string{}, Timezone: p.Timezone, MaxIssues: p.Policy.MaxIssues, MaxPages: p.Policy.MaxPages, MaxContextEntries: 1, Mapping: Mapping{Version: Version, IdentityField: "accountId", StartField: p.StartField}}
+}
+func (c Collector) liveSource(id string, p Profile, policy Policy, asOfDate string) (Reference, error) {
+	reportPolicy := p.ReportPolicy()
+	if _, err := time.Parse(time.DateOnly, asOfDate); err != nil {
+		return Reference{}, errors.New("invalid pinned Jira report date")
+	}
+	b, err := json.Marshal(liveSource{Version: Version, Reader: LiveReaderKind, ConnectionID: p.ID, SiteHost: p.SiteHost, CloudID: p.CloudID, PolicyDigest: digest(policy), ReportPolicy: reportPolicy, ReportPolicyDigest: ReportPolicyDigest(reportPolicy), AsOfDate: asOfDate})
+	if err != nil {
+		return Reference{}, err
+	}
+	return c.write(id, "live-request", b, c.Config.Limits.MaxEvidenceBytes)
+}
+func (c Collector) readLiveSource(id string, ref Reference, policy Policy) (liveSource, error) {
+	b, err := c.read(id, ref, c.Config.Limits.MaxEvidenceBytes)
+	if err != nil {
+		return liveSource{}, err
+	}
+	var source liveSource
+	if err = decode(b, &source); err != nil {
+		return source, err
+	}
+	if source.Version != Version || source.Reader != LiveReaderKind || source.ConnectionID != policy.ConnectionID || !plainText(source.SiteHost, 255) || !cloudID(source.CloudID) || source.PolicyDigest != digest(policy) || source.ReportPolicyDigest != ReportPolicyDigest(source.ReportPolicy) {
+		return source, errors.New("live Jira request binding mismatch")
+	}
+	if err = source.ReportPolicy.Validate(); err != nil {
+		return source, err
+	}
+	if _, err = time.Parse(time.DateOnly, source.AsOfDate); err != nil || len(source.ReportPolicy.ProjectKeys) != 1 || len(source.ReportPolicy.BoardIDs) != 1 || source.ReportPolicy.ConnectionID != source.ConnectionID || source.ReportPolicy.ProjectKeys[0] != policy.ProjectKeys[0] || source.ReportPolicy.SubjectAccountID != policy.Subject.ID {
+		return source, errors.New("live Jira report scope binding mismatch")
+	}
+	return source, nil
 }
 
 func (c Collector) write(id, kind string, data []byte, limit int64) (Reference, error) {
@@ -141,6 +203,95 @@ func (c Collector) CollectSaved(ctx context.Context, data []byte) (Record, error
 	return c.beginSaved(ctx, data, nil, "")
 }
 
+// CollectLive reads only a verified, active Cloud profile. It preserves every
+// raw provider page before normalization and stores a token-free request binding.
+func (c Collector) CollectLive(ctx context.Context, profile Profile) (Record, error) {
+	if err := profile.Validate(c.Config); err != nil {
+		return Record{}, err
+	}
+	if !profile.Active {
+		return Record{}, errors.New("Jira connection is disabled or has not been verified")
+	}
+	policy := profile.collectorPolicy()
+	if err := policy.Validate(); err != nil {
+		return Record{}, err
+	}
+	id, err := c.nextID()
+	if err != nil {
+		return Record{}, err
+	}
+	zone, err := time.LoadLocation(profile.Timezone)
+	if err != nil {
+		return Record{}, err
+	}
+	asOfDate := time.Now().In(zone).Format(time.DateOnly)
+	source, err := c.liveSource(id, profile, policy, asOfDate)
+	if err != nil {
+		return Record{}, err
+	}
+	r := Record{Acquisition: store.Acquisition{ID: id, ConnectionID: profile.ID, Status: Collecting}, State: State{Version: Version, Provider: Provider, ID: id, Reader: LiveReaderKind, Format: CloudV3, Synthetic: false, Policy: policy, PolicyDigest: digest(policy), Normalizer: NormalizerVersion, Budgets: budgets(c.Config.Limits), Source: source, Pages: []PreservedPage{}, Status: Collecting}, Snapshot: Snapshot{AcquisitionID: id, Version: Version, Provider: Provider, Format: CloudV3, Synthetic: false, ConnectionID: profile.ID, PolicyDigest: digest(policy), Normalizer: NormalizerVersion, Timezone: profile.Timezone, Status: Partial, Issues: []Issue{}, Dispositions: []Disposition{}, Gaps: []string{}}}
+	if err = c.checkpoint(ctx, &r); err != nil {
+		return r, err
+	}
+	k, err := secrets.Open()
+	if err != nil {
+		return c.fail(ctx, r, "keychain_unavailable", err)
+	}
+	token, err := k.GetExternal(ctx, profile.Secret.Service, profile.Secret.Account)
+	if err != nil {
+		return c.fail(ctx, r, "credential_unavailable", err)
+	}
+	reader, err := NewLiveReader(profile, token, asOfDate, c.Config.Limits)
+	if err != nil {
+		return c.fail(ctx, r, "reader_unavailable", err)
+	}
+	return c.run(ctx, r, reader)
+}
+
+func (c Collector) ResumeLive(ctx context.Context, profile Profile, id string) (Record, error) {
+	if err := profile.Validate(c.Config); err != nil || !profile.Active {
+		return Record{}, errors.New("Jira connection is disabled or invalid")
+	}
+	r, err := c.Load(ctx, id)
+	if err != nil {
+		return r, err
+	}
+	source, err := c.readLiveSource(id, r.State.Source, r.State.Policy)
+	if err != nil {
+		return r, err
+	}
+	if r.State.Reader != LiveReaderKind || r.State.Synthetic || profile.ID != r.State.Policy.ConnectionID || profile.SiteHost != source.SiteHost || profile.CloudID != source.CloudID || digest(profile.collectorPolicy()) != r.State.PolicyDigest || profile.ReportPolicyDigest() != source.ReportPolicyDigest {
+		return r, errors.New("live Jira resume profile or policy differs from the pinned acquisition")
+	}
+	if r.State.RetrievalComplete {
+		return r, nil
+	}
+	if r.Acquisition.NotBefore > time.Now().UnixMilli() {
+		return r, errors.New("provider retry is not yet eligible")
+	}
+	if r.State.Rows >= r.State.Policy.MaxIssues || r.State.StopReason == "issue_budget_exhausted" || r.State.StopReason == "page_budget_reached" || r.State.StopReason == "continuation_unavailable" {
+		return r, errors.New("live Jira acquisition reached a pinned collection bound; start a new acquisition")
+	}
+	for _, page := range r.State.Pages {
+		if page.Processed && page.Complete {
+			return r, errors.New("live Jira acquisition has no continuation; start a new acquisition")
+		}
+	}
+	k, err := secrets.Open()
+	if err != nil {
+		return r, err
+	}
+	token, err := k.GetExternal(ctx, profile.Secret.Service, profile.Secret.Account)
+	if err != nil {
+		return r, err
+	}
+	reader, err := NewLiveReader(profile, token, source.AsOfDate, c.Config.Limits)
+	if err != nil {
+		return r, err
+	}
+	return c.run(ctx, r, reader)
+}
+
 func (c Collector) beginSaved(ctx context.Context, data []byte, mapping *Mapping, reprocessOf string) (Record, error) {
 	reader, err := NewSavedReader(data, c.Config.Limits)
 	if err != nil {
@@ -153,7 +304,10 @@ func (c Collector) beginSaved(ctx context.Context, data []byte, mapping *Mapping
 			return Record{}, err
 		}
 	}
-	id := files.ID()
+	id, err := c.nextID()
+	if err != nil {
+		return Record{}, err
+	}
 	source, err := c.write(id, "source", data, c.Config.Limits.MaxEvidenceBytes)
 	if err != nil {
 		return Record{}, err
@@ -188,7 +342,7 @@ func (c Collector) Load(ctx context.Context, id string) (Record, error) {
 	if err = decode(data, &state); err != nil {
 		return r, errors.New("acquisition is not a supported Jira checkpoint")
 	}
-	if state.Version != Version || state.Provider != Provider || state.ID != a.ID || state.Policy.ConnectionID != a.ConnectionID || state.PolicyDigest != digest(state.Policy) || state.Normalizer != NormalizerVersion || state.Reader != SavedReaderKind || state.Status != a.Status || a.JobID != "" || a.ParentID != "" || (state.ReprocessOf != "" && !files.ValidID(state.ReprocessOf)) {
+	if state.Version != Version || state.Provider != Provider || state.ID != a.ID || state.Policy.ConnectionID != a.ConnectionID || state.PolicyDigest != digest(state.Policy) || state.Normalizer != NormalizerVersion || (state.Reader != SavedReaderKind && state.Reader != LiveReaderKind) || state.Status != a.Status || a.ParentID != "" || (state.ReprocessOf != "" && !files.ValidID(state.ReprocessOf)) || (state.Reader == LiveReaderKind && (state.Synthetic || state.ReprocessOf != "")) {
 		return r, errors.New("Jira acquisition binding mismatch")
 	}
 	if err = state.Policy.Validate(); err != nil {
@@ -198,20 +352,25 @@ func (c Collector) Load(ctx context.Context, id string) (Record, error) {
 	if state.Budgets.Response <= 0 || state.Budgets.Text <= 0 || state.Budgets.Evidence <= 0 || state.Budgets.Response > c.Config.Limits.MaxArtifactBytes || state.Budgets.Text > c.Config.Limits.MaxSourceBytes || state.Budgets.Evidence > c.Config.Limits.MaxEvidenceBytes {
 		return r, errors.New("pinned Jira byte budgets are invalid or exceed current host limits")
 	}
-	source, err := c.read(id, state.Source, state.Budgets.Evidence)
-	if err != nil {
+	var saved *SavedReader
+	if state.Reader == SavedReaderKind {
+		source, e := c.read(id, state.Source, state.Budgets.Evidence)
+		if e != nil {
+			return r, e
+		}
+		saved, e = NewSavedReader(source, state.Budgets.limits())
+		if e != nil {
+			return r, e
+		}
+		expected := saved.Input.Policy
+		if state.ReprocessOf != "" {
+			expected.Mapping = state.Policy.Mapping
+		}
+		if digest(expected) != state.PolicyDigest || state.Format != saved.Input.Format || state.Synthetic != saved.Input.Synthetic {
+			return r, errors.New("preserved Jira source/policy mismatch")
+		}
+	} else if _, err = c.readLiveSource(id, state.Source, state.Policy); err != nil {
 		return r, err
-	}
-	reader, err := NewSavedReader(source, state.Budgets.limits())
-	if err != nil {
-		return r, err
-	}
-	expected := reader.Input.Policy
-	if state.ReprocessOf != "" {
-		expected.Mapping = state.Policy.Mapping
-	}
-	if digest(expected) != state.PolicyDigest || state.Format != reader.Input.Format || state.Synthetic != reader.Input.Synthetic {
-		return r, errors.New("preserved Jira source/policy mismatch")
 	}
 	data, err = c.read(id, state.Snapshot, state.Budgets.Evidence)
 	if err != nil {
@@ -246,9 +405,17 @@ func (c Collector) Load(ctx context.Context, id string) (Record, error) {
 		if rawBytes > state.Budgets.Evidence {
 			return r, errors.New("Jira raw evidence exceeds pinned budget")
 		}
-		original, e := reader.ReadPage(ctx, Request{Policy: state.Policy, Cursor: page.Cursor})
-		if e != nil {
-			return r, e
+		original := Page{Body: body, CapturedAt: page.CapturedAt, NextCursor: page.NextCursor, Complete: page.Complete}
+		if saved != nil {
+			original, e = saved.ReadPage(ctx, Request{Policy: state.Policy, Cursor: page.Cursor})
+			if e != nil {
+				return r, e
+			}
+		} else {
+			original.NextCursor, original.Complete, e = pageContinuation(body, state.Format)
+			if e != nil {
+				return r, e
+			}
 		}
 		at, _ := timestamp(original.CapturedAt)
 		if files.Digest(original.Body) != page.Response.Digest || page.CapturedAt != at || page.NextCursor != original.NextCursor || page.Complete != original.Complete {
@@ -264,7 +431,7 @@ func (c Collector) Load(ctx context.Context, id string) (Record, error) {
 	if rows != state.Rows || rows > state.Policy.MaxIssues || cursor != state.Cursor || (state.RetrievalComplete && (!complete || contains(snapshot.Gaps, "issue_budget_exhausted"))) || len(snapshot.Dispositions) != rows {
 		return r, errors.New("Jira checkpoint totals mismatch")
 	}
-	if state.Status != Collecting && state.Status != Collected && state.Status != Partial && state.Status != Failed {
+	if state.Status != Collecting && state.Status != Collected && state.Status != Partial && state.Status != Failed && state.Status != store.RetryWait {
 		return r, errors.New("invalid Jira acquisition status")
 	}
 	if (state.Status == Collected) != state.RetrievalComplete || (snapshot.Status == Complete) != (state.RetrievalComplete && len(snapshot.Gaps) == 0) {
@@ -301,6 +468,9 @@ func (c Collector) Resume(ctx context.Context, id string) (Record, error) {
 	if err != nil {
 		return r, err
 	}
+	if r.State.Reader != SavedReaderKind {
+		return r, errors.New("live Jira acquisitions require resume-live with the verified connection")
+	}
 	if r.State.RetrievalComplete {
 		return r, nil
 	}
@@ -329,6 +499,9 @@ func (c Collector) Renormalize(ctx context.Context, id string, mapping Mapping) 
 	if err != nil {
 		return r, err
 	}
+	if r.State.Reader != SavedReaderKind {
+		return r, errors.New("live Jira acquisitions cannot be renormalized as saved input")
+	}
 	data, err := c.read(id, r.State.Source, r.State.Budgets.Evidence)
 	if err != nil {
 		return r, err
@@ -347,9 +520,63 @@ func (c Collector) Source(ctx context.Context, id string, pageIndex int) ([]byte
 	return c.read(id, r.State.Pages[pageIndex].Response, r.State.Budgets.Response)
 }
 
+// Queue creates at most one jira-report job for an available live acquisition.
+// The submitted input is immutable, contains no Keychain reference, and pins
+// the report policy independently from legacy collector normalization policy.
+func (c Collector) Queue(ctx context.Context, id string) (store.Job, error) {
+	r, err := c.Load(ctx, id)
+	if err != nil {
+		return store.Job{}, err
+	}
+	if r.State.Reader != LiveReaderKind || r.State.Synthetic || (r.State.Status != Collected && r.State.Status != Partial) {
+		return store.Job{}, errors.New("Jira acquisition is not an available live snapshot")
+	}
+	source, err := c.readLiveSource(id, r.State.Source, r.State.Policy)
+	if err != nil {
+		return store.Job{}, err
+	}
+	profile, err := ReadProfile(c.Store.Root, r.State.Policy.ConnectionID, c.Config)
+	if err != nil {
+		return store.Job{}, err
+	}
+	if !profile.Active || profile.ID != r.State.Policy.ConnectionID || profile.SiteHost != source.SiteHost || profile.CloudID != source.CloudID || profile.ReportPolicyDigest() != source.ReportPolicyDigest {
+		return store.Job{}, errors.New("Jira report profile differs from the pinned live acquisition")
+	}
+	if existing, e := c.Store.JobForAcquisition(ctx, id); e == nil {
+		if r.Acquisition.JobID != existing.ID {
+			r.Acquisition.JobID = existing.ID
+			_, e = c.Store.SaveAcquisition(ctx, r.Acquisition, r.State, c.Config.Limits.MaxEvidenceBytes)
+		}
+		return existing, e
+	} else if !errors.Is(e, sql.ErrNoRows) {
+		return store.Job{}, e
+	}
+	input := ReportInput{Version: ReportInputVersion, Policy: source.ReportPolicy, ReportPolicyDigest: source.ReportPolicyDigest, CollectionPolicyDigest: r.Snapshot.PolicyDigest, Snapshot: r.Snapshot, AsOfDate: source.AsOfDate, BoardID: source.ReportPolicy.BoardIDs[0], SiteHost: source.SiteHost, TodoStatusID: source.ReportPolicy.TodoStatusID}
+	b, err := json.Marshal(input)
+	if err != nil {
+		return store.Job{}, err
+	}
+	if _, err = ParseReportInput(b); err != nil {
+		return store.Job{}, err
+	}
+	job, err := c.Store.Submit(ctx, "jira-report", b, map[string]any{"origin": "jira-cloud", "connection_id": r.Acquisition.ConnectionID, "acquisition_id": r.Acquisition.ID, "report_policy_digest": input.ReportPolicyDigest}, c.Config.Limits.MaxArtifactBytes)
+	if err != nil {
+		return store.Job{}, err
+	}
+	r.Acquisition.JobID = job.ID
+	_, err = c.Store.SaveAcquisition(ctx, r.Acquisition, r.State, c.Config.Limits.MaxEvidenceBytes)
+	return job, err
+}
+
 func (c Collector) fail(ctx context.Context, r Record, reason string, cause error) (Record, error) {
 	r.State.Status = Failed
 	r.State.StopReason = reason
+	var api *LiveAPIError
+	if reason == "reader_failed" && errors.As(cause, &api) && transient(api.Kind) {
+		r.State.Status = store.RetryWait
+		r.State.StopReason = "retry_wait"
+		r.Acquisition.NotBefore = time.Now().Add(time.Duration(c.Config.Limits.RetryDelaySeconds) * time.Second).UnixMilli()
+	}
 	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Duration(c.Config.Limits.TimeoutSeconds)*time.Second)
 	defer cancel()
 	if err := c.checkpoint(saveCtx, &r); err != nil {
@@ -363,7 +590,19 @@ func (c Collector) fail(ctx context.Context, r Record, reason string, cause erro
 func (c Collector) run(ctx context.Context, r Record, reader Reader) (Record, error) {
 	r.State.Status = Collecting
 	r.State.StopReason = ""
-	for processed := 0; processed < r.State.Policy.MaxPages; processed++ {
+	r.Acquisition.NotBefore = 0
+	pageLimit := r.State.Policy.MaxPages
+	if r.State.Reader == LiveReaderKind {
+		for _, page := range r.State.Pages {
+			if page.Processed {
+				pageLimit--
+			}
+		}
+		if pageLimit <= 0 {
+			return c.fail(ctx, r, "page_budget_exhausted", errors.New("live Jira acquisition reached its pinned page budget"))
+		}
+	}
+	for processed := 0; processed < pageLimit; processed++ {
 		if err := ctx.Err(); err != nil {
 			return c.fail(ctx, r, "interrupted", err)
 		}
@@ -439,7 +678,7 @@ func (c Collector) run(ctx context.Context, r Record, reader Reader) (Record, er
 		case page.NextCursor == "":
 			r.State.Status = Partial
 			r.State.StopReason = "continuation_unavailable"
-		case processed+1 >= r.State.Policy.MaxPages:
+		case processed+1 >= pageLimit:
 			r.State.Status = Partial
 			r.State.StopReason = "page_budget_reached"
 		}

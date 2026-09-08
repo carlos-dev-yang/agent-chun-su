@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
 	"chunsu/internal/config"
 	"chunsu/internal/gmail"
+	"chunsu/internal/jira"
 	"chunsu/internal/store"
 )
 
@@ -37,7 +40,6 @@ func (m Manager) Step(ctx context.Context) (*store.Tick, error) {
 	if err != nil {
 		return nil, err
 	}
-	collector := gmail.Collector{Store: m.Store, Config: m.Config}
 	for _, s := range schedules {
 		if !s.Enabled {
 			continue
@@ -76,8 +78,13 @@ func (m Manager) Step(ctx context.Context) (*store.Tick, error) {
 		if s.NextRunAt > time.Now().UnixMilli() {
 			continue
 		}
+		jiraProfile, e := m.isJiraProfile(s.ConnectionID)
+		if e != nil {
+			return nil, e
+		}
 		continuation := ""
-		if previous.Status == Done && previous.AcquisitionID != "" && previous.JobID != "" {
+		if previous.Status == Done && previous.AcquisitionID != "" && previous.JobID != "" && !jiraProfile {
+			collector := gmail.Collector{Store: m.Store, Config: m.Config}
 			more, e := collector.HasContinuation(ctx, previous.AcquisitionID)
 			if e != nil {
 				return nil, e
@@ -95,7 +102,29 @@ func (m Manager) Step(ctx context.Context) (*store.Tick, error) {
 	return nil, nil
 }
 
+func (m Manager) isJiraProfile(id string) (bool, error) {
+	path, err := jira.ProfilePath(id)
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(filepath.Join(m.Store.Root, path))
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
 func (m Manager) collect(ctx context.Context, s store.Schedule, tick store.Tick) (*store.Tick, error) {
+	jiraProfile, err := m.isJiraProfile(s.ConnectionID)
+	if err != nil {
+		return nil, err
+	}
+	if jiraProfile {
+		return m.collectJira(ctx, s, tick)
+	}
 	persist := func() (*store.Tick, error) { return &tick, m.Store.SaveTick(context.WithoutCancel(ctx), tick) }
 	connection, err := gmail.LoadConnection(m.Store.Root, s.ConnectionID, m.Config)
 	if err != nil {
@@ -135,6 +164,71 @@ func (m Manager) collect(ctx context.Context, s store.Schedule, tick store.Tick)
 			}
 		}
 		if a.Status == WaitingAuth {
+			tick.Status = WaitingAuth
+		}
+		tick.NotBefore = a.NotBefore
+		tick.Diagnostic = collectErr.Error()
+		return persist()
+	}
+	tick.AcquisitionID = a.ID
+	j, err := collector.Queue(ctx, a.ID)
+	if err != nil {
+		tick.Status = Blocked
+		tick.Diagnostic = err.Error()
+		return persist()
+	}
+	tick.JobID = j.ID
+	tick.Status = Linked
+	tick.Diagnostic = ""
+	tick.NotBefore = 0
+	return persist()
+}
+
+func (m Manager) collectJira(ctx context.Context, s store.Schedule, tick store.Tick) (*store.Tick, error) {
+	persist := func() (*store.Tick, error) { return &tick, m.Store.SaveTick(context.WithoutCancel(ctx), tick) }
+	profile, err := jira.LoadProfile(m.Store.Root, s.ConnectionID, m.Config)
+	if err != nil {
+		tick.Status = WaitingAuth
+		tick.Diagnostic = "Jira profile is unavailable; repair it and explicitly retry this occurrence"
+		return persist()
+	}
+	if profile.Timezone != s.Timezone {
+		tick.Status = Blocked
+		tick.Diagnostic = "Jira profile timezone changed; review and replace the schedule"
+		return persist()
+	}
+	collector := jira.Collector{Store: m.Store, Config: m.Config, ReservedID: tick.AcquisitionID}
+	a, readErr := m.Store.Acquisition(ctx, tick.AcquisitionID)
+	if readErr != nil && !errors.Is(readErr, sql.ErrNoRows) {
+		return nil, readErr
+	}
+	var (
+		collectErr error
+		record     jira.Record
+	)
+	if readErr != nil || (a.Status != jira.Collected && a.Status != jira.Partial) {
+		if tick.CollectionAttempts >= m.Config.Limits.MaxAttempts {
+			tick.Status = Blocked
+			tick.Diagnostic = "collection attempt budget exhausted; review the limit or explicitly skip this occurrence"
+			return persist()
+		}
+		tick.CollectionAttempts++
+		if err = m.Store.SaveTick(ctx, tick); err != nil {
+			return nil, err
+		}
+		if readErr != nil {
+			record, collectErr = collector.CollectLive(ctx, profile)
+		} else {
+			record, collectErr = collector.ResumeLive(ctx, profile, tick.AcquisitionID)
+		}
+		a = record.Acquisition
+	}
+	if collectErr != nil {
+		tick.Status = Blocked
+		if a.Status == store.RetryWait || record.State.StopReason == "retry_wait" {
+			tick.Status = RetryWait
+		}
+		if a.Status == store.WaitingInput || record.State.StopReason == "waiting_auth" {
 			tick.Status = WaitingAuth
 		}
 		tick.NotBefore = a.NotBefore

@@ -14,12 +14,20 @@ import (
 
 type Proposal struct {
 	Version         int      `json:"version"`
+	Workgroup       string   `json:"workgroup,omitempty"`
 	BaseDigest      string   `json:"base_digest"`
 	CandidateDigest string   `json:"candidate_digest"`
 	EvidenceIDs     []string `json:"evidence_ids"`
 	Hypothesis      string   `json:"hypothesis"`
 	RequiredChecks  []string `json:"required_checks"`
 	Status          string   `json:"status"`
+}
+
+func proposalWorkgroup(p Proposal) string {
+	if p.Workgroup == "" {
+		return mail.Workgroup
+	}
+	return p.Workgroup
 }
 type Decision struct {
 	Version        int    `json:"version"`
@@ -43,7 +51,11 @@ func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence 
 			return store.Record{}, err
 		}
 	}
-	_, base, err := workgroup.Active(s.Store.Root, s.Config.Limits.MaxArtifactBytes)
+	group := bundle.Workgroup
+	if group == "" {
+		group = mail.Workgroup
+	}
+	_, base, err := workgroup.ActiveFor(s.Store.Root, group, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return store.Record{}, err
 	}
@@ -54,7 +66,7 @@ func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence 
 	if candidate == base {
 		return store.Record{}, errors.New("candidate does not change the active bundle")
 	}
-	return s.Store.PutRecord(ctx, "proposal", "", Proposal{Version: Version, BaseDigest: base, CandidateDigest: candidate, EvidenceIDs: evidence, Hypothesis: hypothesis, RequiredChecks: checks, Status: "candidate_only"}, s.Config.Limits.MaxArtifactBytes)
+	return s.Store.PutRecord(ctx, "proposal", "", Proposal{Version: Version, Workgroup: group, BaseDigest: base, CandidateDigest: candidate, EvidenceIDs: evidence, Hypothesis: hypothesis, RequiredChecks: checks, Status: "candidate_only"}, s.Config.Limits.MaxArtifactBytes)
 }
 
 func (s Service) Diff(ctx context.Context, id string) (map[string]any, error) {
@@ -62,15 +74,16 @@ func (s Service) Diff(ctx context.Context, id string) (map[string]any, error) {
 	if err := s.load(ctx, id, "proposal", &p); err != nil {
 		return nil, err
 	}
-	a, err := workgroup.Load(s.Store.Root, p.BaseDigest, s.Config.Limits.MaxArtifactBytes)
+	group := proposalWorkgroup(p)
+	a, err := workgroup.LoadFor(s.Store.Root, group, p.BaseDigest, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return nil, err
 	}
-	b, err := workgroup.Load(s.Store.Root, p.CandidateDigest, s.Config.Limits.MaxArtifactBytes)
+	b, err := workgroup.LoadFor(s.Store.Root, group, p.CandidateDigest, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"proposal": p, "before": a, "after": b, "activation": "unchanged until an explicit adoption command"}, nil
+	return map[string]any{"proposal": p, "workgroup": group, "before": a, "after": b, "activation": "unchanged until an explicit adoption command"}, nil
 }
 
 func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reason, comparisonID string) (store.Record, error) {
@@ -84,7 +97,8 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	if err := s.load(ctx, id, "proposal", &p); err != nil {
 		return store.Record{}, err
 	}
-	_, active, err := workgroup.Active(s.Store.Root, s.Config.Limits.MaxArtifactBytes)
+	group := proposalWorkgroup(p)
+	_, active, err := workgroup.ActiveFor(s.Store.Root, group, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return store.Record{}, err
 	}
@@ -100,6 +114,9 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 		}
 		hasBase, hasCandidate := false, false
 		for _, r := range comparison.Runs {
+			if r.Job.Workgroup != group {
+				return store.Record{}, errors.New("comparison includes a different workgroup")
+			}
 			if r.Manifest != nil {
 				hasBase = hasBase || r.Manifest.WorkgroupDigest == p.BaseDigest
 				hasCandidate = hasCandidate || r.Manifest.WorkgroupDigest == p.CandidateDigest
@@ -121,7 +138,7 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	default:
 		return store.Record{}, errors.New("action must be adopt, reject or rollback")
 	}
-	if _, err = workgroup.Load(s.Store.Root, selected, s.Config.Limits.MaxArtifactBytes); err != nil {
+	if _, err = workgroup.LoadFor(s.Store.Root, group, selected, s.Config.Limits.MaxArtifactBytes); err != nil {
 		return store.Record{}, err
 	}
 	decision := Decision{Version: Version, ProposalID: id, Action: action, Actor: actor, ActorKind: actorKind, Reason: reason, ComparisonID: comparisonID, PreviousDigest: active, SelectedDigest: selected, At: time.Now().UTC().Format(time.RFC3339Nano)}
@@ -135,5 +152,9 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	// The immutable decision is a selection request. The active pointer is the
 	// authority for whether that request actually took effect after a crash.
 	data, _ := json.Marshal(workgroup.Selection{Digest: selected, Reason: reason, DecisionID: record.ID})
-	return record, files.Write(s.Store.Root, workgroup.ActivePath, data, true)
+	path, err := workgroup.ActivePathFor(group)
+	if err != nil {
+		return record, err
+	}
+	return record, files.Write(s.Store.Root, path, data, true)
 }

@@ -2,9 +2,9 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Implementation through Phase 5 and Jira ingestion preparation authorized; actual Jira connection deferred
+**Status:** Implementation through Phase 5 and the approved bounded Jira/Skill integration implemented; human acceptance and background activation remain pending
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Phase 2–5 command paths and the Phase 6 saved Jira ingestion subset prepared; restricted real Codex execution and one bounded Gmail batch verified; live Jira, user usefulness and background activation pending
+**Current position:** Common mail/Jira execution with explicit Skills, live read-only Jira acquisition and independent result evaluation verified; user usefulness, candidate adoption and background activation pending
 
 ## 1. Purpose and scope
 
@@ -47,6 +47,15 @@ workgroup instructions to be managed as Skills and explicitly injected into
 each executor attempt. The proposal records this approval and the delivery
 requirements. Jira integration and Skill delivery are authorized work, not
 completed functionality; their prior contract-confirmation blocker is resolved.
+
+The subsequent implementation is recorded in the
+[Jira/Skill integration checkpoint](docs/validation/JIRA_SKILL_INTEGRATION_2026-09-08.md).
+It supersedes the implementation deferrals above for the approved grouped
+scope: a live Cloud connector, explicit per-attempt Skills, the common Jira
+execution/evaluation path, and disabled interval scheduling are implemented.
+Real Codex runs produced synthetic Jira, live Jira and mail regression reports.
+This does not establish capacity/sprint reporting, human usefulness, candidate
+adoption, or authorization to activate a recurring schedule.
 
 Go and SQLite are decided. Do not reopen that comparison without new evidence.
 The executor, provider-specific permissions, personal mail semantics, and other
@@ -195,7 +204,7 @@ order, not a demand to implement every phase before obtaining value.
 | [3 — Evaluation and feedback](docs/implementation/PHASE_03_FEEDBACK.md) | One complete evaluation/change/revalidation/adoption-or-rejection cycle | Phase 2 | Feedback tooling checked; MS1 remains pending |
 | [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | One 20-message batch collected and candidate report produced; partial scope and human review remain explicit |
 | [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Operations commands and synthetic checkpoints prepared; live MS3 pending |
-| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Saved ingestion and storage seam checked; live provider and report execution deferred |
+| [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Approved grouped live report, explicit Skills and independent evaluation verified; wider phase and human acceptance remain pending |
 | [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |
 | [8 — Deeper optimization](docs/implementation/PHASE_08_OPTIMIZATION.md) | Evidence-based improvements across runs without mandatory golden-set growth | Phase 3 and sufficient recorded use | Not started |
 | [9 — Development-work pilot](docs/implementation/PHASE_09_DEVELOPMENT.md) | One bounded repository task with appropriate controls and evidence | Mail/Jira reuse evidence and an explicit development scope | Not started; conditional |

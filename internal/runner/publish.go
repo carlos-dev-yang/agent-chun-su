@@ -10,6 +10,7 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
 	"chunsu/internal/gmail"
+	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
@@ -91,6 +92,9 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	if files.Digest(bundleBytes) != manifest.WorkgroupDigest {
 		return out, errors.New("preserved workgroup version differs from the manifest")
 	}
+	if err = verifyManifestSkill(j, manifest, bundle); err != nil {
+		return out, err
+	}
 	inputArt, err := r.Store.InputArtifact(ctx, j)
 	if err != nil {
 		return out, err
@@ -101,6 +105,9 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	input, err := r.Store.ReadArtifact(inputArt, r.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return out, err
+	}
+	if manifest.Workgroup == "jira-report" {
+		return r.publishJira(ctx, out, j, manifest, bundle, raw, input, available, publicationWait)
 	}
 	snapshot, err := mail.ParseSnapshot(input, r.Config.Limits)
 	if err != nil {
@@ -137,6 +144,82 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 		err = r.Store.RecordCoverage(ctx, snapshot.Origin.ConnectionID, j.ID, gmail.CoverageForReport(snapshot, report))
 	}
 	return out, err
+}
+
+func verifyManifestSkill(j store.Job, manifest workgroup.Package, bundle workgroup.Bundle) error {
+	// Version-one attempts predate explicit Skill delivery. They remain readable
+	// for mail publication recovery, but cannot be treated as Jira attempts.
+	if manifest.Version == 1 {
+		if manifest.Workgroup != "" && manifest.Workgroup != mail.Workgroup {
+			return errors.New("legacy manifest has an unsupported workgroup")
+		}
+		return nil
+	}
+	legacyMailBundle := manifest.Version == workgroup.BundleVersion && j.Workgroup == mail.Workgroup && manifest.Workgroup == mail.Workgroup && bundle.Version == 1 && bundle.Workgroup == ""
+	if manifest.Workgroup != j.Workgroup || (!legacyMailBundle && bundle.Workgroup != j.Workgroup) {
+		return errors.New("preserved workgroup differs from the job manifest")
+	}
+	skill, err := bundle.SelectedSkill()
+	if err != nil {
+		return err
+	}
+	if skill.Name != manifest.Skill.Name || skill.Description != manifest.Skill.Description || files.Digest([]byte(skill.Markdown)) != manifest.Skill.Digest {
+		return errors.New("preserved Skill differs from the attempt manifest")
+	}
+	return nil
+}
+
+func (r *Runner) publishJira(ctx context.Context, out Outcome, j store.Job, manifest workgroup.Package, bundle workgroup.Bundle, raw, input []byte, available *store.Artifact, publicationWait bool) (Outcome, error) {
+	reportInput, err := jira.ParseReportInput(input)
+	if err != nil {
+		return out, err
+	}
+	observed, err := r.collectLookups(ctx, j, store.Attempt{ID: j.CurrentAttempt, JobID: j.ID})
+	if err != nil {
+		return out, err
+	}
+	ids, err := gateway.JiraSourceIDs(input)
+	if err != nil {
+		return out, err
+	}
+	for _, id := range ids {
+		if !observed[id] {
+			return out, errors.New(requiredSourceLookupsMissing)
+		}
+	}
+	report, validation, err := jira.ValidateReport(raw, bundle.Schema, reportInput, observed)
+	if err != nil {
+		return out, err
+	}
+	var art store.Artifact
+	if available != nil {
+		art = *available
+	} else {
+		index, e := jira.BuildSourceIndex(reportInput)
+		if e != nil {
+			return out, e
+		}
+		data, e := json.MarshalIndent(index, "", "  ")
+		if e != nil {
+			return out, e
+		}
+		sources, e := r.Store.SaveArtifact(ctx, j.ID, j.CurrentAttempt, "report_sources", data, r.Config.Limits.MaxArtifactBytes)
+		if e != nil {
+			return out, e
+		}
+		art, err = r.Store.SaveArtifact(ctx, j.ID, j.CurrentAttempt, "report_markdown", jira.RenderMarkdown(report, validation, index, reportInput.Policy.TodoStatusID, filepath.Base(sources.Path)), r.Config.Limits.MaxArtifactBytes)
+		if err != nil {
+			return out, err
+		}
+	}
+	if publicationWait {
+		if err = r.Store.CompletePublication(ctx, j.ID, j.CurrentAttempt, validation.OperationalStatus, art.ID); err != nil {
+			return out, err
+		}
+	}
+	out.Status = validation.OperationalStatus
+	out.ReportPath = filepath.Join(r.Store.Root, art.Path)
+	return out, nil
 }
 
 func (r *Runner) savePresentation(ctx context.Context, jobID, attemptID string, report mail.Report, validation mail.Validation, snapshot mail.Snapshot) (store.Artifact, error) {

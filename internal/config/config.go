@@ -51,6 +51,13 @@ type Executor struct {
 	Path             string `json:"path"`
 	Model            string `json:"model,omitempty"`
 	LiveMailApproved bool   `json:"live_mail_approved"`
+	// LiveJiraApproved is deliberately separate from mail approval. A successful
+	// mail boundary check establishes nothing about Jira source disclosure.
+	LiveJiraApproved     bool   `json:"live_jira_approved"`
+	LiveJiraPolicyDigest string `json:"live_jira_policy_digest,omitempty"`
+	// LiveJiraValidationJobID names the completed synthetic Jira attempt that
+	// proved the active Skill and scoped tool boundary for this executor.
+	LiveJiraValidationJobID string `json:"live_jira_validation_job_id,omitempty"`
 }
 
 type Config struct {
@@ -163,6 +170,9 @@ func (c Config) Validate() error {
 	}
 	if c.Executor.Kind != "" && c.Executor.Kind != "codex" {
 		return errors.New("the current executor adapter supports kind codex")
+	}
+	if c.Executor.LiveJiraPolicyDigest != "" && !files.ValidDigest(c.Executor.LiveJiraPolicyDigest) {
+		return errors.New("live_jira_policy_digest must be a SHA-256 digest")
 	}
 	if c.MailMode != "changes" && c.MailMode != "changes_and_open" {
 		return errors.New("mail_mode must be changes or changes_and_open")

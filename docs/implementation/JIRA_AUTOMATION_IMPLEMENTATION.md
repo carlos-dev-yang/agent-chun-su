@@ -10,14 +10,16 @@ to be managed as Skills and explicitly injected into the executor. The first man
 `own_assigned_14d_grouped_v1` and bounded descriptions. Actual schedule timing is
 still unselected. Alternatives below are retained for context; the selected
 grouped scope and bounded descriptions do not require reselection. Application
-integration and explicit Skill delivery remain work to implement.
+integration and explicit Skill delivery are now implemented for this scope;
+see the [2026-09-08 integration checkpoint](../validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)
+and [usage guide](../setup/JIRA_REPORTING.md).
 
 The user's subsequent concise Markdown layout is recorded in the
 [report presentation guide](JIRA_REPORT_PRESENTATION.md) and applied to the
-manual report. It does not mark the runtime report contract as implemented.
+manual report. The subsequent checkpoint records the runtime contract separately.
 
-Status: integration implementation authorized, with explicit Skill injection
-required. The user has authorized the Jira Cloud read-only collection and report
+Status: bounded integration implemented and exercised with explicit Skill
+injection. The user has authorized the Jira Cloud read-only collection and report
 feature, including the already verified API access. This approval does not
 establish implementation completion or enable a recurring schedule. This feature
 does not include comments, transitions,
@@ -71,7 +73,8 @@ Initial mode `manual_validation`: collect and run one report only when requested
 Alternative `weekdays_0900`: one run at 09:00 Monday through Friday in
 `Asia/Seoul`, with existing missed-run and intervention behavior preserved.
 
-The current schedule is interval-based and Gmail-specific. Weekday wall-clock
+The schedule is interval-based; the implementation now dispatches Gmail or Jira.
+Weekday wall-clock
 recurrence needs a separately reviewed schedule representation and likely a
 schema migration. It must not be approximated by a 24-hour interval. Defer that
 change until the manual report is accepted.
@@ -191,16 +194,16 @@ coverage visible.
 
 ## Explicit Skill delivery
 
-The current implementation is not yet a Skill-loading implementation. Mail has
-a Markdown `guide.md` that the host combines with the pinned request and source
-index into `instructions.md`; the executor receives that text through stdin.
-The actual mail package contains `instructions.md`, `source-index.json`,
-`report.schema.json` and `executor.schema.json`. It has no `SKILL.md`. Host Skill
-discovery is disabled by the current adapter. The two files under `docs/skills/`
-are host procedures, not automatically registered or injected runtime Skills.
-There is no Jira workgroup Skill or Jira runtime package yet.
+Before this integration, mail injected `guide.md` through `instructions.md`
+without a Skill identity or `SKILL.md` package member. That gap is now closed:
+mail and Jira have canonical Skills, keyed versioned bundles, and explicit
+identity/hash-checked per-attempt delivery. Packages contain `SKILL.md`,
+`instructions.md`, `source-index.json`, `report.schema.json` and
+`executor.schema.json`. Host-wide discovery remains disabled; loading is an
+explicit adapter responsibility. Existing files under `docs/skills/` remain
+host procedures. Independent evaluation uses its own preserved Skill.
 
-The user-required implementation must provide the following:
+The accepted delivery requirements are:
 
 1. Keep each workgroup's canonical `SKILL.md`, its declared supporting documents
    and output schema outside the executor, under host/user ownership.
@@ -222,10 +225,13 @@ The user-required implementation must provide the following:
    the corresponding real-data run. Record source lookups, boundary checks and
    output validation, rather than treating a created Markdown file as completion.
 
-This section records the accepted requirement and observed gap. It does not
-claim that the Skill assets or loading path have already been implemented.
+The [integration checkpoint](../validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)
+records actual synthetic and live delivery evidence for these requirements.
 
 ## Minimal integration work
+
+The sequence below is the approved implementation plan. The checkpoint records
+delivered behavior and remaining limits; the list is not a completion ledger.
 
 1. Implement the Cloud profile, Keychain reference reader and bounded GET
    adapter behind the existing Jira reader interface. Generalize the saved-only

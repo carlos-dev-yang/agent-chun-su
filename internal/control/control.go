@@ -18,10 +18,12 @@ import (
 const SocketPath = "state/control.sock"
 
 type Request struct {
-	Operation string          `json:"operation"`
-	JobID     string          `json:"job_id,omitempty"`
-	Input     json.RawMessage `json:"input,omitempty"`
-	Answer    string          `json:"answer,omitempty"`
+	Operation  string          `json:"operation"`
+	JobID      string          `json:"job_id,omitempty"`
+	Input      json.RawMessage `json:"input,omitempty"`
+	Workgroup  string          `json:"workgroup,omitempty"`
+	SourceName string          `json:"source_name,omitempty"`
+	Answer     string          `json:"answer,omitempty"`
 }
 type Response struct {
 	Data  json.RawMessage `json:"data,omitempty"`

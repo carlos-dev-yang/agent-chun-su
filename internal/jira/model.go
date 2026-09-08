@@ -42,6 +42,7 @@ type Mapping struct {
 	IdentityField    string `json:"identity_field"`
 	SprintField      string `json:"sprint_field,omitempty"`
 	StoryPointsField string `json:"story_points_field,omitempty"`
+	StartField       string `json:"start_field,omitempty"`
 }
 
 func ParseMapping(data []byte) (Mapping, error) {
@@ -70,9 +71,9 @@ func (m Mapping) Validate() error {
 	if m.Version != Version || (m.IdentityField != "accountId" && m.IdentityField != "key" && m.IdentityField != "name") {
 		return errors.New("mapping requires version 1 and an explicit accountId, key or name identity field")
 	}
-	for _, field := range []string{m.SprintField, m.StoryPointsField} {
+	for _, field := range []string{m.SprintField, m.StoryPointsField, m.StartField} {
 		if field != "" && (!strings.HasPrefix(field, "customfield_") || strings.Trim(field[len("customfield_"):], "0123456789") != "" || field == "customfield_") {
-			return errors.New("sprint and story-point mappings require explicit customfield IDs or an empty mapping")
+			return errors.New("sprint, story-point, and start-date mappings require explicit customfield IDs or an empty mapping")
 		}
 	}
 	if m.SprintField != "" && m.SprintField == m.StoryPointsField {
@@ -183,6 +184,8 @@ type History struct {
 	Entries []ContextEntry `json:"entries"`
 }
 
+// Issue keeps saved-v1 fields byte-compatible. StartDate is omitted unless a
+// version-2 Jira report acquisition supplies the configured start field.
 type Issue struct {
 	ConflictingVersions bool              `json:"conflicting_versions"`
 	ID                  string            `json:"id"`
@@ -199,6 +202,7 @@ type Issue struct {
 	UpdatedAt           string            `json:"updated_at"`
 	ResolvedAt          string            `json:"resolved_at"`
 	DueDate             string            `json:"due_date"`
+	StartDate           string            `json:"start_date,omitempty"`
 	Resolution          string            `json:"resolution"`
 	Sprints             []Sprint          `json:"sprints"`
 	Estimates           Estimates         `json:"estimates"`

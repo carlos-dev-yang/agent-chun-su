@@ -30,7 +30,7 @@ func (o *options) managed(cmd *cobra.Command, req control.Request) (bool, error)
 
 func (o *options) run() *cobra.Command {
 	var candidate string
-	cmd := &cobra.Command{Use: "run JOB_ID", Short: "Run one queued mail job and preserve its output and source evidence", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "run JOB_ID", Short: "Run one queued workgroup job and preserve its output and source evidence", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err

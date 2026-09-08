@@ -113,8 +113,10 @@ func (o *options) setup() *cobra.Command {
 			return err
 		}
 		defer s.Close()
-		if err = workgroup.Install(root, c.Limits.MaxArtifactBytes); err != nil {
-			return err
+		for _, id := range []string{mail.Workgroup, "jira-report"} {
+			if err = workgroup.InstallFor(root, id, c.Limits.MaxArtifactBytes); err != nil {
+				return err
+			}
 		}
 		if o.json {
 			return output(cmd, map[string]any{"root": root, "created": created, "schema_version": store.SchemaVersion, "executor_configured": c.Executor.Path != ""})
@@ -207,12 +209,18 @@ func (o *options) configuration() *cobra.Command {
 		case "executor.kind":
 			c.Executor.Kind = args[1]
 			c.Executor.LiveMailApproved = false
+			c.Executor.LiveJiraApproved = false
+			c.Executor.LiveJiraValidationJobID = ""
 		case "executor.path":
 			c.Executor.Path = args[1]
 			c.Executor.LiveMailApproved = false
+			c.Executor.LiveJiraApproved = false
+			c.Executor.LiveJiraValidationJobID = ""
 		case "executor.model":
 			c.Executor.Model = args[1]
 			c.Executor.LiveMailApproved = false
+			c.Executor.LiveJiraApproved = false
+			c.Executor.LiveJiraValidationJobID = ""
 		case "executor.live_mail_approved":
 			approved, e := strconv.ParseBool(args[1])
 			if e != nil {
@@ -222,6 +230,53 @@ func (o *options) configuration() *cobra.Command {
 				return errors.New("select the executor before approving live-mail disclosure")
 			}
 			c.Executor.LiveMailApproved = approved
+		case "executor.live_jira_approved":
+			approved, e := strconv.ParseBool(args[1])
+			if e != nil {
+				return errors.New("live-Jira approval must be true or false")
+			}
+			if approved && (c.Executor.Kind == "" || c.Executor.Path == "" || !files.ValidDigest(c.Executor.LiveJiraPolicyDigest) || c.Executor.LiveJiraValidationJobID == "") {
+				return errors.New("select the executor, set a reviewed Jira policy digest, and select a completed synthetic Jira proof before approving live-Jira disclosure")
+			}
+			if approved {
+				s, e := store.OpenReadOnly(cmd.Context(), root)
+				if e != nil {
+					return e
+				}
+				e = runner.VerifyJiraSyntheticProof(cmd.Context(), s, c, c.Executor.LiveJiraValidationJobID)
+				closeErr := s.Close()
+				if e != nil {
+					return e
+				}
+				if closeErr != nil {
+					return closeErr
+				}
+			}
+			c.Executor.LiveJiraApproved = approved
+		case "executor.live_jira_policy_digest":
+			if !files.ValidDigest(args[1]) {
+				return errors.New("live-Jira policy digest must be a SHA-256 digest")
+			}
+			c.Executor.LiveJiraPolicyDigest = args[1]
+			c.Executor.LiveJiraApproved = false
+		case "executor.live_jira_validation_job_id":
+			if !files.ValidID(args[1]) {
+				return errors.New("live-Jira proof job ID is invalid")
+			}
+			s, e := store.OpenReadOnly(cmd.Context(), root)
+			if e != nil {
+				return e
+			}
+			e = runner.VerifyJiraSyntheticProof(cmd.Context(), s, c, args[1])
+			closeErr := s.Close()
+			if e != nil {
+				return e
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			c.Executor.LiveJiraValidationJobID = args[1]
+			c.Executor.LiveJiraApproved = false
 		default:
 			v, e := strconv.Atoi(args[1])
 			if e != nil {
@@ -263,7 +318,8 @@ func (o *options) configuration() *cobra.Command {
 }
 
 func (o *options) queue() *cobra.Command {
-	return &cobra.Command{Use: "queue INPUT.json", Short: "Snapshot a saved JSON input and queue a mail-review job", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	var workgroupID string
+	cmd := &cobra.Command{Use: "queue INPUT.json", Short: "Snapshot a saved JSON input and queue it for a workgroup", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
 			return err
@@ -276,7 +332,8 @@ func (o *options) queue() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if handled, err := o.managed(cmd, control.Request{Operation: "queue", Input: input}); handled || err != nil {
+		req := control.Request{Operation: "queue", Input: input, Workgroup: workgroupID, SourceName: filepath.Base(args[0])}
+		if handled, err := o.managed(cmd, req); handled || err != nil {
 			return err
 		}
 		s, c, close, err := o.open(cmd.Context(), true)
@@ -284,20 +341,14 @@ func (o *options) queue() *cobra.Command {
 			return err
 		}
 		defer close()
-		p, err := filepath.Abs(args[0])
+		r := &runner.Runner{Store: s, Config: c}
+		data, err := r.Handle(cmd.Context(), req)
 		if err != nil {
 			return err
 		}
-		b, err := files.Read(filepath.Dir(p), filepath.Base(p), c.Limits.MaxArtifactBytes)
-		if err != nil {
-			return err
-		}
-		if _, err = mail.ParseSnapshot(b, c.Limits); err != nil {
-			return fmt.Errorf("mail snapshot: %w", err)
-		}
-		j, err := s.Submit(cmd.Context(), "mail-review", b, map[string]any{"origin": "saved", "source_name": filepath.Base(p)}, c.Limits.MaxArtifactBytes)
-		if err != nil {
-			return err
+		j, ok := data.(store.Job)
+		if !ok {
+			return errors.New("queue did not return a job")
 		}
 		if o.json {
 			return output(cmd, j)
@@ -305,6 +356,8 @@ func (o *options) queue() *cobra.Command {
 		fmt.Fprintln(cmd.OutOrStdout(), "Queued", j.ID)
 		return nil
 	}}
+	cmd.Flags().StringVar(&workgroupID, "workgroup", mail.Workgroup, "Pinned workgroup: mail-review or jira-report")
+	return cmd
 }
 
 func (o *options) jobs() *cobra.Command {

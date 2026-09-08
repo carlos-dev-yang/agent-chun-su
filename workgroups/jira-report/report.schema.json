@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "as_of_date", "timezone", "scope", "summary", "groups", "items", "gaps", "assumptions"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "as_of_date": {"type": "string", "format": "date"},
+    "timezone": {"type": "string", "minLength": 1},
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_keys", "board_id", "selection", "content_scope", "subject_label"],
+      "properties": {
+        "project_keys": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+        "board_id": {"type": "string", "pattern": "^[1-9][0-9]*$"},
+        "selection": {"type": "string", "const": "own_assigned_14d_grouped_v1"},
+        "content_scope": {"type": "string", "enum": ["metadata_only", "metadata_and_description"]},
+        "subject_label": {"type": "string", "minLength": 1}
+      }
+    },
+    "summary": {"type": "string", "minLength": 1},
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overdue", "due_within_14_days", "undated_todo"],
+      "properties": {
+        "overdue": {"$ref": "#/$defs/source_ids"},
+        "due_within_14_days": {"$ref": "#/$defs/source_ids"},
+        "undated_todo": {"$ref": "#/$defs/source_ids"}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "key", "summary", "status", "start_date", "due_date", "note", "citations"],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1},
+          "key": {"type": "string", "minLength": 1},
+          "summary": {"type": "string", "minLength": 1},
+          "status": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "category_key"],
+            "properties": {
+              "id": {"type": "string", "minLength": 1},
+              "name": {"type": "string", "minLength": 1},
+              "category_key": {"type": "string", "minLength": 1}
+            }
+          },
+          "start_date": {"type": ["string", "null"], "format": "date"},
+          "due_date": {"type": ["string", "null"], "format": "date"},
+          "note": {"type": "string", "minLength": 1},
+          "citations": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true}
+        }
+      },
+      "minItems": 0
+    },
+    "gaps": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "$defs": {
+    "source_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 0,
+      "uniqueItems": true
+    }
+  }
+}
