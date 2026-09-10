@@ -12,6 +12,13 @@ Phase 3 work. Comparison eligibility is not a quality release gate; evaluator
 execution isolation and adoption criteria remain explicit preparation items.
 This checkpoint does not authorize new policy, interface or permission changes.
 
+On 2026-09-10 the user also requested online research and bundled setup manuals
+for Drive (Docs/Sheets), Figma, GitHub, Slack, Telegram and Gmail, with AI-assisted
+or fixed-script installation paths. The [integration onboarding preparation](docs/implementation/INTEGRATION_ONBOARDING.md)
+and [setup entrypoint](docs/setup/INTEGRATIONS.md) record the prepared assets and
+bounded implementation units. Preparation does not establish six live connectors
+or authorize account access, external writes, or a new executor permission model.
+
 ## 1. Purpose and scope
 
 Build a small personal framework that prepares work for a replaceable AI

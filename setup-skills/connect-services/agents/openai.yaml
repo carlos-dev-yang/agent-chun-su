@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chun-su 서비스 연결 준비"
+  short_description: "6개 외부 서비스의 설치 경로와 로그인·권한·검증 단계를 안내합니다"
+  default_prompt: "Use $connect-services to prepare the external services I want to connect to Chun-su."

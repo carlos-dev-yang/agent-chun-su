@@ -5,6 +5,11 @@
 **Status:** Not started  
 **Goal:** Make the proven local workflow easy to install and maintain for a clearly stated user and platform scope.
 
+The user-authorized [six-service onboarding preparation](INTEGRATION_ONBOARDING.md)
+provides research, bundled setup guidance and an offline preparation helper for
+P7-01/P7-03. Installer/runtime integration and release acceptance remain unimplemented;
+this preparation does not change the phase or task completion states.
+
 **Entry conditions:** The manual feedback/live-mail milestones are complete. Service claims require P5-09. Public distribution and additional OS support remain explicit choices.
 
 **Exit evidence:** A release candidate can be installed and operated on the declared target without source compilation, with honest executor and OS prerequisites.

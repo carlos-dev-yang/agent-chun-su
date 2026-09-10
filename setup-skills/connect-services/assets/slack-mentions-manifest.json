@@ -1,0 +1,24 @@
+{
+  "display_information": {
+    "name": "Chun-su",
+    "description": "A personal assistant for explicitly selected Slack channels."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Chun-su",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": ["app_mentions:read", "channels:read", "chat:write"]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": ["app_mention"]
+    },
+    "socket_mode_enabled": true,
+    "org_deploy_enabled": false
+  }
+}

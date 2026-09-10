@@ -1,0 +1,48 @@
+{
+  "reviewed_on": "2026-09-10",
+  "purpose": "Offline setup guidance index; not an executable permission policy.",
+  "services": [
+    {
+      "id": "drive",
+      "name": "Google Drive — Docs·Sheets",
+      "manual": "references/drive.md",
+      "chunsu_status": "매뉴얼 준비; native adapter 미구현",
+      "optional_programs": ["gws", "gcloud"]
+    },
+    {
+      "id": "figma",
+      "name": "Figma",
+      "manual": "references/figma.md",
+      "chunsu_status": "매뉴얼 준비; native adapter 미구현",
+      "optional_programs": []
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "manual": "references/github.md",
+      "chunsu_status": "매뉴얼 준비; native adapter 미구현",
+      "optional_programs": ["gh"]
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "manual": "references/slack.md",
+      "chunsu_status": "매뉴얼·앱 manifest 준비; receiver/adapter 미구현",
+      "optional_programs": []
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "manual": "references/telegram.md",
+      "chunsu_status": "매뉴얼 준비; receiver/sender 미구현",
+      "optional_programs": []
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "manual": "references/gmail.md",
+      "chunsu_status": "native 읽기 구현; 초안/전송과 공통 온보딩 미구현",
+      "optional_programs": ["chunsu"]
+    }
+  ]
+}

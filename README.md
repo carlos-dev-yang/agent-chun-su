@@ -2,9 +2,11 @@
 
 A terminal-first personal AI workflow controller built with Go and embedded SQLite.
 Human-owned workgroup assets stay outside the executor. Mail reporting comes first.
-Jira has a [saved-response ingestion layer](docs/setup/JIRA_INGESTION.md) with
-replaceable retrieval, explicit field mapping and preserved raw/normalized evidence.
-Its live HTTP reader, account connection and AI reporting remain deferred.
+Jira supports the approved bounded [live reporting workflow](docs/setup/JIRA_REPORTING.md)
+with explicit Skills and independent evaluation; human usefulness and recurring
+activation remain pending. See [service connection preparation](docs/setup/INTEGRATIONS.md)
+for the six-service setup manuals and offline guided planner. Of those six,
+only Gmail currently has a native Chun-su connector.
 
 ## Development
 
@@ -75,12 +77,13 @@ bounded batch. `jira resume ACQUISITION_ID` follows the pinned saved continuatio
 `jira renormalize ACQUISITION_ID --mapping MAPPING.json` to create a new derived
 record while preserving the earlier one.
 
-No account or executor is needed. `jira status` reports the disconnected live
-reader; collection without a saved file fails explicitly as `not_configured`.
+No account or executor is needed for saved-input ingestion. For configured live
+acquisition and report execution, use the [Jira reporting guide](docs/setup/JIRA_REPORTING.md).
 See the [terminal guide](docs/setup/JIRA_INGESTION.md),
 [evidence contract](docs/contracts/jira-evidence.md), and
-[actual checks](docs/validation/PHASE_06_JIRA_INGESTION.md). Provider-specific live
-HTTP access and shared Jira report execution are later work.
+[saved-input checks](docs/validation/PHASE_06_JIRA_INGESTION.md). The later
+[live/Skill checkpoint](docs/validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)
+records the approved integration and its remaining limits.
 
 ## Reports and local recovery
 
