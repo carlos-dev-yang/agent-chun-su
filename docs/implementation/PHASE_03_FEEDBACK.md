@@ -4,6 +4,13 @@
 
 **Status:** Real issue-to-candidate rerun and an explicitly unevaluated comparison recorded; human-decision milestone pending
 
+Latest cross-workgroup evidence: the [2026-09-08 Jira/Skill checkpoint](../validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)
+includes independently evaluated Jira baseline/candidate runs and a comparable
+tuning pair. The earlier Gmail candidate comparison remains unevaluated; MS1
+and human acceptance are still pending. The [2026-09-10 review](STATUS_2026-09-10.md)
+prepares the missing quality/adoption gate and evaluator-isolation work without
+changing task status or approving a new contract.
+
 **Goal:** Demonstrate that preserved outputs can lead to a justified change and fair revalidation, while keeping result evaluation and optimization independent.
 
 **Entry conditions:** Phase 2 has a real executor result and its evidence. Reviewed expectations are available for the cases being evaluated.

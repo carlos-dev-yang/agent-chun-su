@@ -6,6 +6,12 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** Common mail/Jira execution with explicit Skills, live read-only Jira acquisition and independent result evaluation verified; user usefulness, candidate adoption and background activation pending
 
+The [2026-09-10 evaluation and release-gate review](docs/implementation/STATUS_2026-09-10.md)
+records the latest code inspection, focused existing checks, and proposed next
+Phase 3 work. Comparison eligibility is not a quality release gate; evaluator
+execution isolation and adoption criteria remain explicit preparation items.
+This checkpoint does not authorize new policy, interface or permission changes.
+
 ## 1. Purpose and scope
 
 Build a small personal framework that prepares work for a replaceable AI
