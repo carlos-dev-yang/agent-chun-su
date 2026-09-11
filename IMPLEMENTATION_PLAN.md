@@ -6,6 +6,15 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** Common mail/Jira execution with explicit Skills, live read-only Jira acquisition and independent result evaluation verified; user usefulness, candidate adoption and background activation pending
 
+On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
+human-owned criteria for execution/review/analysis/optimization, on-demand review
+of accumulated results, separate reception and task agents, replaceable execution
+environments, and lightweight local/Linux/server operation around a single SQLite
+controller. That goal records the latest authorized direction and bounded work
+units. Earlier deferrals of those implementation areas are superseded within its
+scope; actual company access, personal acceptance and external deployment still
+need their own evidence.
+
 The [2026-09-10 evaluation and release-gate review](docs/implementation/STATUS_2026-09-10.md)
 records the latest code inspection, focused existing checks, and proposed next
 Phase 3 work. Comparison eligibility is not a quality release gate; evaluator
