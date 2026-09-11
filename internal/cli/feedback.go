@@ -100,18 +100,21 @@ func (o *options) feedback() *cobra.Command {
 		}
 		return output(cmd, map[string]any{"record": record, "content": json.RawMessage(data)})
 	}}
+	var baselineEvaluation, candidateEvaluation string
 	compare := &cobra.Command{Use: "compare BASELINE_JOB CANDIDATE_JOB", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err
 		}
 		defer close()
-		record, comparison, err := (feedback.Service{Store: s, Config: c}).Compare(cmd.Context(), args[0], args[1])
+		record, comparison, err := (feedback.Service{Store: s, Config: c}).CompareSelected(cmd.Context(), args[0], args[1], baselineEvaluation, candidateEvaluation)
 		if err != nil {
 			return err
 		}
 		return output(cmd, map[string]any{"record": record, "comparison": comparison})
 	}}
+	compare.Flags().StringVar(&baselineEvaluation, "baseline-evaluation", "", "Exact baseline evaluation ID; required when several exist")
+	compare.Flags().StringVar(&candidateEvaluation, "candidate-evaluation", "", "Exact candidate evaluation ID; required when several exist")
 	cmd.AddCommand(add, pinEvaluator, list, show, compare)
 	return cmd
 }
@@ -197,13 +200,14 @@ func (o *options) workgroup() *cobra.Command {
 		return output(cmd, result)
 	}}
 	var action, actor, actorKind, reason, comparison string
+	var releaseOptions feedback.ReleaseOptions
 	decide := &cobra.Command{Use: "decide PROPOSAL_ID", Short: "Apply a human adoption/rejection/rollback decision; evaluation cannot call this tool", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
 			return err
 		}
 		defer close()
-		record, err := (feedback.Service{Store: s, Config: c}).Decide(cmd.Context(), args[0], action, actor, actorKind, reason, comparison)
+		record, err := (feedback.Service{Store: s, Config: c}).Decide(cmd.Context(), args[0], action, actor, actorKind, reason, comparison, releaseOptions)
 		if err != nil {
 			return err
 		}
@@ -214,7 +218,26 @@ func (o *options) workgroup() *cobra.Command {
 	decide.Flags().StringVar(&actorKind, "actor-kind", "human", "human or validation; validation is never evidence of personal approval")
 	decide.Flags().StringVar(&reason, "reason", "", "Decision rationale and remaining limitations")
 	decide.Flags().StringVar(&comparison, "comparison", "", "Comparable baseline/candidate record required for adoption")
-	cmd.AddCommand(propose, diff, decide)
+	decide.Flags().StringVar(&releaseOptions.PolicyID, "policy", "", "Human-reviewed release policy record ID required for adoption")
+	decide.Flags().StringArrayVar(&releaseOptions.CheckIDs, "check-result", nil, "Selected required-check result record ID (repeatable)")
+	var assessComparison string
+	var assessOptions feedback.ReleaseOptions
+	assess := &cobra.Command{Use: "assess PROPOSAL_ID", Short: "Check release requirements without changing active controls", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		s, c, close, err := o.open(cmd.Context(), true)
+		if err != nil {
+			return err
+		}
+		defer close()
+		record, assessment, err := (feedback.Service{Store: s, Config: c}).Assess(cmd.Context(), args[0], assessComparison, assessOptions)
+		if err != nil {
+			return err
+		}
+		return output(cmd, map[string]any{"record": record, "assessment": assessment})
+	}}
+	assess.Flags().StringVar(&assessComparison, "comparison", "", "Comparison with explicitly selected evaluation IDs")
+	assess.Flags().StringVar(&assessOptions.PolicyID, "policy", "", "Versioned release policy record ID")
+	assess.Flags().StringArrayVar(&assessOptions.CheckIDs, "check-result", nil, "Selected required-check result ID (repeatable)")
+	cmd.AddCommand(propose, diff, decide, assess)
 	return cmd
 }
 

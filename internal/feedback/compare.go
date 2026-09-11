@@ -11,13 +11,16 @@ import (
 )
 
 type RunEvidence struct {
-	Job            store.Job          `json:"job"`
-	Attempts       []store.Attempt    `json:"attempts"`
-	Artifacts      []store.Artifact   `json:"artifacts"`
-	Manifest       *workgroup.Package `json:"manifest"`
-	ExecutorResult *executor.Result   `json:"executor_result"`
-	Evaluations    []Evaluation       `json:"evaluations"`
-	Gaps           []string           `json:"gaps"`
+	Job                  store.Job          `json:"job"`
+	Attempts             []store.Attempt    `json:"attempts"`
+	Artifacts            []store.Artifact   `json:"artifacts"`
+	Manifest             *workgroup.Package `json:"manifest"`
+	ExecutorResult       *executor.Result   `json:"executor_result"`
+	Evaluations          []Evaluation       `json:"evaluations"`
+	EvaluationIDs        []string           `json:"evaluation_ids,omitempty"`
+	SelectedEvaluationID string             `json:"selected_evaluation_id,omitempty"`
+	SelectedEvaluation   *Evaluation        `json:"selected_evaluation,omitempty"`
+	Gaps                 []string           `json:"gaps"`
 }
 type Comparison struct {
 	Version                     int           `json:"version"`
@@ -83,6 +86,7 @@ func (s Service) InspectRun(ctx context.Context, id string) (RunEvidence, error)
 		}
 		if e.AttemptID == r.Job.CurrentAttempt {
 			r.Evaluations = append(r.Evaluations, e)
+			r.EvaluationIDs = append(r.EvaluationIDs, record.ID)
 		}
 	}
 	if r.Manifest == nil {
@@ -98,14 +102,36 @@ func (s Service) InspectRun(ctx context.Context, id string) (RunEvidence, error)
 }
 
 func (s Service) Compare(ctx context.Context, left, right string) (store.Record, Comparison, error) {
+	return s.CompareSelected(ctx, left, right, "", "")
+}
+
+// CompareSelected pins the actual judgment pair. A single available evaluation
+// is unambiguous; multiple evaluations require an explicit human selection.
+func (s Service) CompareSelected(ctx context.Context, left, right, leftEvaluation, rightEvaluation string) (store.Record, Comparison, error) {
 	c := Comparison{Version: Version, Runs: []RunEvidence{}, Comparable: true, Limitations: []string{}, JobCount: 2}
 	if left == right {
 		return store.Record{}, c, errors.New("select two distinct runs")
 	}
-	for _, id := range []string{left, right} {
+	selected := []string{leftEvaluation, rightEvaluation}
+	for index, id := range []string{left, right} {
 		r, err := s.InspectRun(ctx, id)
 		if err != nil {
 			return store.Record{}, c, err
+		}
+		if selected[index] == "" && len(r.EvaluationIDs) == 1 {
+			selected[index] = r.EvaluationIDs[0]
+		}
+		if selected[index] != "" {
+			var judgment Evaluation
+			if err = s.load(ctx, selected[index], "evaluation", &judgment); err != nil {
+				return store.Record{}, c, err
+			}
+			if judgment.JobID != id || judgment.AttemptID != r.Job.CurrentAttempt {
+				return store.Record{}, c, errors.New("selected evaluation does not belong to this job's current attempt")
+			}
+			r.SelectedEvaluationID, r.SelectedEvaluation = selected[index], &judgment
+		} else if len(r.Evaluations) > 1 {
+			r.Gaps = append(r.Gaps, "multiple evaluations exist; select the exact evaluation ID for job "+id)
 		}
 		c.Runs = append(c.Runs, r)
 		c.AttemptCount += len(r.Attempts)
@@ -161,10 +187,10 @@ func (s Service) Compare(ctx context.Context, left, right string) (store.Record,
 	if a.ExecutorResult == nil || b.ExecutorResult == nil || a.ExecutorResult.Version == "" || a.ExecutorResult.Version != b.ExecutorResult.Version {
 		c.Limitations = append(c.Limitations, "executor runtime versions are missing or differ")
 	}
-	if len(a.Evaluations) == 0 || len(b.Evaluations) == 0 {
-		c.Limitations = append(c.Limitations, "one or both runs have no semantic evaluation")
+	if a.SelectedEvaluation == nil || b.SelectedEvaluation == nil {
+		c.Limitations = append(c.Limitations, "one or both runs have no selected semantic evaluation")
 	} else {
-		x, y := a.Evaluations[0], b.Evaluations[0]
+		x, y := *a.SelectedEvaluation, *b.SelectedEvaluation
 		if x.RubricID != y.RubricID || x.CaseID != y.CaseID || x.Reviewer != y.Reviewer || x.ReviewerKind != y.ReviewerKind || x.Workgroup != y.Workgroup || x.EvaluatorSkillID == "" || y.EvaluatorSkillID == "" || x.EvaluatorSkillID != y.EvaluatorSkillID || x.EvaluatorSkillHash != y.EvaluatorSkillHash {
 			c.Limitations = append(c.Limitations, "evaluation rules, cases or reviewers differ; comparable rejudgment is required")
 		}

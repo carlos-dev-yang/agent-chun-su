@@ -41,6 +41,8 @@ type Case struct {
 	Name         string        `json:"name"`
 	ReviewStatus string        `json:"review_status"`
 	Reviewer     string        `json:"reviewer"`
+	Purpose      string        `json:"purpose,omitempty"`
+	Exposure     string        `json:"exposure,omitempty"`
 	Snapshot     mail.Snapshot `json:"snapshot"`
 	// Workgroup is explicit for new cases. An omitted value remains the
 	// historical mail-review representation so existing cases retain both their
@@ -79,6 +81,7 @@ type Evaluation struct {
 	Workgroup          string     `json:"workgroup,omitempty"`
 	EvaluatorSkillID   string     `json:"evaluator_skill_id,omitempty"`
 	EvaluatorSkillHash string     `json:"evaluator_skill_hash,omitempty"`
+	ReviewExecutionID  string     `json:"review_execution_id,omitempty"`
 }
 type Finding struct {
 	Version     int      `json:"version"`
@@ -213,6 +216,33 @@ func (s Service) load(ctx context.Context, id, kind string, target any) error {
 func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (store.Record, error) {
 	var payload any
 	switch kind {
+	case "review_criteria":
+		var criteria ReviewCriteria
+		if err := mail.Decode(data, &criteria); err != nil {
+			return store.Record{}, err
+		}
+		if err := criteria.Validate(); err != nil {
+			return store.Record{}, err
+		}
+		payload = criteria
+	case "release_policy":
+		var policy ReleasePolicy
+		if err := mail.Decode(data, &policy); err != nil {
+			return store.Record{}, err
+		}
+		if err := policy.Validate(); err != nil {
+			return store.Record{}, err
+		}
+		payload = policy
+	case "check":
+		var check CheckResult
+		if err := mail.Decode(data, &check); err != nil {
+			return store.Record{}, err
+		}
+		if err := s.validateCheck(ctx, check); err != nil {
+			return store.Record{}, err
+		}
+		subject, payload = check.ProposalID, check
 	case "rubric":
 		var r Rubric
 		if err := mail.Decode(data, &r); err != nil {
@@ -236,6 +266,12 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		}
 		if c.Version != Version || !mail.Nonempty(c.Name) || !validReview(c.ReviewStatus, c.Reviewer) || len(c.Expectations) == 0 || c.Limitations == nil {
 			return store.Record{}, errors.New("case requires reviewed-status metadata, expectations and limitations")
+		}
+		if c.Purpose != "" && c.Purpose != "tuning" && c.Purpose != "regression" && c.Purpose != "confirmation" {
+			return store.Record{}, errors.New("case purpose must be tuning, regression or confirmation")
+		}
+		if c.Exposure != "" && c.Exposure != "development" && c.Exposure != "withheld" {
+			return store.Record{}, errors.New("case exposure must be development or withheld")
 		}
 		sources, err := caseSources(c, s.Config.Limits)
 		if err != nil {
@@ -363,19 +399,9 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		if err != nil {
 			return store.Record{}, err
 		}
-		actual := Case{Workgroup: j.Workgroup}
-		if j.Workgroup == "jira-report" {
-			input, parseErr := jira.ParseReportInput(b)
-			if parseErr != nil {
-				return store.Record{}, parseErr
-			}
-			actual.JiraSnapshot = &input
-		} else {
-			snapshot, parseErr := mail.ParseSnapshot(b, s.Config.Limits)
-			if parseErr != nil {
-				return store.Record{}, parseErr
-			}
-			actual.Snapshot = snapshot
+		actual, err := s.caseForInput(j.Workgroup, b)
+		if err != nil {
+			return store.Record{}, err
 		}
 		if caseFingerprint(actual) != caseFingerprint(c) {
 			return store.Record{}, errors.New("evaluation case input differs from the job snapshot")
@@ -413,6 +439,11 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 			}
 		}
 		e.ExpectationsStatus = c.ReviewStatus + "; rubric=" + rubric.ReviewStatus
+		if e.ReviewExecutionID != "" {
+			if err = s.verifyReviewExecution(ctx, e); err != nil {
+				return store.Record{}, err
+			}
+		}
 		payload = e
 	case "feedback", "finding":
 		var f Finding

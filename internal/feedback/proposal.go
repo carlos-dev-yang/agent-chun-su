@@ -29,6 +29,7 @@ func proposalWorkgroup(p Proposal) string {
 	}
 	return p.Workgroup
 }
+
 type Decision struct {
 	Version        int    `json:"version"`
 	ProposalID     string `json:"proposal_id"`
@@ -37,6 +38,7 @@ type Decision struct {
 	ActorKind      string `json:"actor_kind"`
 	Reason         string `json:"reason"`
 	ComparisonID   string `json:"comparison_id"`
+	AssessmentID   string `json:"assessment_id,omitempty"`
 	PreviousDigest string `json:"previous_digest"`
 	SelectedDigest string `json:"selected_digest"`
 	At             string `json:"at"`
@@ -45,6 +47,13 @@ type Decision struct {
 func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence []string, hypothesis string, checks []string) (store.Record, error) {
 	if len(evidence) == 0 || !mail.Nonempty(hypothesis) || len(checks) == 0 {
 		return store.Record{}, errors.New("proposal needs evidence, hypothesis and required checks")
+	}
+	seenChecks := map[string]bool{}
+	for _, check := range checks {
+		if !mail.Nonempty(check) || seenChecks[check] {
+			return store.Record{}, errors.New("required checks must be nonempty and unique")
+		}
+		seenChecks[check] = true
 	}
 	for _, id := range evidence {
 		if _, err := s.Store.Record(ctx, id); err != nil {
@@ -86,7 +95,7 @@ func (s Service) Diff(ctx context.Context, id string) (map[string]any, error) {
 	return map[string]any{"proposal": p, "workgroup": group, "before": a, "after": b, "activation": "unchanged until an explicit adoption command"}, nil
 }
 
-func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reason, comparisonID string) (store.Record, error) {
+func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reason, comparisonID string, options ...ReleaseOptions) (store.Record, error) {
 	if !mail.Nonempty(actor) || !mail.Nonempty(reason) || (actorKind != "human" && actorKind != "validation") {
 		return store.Record{}, errors.New("an explicit human or isolated validation decision needs an actor and reason")
 	}
@@ -103,6 +112,7 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 		return store.Record{}, err
 	}
 	selected := active
+	assessmentID := ""
 	switch action {
 	case "adopt":
 		if active != p.BaseDigest {
@@ -128,6 +138,17 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 		if !comparison.Comparable {
 			return store.Record{}, errors.New("comparison is not comparable; resolve its limitations before adoption")
 		}
+		if len(options) != 1 {
+			return store.Record{}, errors.New("adoption requires an explicit release policy and selected check results")
+		}
+		assessment, readiness, e := s.Assess(ctx, id, comparisonID, options[0])
+		if e != nil {
+			return store.Record{}, e
+		}
+		if !readiness.Eligible {
+			return assessment, errors.New("candidate does not meet the selected release policy; inspect assessment " + assessment.ID)
+		}
+		assessmentID = assessment.ID
 		selected = p.CandidateDigest
 	case "rollback":
 		if active != p.CandidateDigest {
@@ -141,7 +162,7 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	if _, err = workgroup.LoadFor(s.Store.Root, group, selected, s.Config.Limits.MaxArtifactBytes); err != nil {
 		return store.Record{}, err
 	}
-	decision := Decision{Version: Version, ProposalID: id, Action: action, Actor: actor, ActorKind: actorKind, Reason: reason, ComparisonID: comparisonID, PreviousDigest: active, SelectedDigest: selected, At: time.Now().UTC().Format(time.RFC3339Nano)}
+	decision := Decision{Version: Version, ProposalID: id, Action: action, Actor: actor, ActorKind: actorKind, Reason: reason, ComparisonID: comparisonID, AssessmentID: assessmentID, PreviousDigest: active, SelectedDigest: selected, At: time.Now().UTC().Format(time.RFC3339Nano)}
 	record, err := s.Store.PutRecord(ctx, "decision", id, decision, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return record, err

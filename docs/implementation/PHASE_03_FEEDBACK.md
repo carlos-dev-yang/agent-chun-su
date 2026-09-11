@@ -2,6 +2,10 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
+The approved modular-agent goal adds [selected review and release requirements](../validation/MOD_01_SELECTED_REVIEW_2026-09-11.md).
+Its actual synthetic loop is technical evidence; it does not complete personal
+quality review or a human adoption milestone in this phase.
+
 **Status:** Real issue-to-candidate rerun and an explicitly unevaluated comparison recorded; human-decision milestone pending
 
 Latest cross-workgroup evidence: the [2026-09-08 Jira/Skill checkpoint](../validation/JIRA_SKILL_INTEGRATION_2026-09-08.md)

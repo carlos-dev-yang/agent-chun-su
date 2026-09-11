@@ -24,7 +24,7 @@ const Version = 1
 const ManifestName = "backup-manifest.json"
 const RestoreNote = "state/restore.json"
 
-var roots = []string{config.FileName, "runs", "workgroups", "evaluations", "proposals", "state/acquisitions", "state/connections", "state/retention", RestoreNote}
+var roots = []string{config.FileName, "runs", "workgroups", "evaluations", "proposals", "reviews", "state/acquisitions", "state/connections", "state/retention", RestoreNote}
 
 type Entry struct {
 	Digest string `json:"digest"`

@@ -343,6 +343,10 @@ func jiraIssues(input jira.ReportInput) (map[string]*jiraGatewayIssue, error) {
 	return out, nil
 }
 
+// JiraDisclosure reuses the gateway's exact reviewed field projection for
+// isolated result reviewers. It never exposes raw acquisition records.
+func JiraDisclosure(input jira.ReportInput) (any, error) { return jiraIssues(input) }
+
 // jiraGatewayIssue is a disclosure projection, not the normalized acquisition
 // record. It keeps comments, changelog, relationships, estimates, raw-response
 // paths, and descriptions outside the reviewed content scope out of the tool.
