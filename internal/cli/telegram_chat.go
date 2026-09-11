@@ -2,40 +2,18 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
-	"chunsu/internal/executor"
 	"chunsu/internal/files"
+	"chunsu/internal/reception"
 	"chunsu/internal/telegram"
 	"github.com/spf13/cobra"
 )
-
-func telegramCapabilities() []conversation.Capability {
-	allowed := []conversation.Capability{}
-	for _, c := range conversation.Capabilities() {
-		switch c.Name {
-		case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs:
-			allowed = append(allowed, c)
-		}
-	}
-	return allowed
-}
-func allowedTelegramAction(name string) bool {
-	for _, c := range telegramCapabilities() {
-		if c.Name == name {
-			return true
-		}
-	}
-	return false
-}
 
 type telegramTurnResult struct {
 	history []conversation.Event
@@ -43,74 +21,23 @@ type telegramTurnResult struct {
 	fatal   bool
 }
 
-func telegramTurn(ctx context.Context, root string, c config.Config, session string, history []conversation.Event, u telegram.Update, emit func(string) error) telegramTurnResult {
-	history = append(history, conversation.Event{Role: "user", Content: u.Message.Text})
-	result := telegramTurnResult{}
-	fail := func(e error, fatal bool) telegramTurnResult {
-		return telegramTurnResult{history: history, err: e, fatal: fatal}
+func telegramTurn(ctx context.Context, root string, c config.Config, sessionID string, history []conversation.Event, u telegram.Update, emit func(string) error) telegramTurnResult {
+	session := reception.New(root, c, reception.Telegram)
+	session.ID = "telegram-" + sessionID
+	session.History = history
+	// Each remote turn starts without remembered reference authority. A fresh
+	// list_jobs result or an explicit user ID admits a selected existing job.
+	forward := func(event reception.Event) error {
+		switch event.Kind {
+		case "reply":
+			return emit(event.Text)
+		case "action":
+			return emit("[호스트 처리 결과] " + event.Action + ": " + event.Text)
+		}
+		return nil
 	}
-	schema, e := conversation.SchemaFor(telegramCapabilities())
-	if e != nil {
-		return fail(e, true)
-	}
-	skill, e := conversation.Skill()
-	if e != nil {
-		return fail(e, true)
-	}
-	d := &setupDialogue{ctx: ctx, root: root, config: c, out: io.Discard, noBrowser: true}
-	for step := 0; step < min(conversation.MaxActionsPerTurn, c.Limits.MaxToolCalls); step++ {
-		prompt, e := conversation.PromptFor(history, c.Limits.MaxSourceBytes, telegramCapabilities(), "telegram_paired_private_dm")
-		if e != nil {
-			return fail(errors.New("대화가 길어졌습니다. /reset으로 새 대화를 시작해 주세요."), false)
-		}
-		dir := filepath.Join(root, "chat", "telegram-"+session, files.ID())
-		generated, e := executor.Converse(ctx, root, dir, c.Executor, c.Limits, prompt, schema, skill)
-		if e != nil {
-			return fail(e, generated.Outcome == "orphaned")
-		}
-		reply, e := conversation.Decode(generated.Final)
-		if e != nil || !allowedTelegramAction(reply.Action.Name) {
-			return fail(errors.New("이 대화에서 허용되지 않은 작업 제안을 거부했습니다."), false)
-		}
-		if e = emit(reply.Message); e != nil {
-			return fail(e, true)
-		}
-		encoded, _ := json.Marshal(reply)
-		history = append(history, conversation.Event{Role: "assistant", Content: string(encoded)})
-		if reply.Action.Name == conversation.None {
-			return telegramTurnResult{history: history}
-		}
-		if e = ctx.Err(); e != nil {
-			return fail(e, false)
-		}
-		intent, _ := json.Marshal(map[string]any{"action": reply.Action, "state": "requested"})
-		if e = files.Write(dir, "action.json", intent, false); e != nil {
-			return fail(e, true)
-		}
-		// Remote projection is checked immediately before dispatch as well as after decoding.
-		if !allowedTelegramAction(reply.Action.Name) {
-			return fail(errors.New("remote action denied"), true)
-		}
-		outcome, actionErr := d.chatAction(reply.Action, u.Message.Text, map[string]bool{})
-		if actionErr != nil {
-			outcome = chatHostResult{Status: "failed", Detail: "호스트 작업을 완료하지 못했습니다. 로컬 상태를 확인해 주세요. 자동 재시도하지 마세요."}
-		}
-		b, _ := json.Marshal(outcome)
-		audit, _ := json.Marshal(map[string]any{"action": reply.Action, "state": outcome.Status, "result_digest": files.Digest(b)})
-		if e = files.Write(dir, "action.json", audit, true); e != nil {
-			return fail(e, true)
-		}
-		history = append(history, conversation.Event{Role: "host", Content: string(b)})
-		if e = emit("[호스트 처리 결과] " + reply.Action.Name + ": " + outcome.Status); e != nil {
-			return fail(e, true)
-		}
-		if actionErr != nil {
-			return fail(errors.New("작업이 완료되지 않았습니다. Mac의 춘수에서 상태를 확인해 주세요."), false)
-		}
-	}
-	result.history = history
-	result.err = errors.New("이번 요청의 처리 한도에 도달했습니다. 확인된 결과를 바탕으로 이어서 요청해 주세요.")
-	return result
+	err := session.Turn(ctx, u.Message.Text, reception.Host{Root: root, Config: c}, nil, forward)
+	return telegramTurnResult{history: session.History, err: err, fatal: errors.Is(err, reception.ErrUncertain)}
 }
 
 func serveTelegram(cmd *cobra.Command, root string, c config.Config, b telegram.Binding, client *telegram.Client) error {
@@ -169,7 +96,7 @@ func serveTelegram(cmd *cobra.Command, root string, c config.Config, b telegram.
 		}
 		<-pollDone
 	}()
-	help := "춘수에게 할 일을 자연스럽게 말씀해 주세요. 일반 대화·초안 작성, 실행 상태, 작업 목록, 서비스 설정 자료를 지원합니다. Gmail 인증과 보고서 본문은 Mac에서 진행합니다. /cancel 현재 답변 중단, /reset 새 대화, /help 사용법."
+	help := "춘수에게 할 일을 자연스럽게 말씀해 주세요. 일반 대화·초안 작성, 실행 상태, 작업 목록, 서비스 설정 자료를 지원합니다. Gmail 인증과 보고서 본문은 호스트의 로컬 화면에서 진행합니다. /cancel 현재 답변 중단, /reset 새 대화, /help 사용법."
 	sendRecorded := func(ctx context.Context, receipt *telegram.Receipt, text string) error {
 		receipt.State = "reply_sending"
 		receipt.ReplyDigest = files.Digest([]byte(text))
@@ -287,7 +214,7 @@ func serveTelegram(cmd *cobra.Command, root string, c config.Config, b telegram.
 					emit := func(text string) error { return sendRecorded(workCtx, &receipt, text) }
 					result := telegramTurn(workCtx, root, c, session, history, u, emit)
 					if result.err != nil && !result.fatal && workCtx.Err() == nil {
-						if e := emit("요청을 완료하지 못했습니다. Mac의 춘수 터미널에서 원인을 확인해 주세요. 대화가 길어졌다면 /reset으로 새로 시작할 수 있습니다."); e != nil {
+						if e := emit("요청을 완료하지 못했습니다. 설치된 춘수 터미널에서 원인을 확인해 주세요. 대화가 길어졌다면 /reset으로 새로 시작할 수 있습니다."); e != nil {
 							result.err = e
 							result.fatal = true
 						}

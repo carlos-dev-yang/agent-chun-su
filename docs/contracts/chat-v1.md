@@ -7,6 +7,12 @@ this terminal contract adds no public chat server or DB migration. The subsequen
 
 ## Execution path
 
+The MOD-02 implementation moves intake history, action iteration, channel
+capabilities, validation, dispatch and audit to `internal/reception`. CLI and
+Telegram provide user input/output and cancellation. Local Gmail interaction
+is a callback, not a separate conversation engine. `internal/conversation`
+remains the typed message/Skill contract.
+
 `chat [REQUEST]` uses the selected `executor.kind/path/model` and existing Codex
 CLI login. `chat --guided` retains local setup without AI. The supported adapter
 pins the same tested CLI/model as report execution; other versions fail with a
@@ -19,7 +25,8 @@ and other tool features are disabled. The existing minimal/read-only filesystem
 profile exposes the current turn's public Skill/schema directory, excluding
 management state, report inputs, golden answers and credentials from tool access.
 Codex authentication/provider traffic is still required; disabling tool networking
-does not mean the AI request runs offline. The original report adapter is unchanged.
+does not mean the AI request runs offline. Report work runs in a separate job
+attempt with its own source gateway, Skill and result contract.
 
 The model returns `{message, action: {name, service, reference}}`. Strict parsing
 rejects unknown fields, actions, services, unexpected parameters and invalid IDs.
@@ -43,13 +50,23 @@ an explicit host handler and validation. Model requests cannot change this list.
 | `gmail_setup` | Install Gmail guide; hand off to local existing/new connection questions and async auth/check |
 | `list_jobs` | Read bounded existing job ID/workgroup/status/time summaries; omit requests, source bodies and reports |
 | `show_report` | Display a hash-verified saved report directly to the local terminal; use a listed or user-specified ID |
+| `delegate_job` | Submit the same verified saved input as a separate task at the user's request; use a listed or user-specified ID and current active controls |
 
 Supported user-requested reads/local guide installation need no repeated approval.
 New Gmail account scope and authentication remain explicit local steps. Unsupported
 requests should produce useful work that is available now (such as a message draft)
 and explain the missing connector/capability. Remote writes, arbitrary installation,
-new report admission, rule adoption, evaluator changes and schedule activation are
+arbitrary new source admission, rule adoption, evaluator changes and schedule activation are
 not chat capabilities. Local guide installation is not external account connection.
+
+Delegation accepts a saved job ID, not a filesystem path, account credential,
+candidate-control digest or executable command. Host admission validates the
+module input and preserves `delegated_from` with the bounded user request. The
+reception AI receives only the new job's ID/workgroup/state. A paused queue or
+setup-only host can accept a job without executing it; `queued` must not be
+reported as completion. Reprocessing saved input never advances collection
+coverage. Each input can be delegated once per conversational turn. Interrupted
+or uncertain admission is inspected, not automatically retried.
 
 The client reuses an existing controller or starts/stops its own setup-only child,
 as in [setup v1](setup-v1.md). The host is a trusted local control surface, not an

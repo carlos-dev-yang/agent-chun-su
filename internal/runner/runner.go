@@ -55,22 +55,36 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		return r.setupHost.Handle(ctx, req)
 	}
 	switch req.Operation {
+	case "delegate":
+		if !mail.Nonempty(req.Answer) || int64(len(req.Answer)) > r.Config.Limits.MaxSourceBytes {
+			return nil, errors.New("delegation requires a bounded user request")
+		}
+		job, err := r.Store.Job(ctx, req.JobID)
+		if err != nil {
+			return nil, err
+		}
+		artifact, err := r.Store.InputArtifact(ctx, job)
+		if err != nil {
+			return nil, err
+		}
+		input, err := r.Store.ReadArtifact(artifact, r.Config.Limits.MaxArtifactBytes)
+		if err != nil {
+			return nil, err
+		}
+		if err = workgroup.ValidateInput(job.Workgroup, input, r.Config.Limits); err != nil {
+			return nil, err
+		}
+		// A reception request selects existing evidence, never a filesystem path,
+		// credential or candidate-control version. No coverage cursor is advanced.
+		request := map[string]any{"origin": "saved", "admission": "reception", "delegated_from": job.ID, "user_request": req.Answer}
+		return r.Store.Submit(ctx, job.Workgroup, input, request, r.Config.Limits.MaxArtifactBytes)
 	case "queue":
 		workgroupID := req.Workgroup
 		if workgroupID == "" {
 			workgroupID = mail.Workgroup
 		}
-		switch workgroupID {
-		case mail.Workgroup:
-			if _, err := mail.ParseSnapshot(req.Input, r.Config.Limits); err != nil {
-				return nil, err
-			}
-		case "jira-report":
-			if _, err := jira.ParseReportInput(req.Input); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, errors.New("unsupported queue workgroup")
+		if err := workgroup.ValidateInput(workgroupID, req.Input, r.Config.Limits); err != nil {
+			return nil, err
 		}
 		request := map[string]any{"origin": "saved", "admission": "management"}
 		if req.SourceName != "" {
@@ -305,7 +319,7 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	if err = finish(validation.OperationalStatus, "", false); err != nil {
 		return out, err
 	}
-	if p.Snapshot.Origin != nil && !j.IsExperiment() && (out.Status == store.Completed || out.Status == store.Partial) {
+	if p.Snapshot.Origin != nil && j.CanAdvanceCoverage() && (out.Status == store.Completed || out.Status == store.Partial) {
 		if err = r.Store.RecordCoverage(finishCtx, p.Snapshot.Origin.ConnectionID, jobID, gmail.CoverageForReport(p.Snapshot, report)); err != nil {
 			_ = r.Store.AddEvent(finishCtx, jobID, a.ID, "coverage.pending", map[string]string{"reason": "source coverage update failed after report publication"})
 			return out, err

@@ -20,6 +20,7 @@ const InstallGuide = "install_guide"
 const GmailSetup = "gmail_setup"
 const ListJobs = "list_jobs"
 const ShowReport = "show_report"
+const DelegateJob = "delegate_job"
 
 type Capability struct {
 	Name        string `json:"name"`
@@ -37,6 +38,7 @@ func Capabilities() []Capability {
 		{GmailSetup, "Gmail 연결/확인을 위한 로컬 질문과 인증 흐름을 시작한다. 비밀 입력은 AI에 전달하지 않는다.", false, false},
 		{ListJobs, "기존 작업의 ID·종류·상태를 조회한다. 입력과 보고서 본문은 포함하지 않는다.", false, false},
 		{ShowReport, "선택 작업의 보존된 보고서를 검증하여 사용자 터미널에 표시한다. 본문은 AI로 보내지 않는다.", false, true},
+		{DelegateJob, "사용자가 재처리를 요청한 보존 작업의 동일 입력을 별도 업무로 접수한다. 현재 활성 스킬로 worker가 실행하며, 접수 AI는 원문·계정·실행 도구에 접근하지 않는다. 접수만으로 완료를 주장하지 않는다.", false, true},
 	}
 }
 

@@ -50,6 +50,13 @@ func (j Job) IsExperiment() bool {
 	return json.Unmarshal(j.Request, &request) != nil || request.ExperimentOf != ""
 }
 
+func (j Job) CanAdvanceCoverage() bool {
+	var request struct {
+		DelegatedFrom string `json:"delegated_from"`
+	}
+	return !j.IsExperiment() && json.Unmarshal(j.Request, &request) == nil && request.DelegatedFrom == ""
+}
+
 type Attempt struct {
 	ID         string `json:"id"`
 	JobID      string `json:"job_id"`

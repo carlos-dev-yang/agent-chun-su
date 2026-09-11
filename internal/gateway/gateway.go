@@ -20,18 +20,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const ToolName = "mail_source_get"
-const JiraToolName = "jira_issue_get"
+const ToolName = workgroup.MailToolName
+const JiraToolName = workgroup.JiraToolName
 
-func ToolForWorkgroup(workgroup string) (string, error) {
-	switch workgroup {
-	case mail.Workgroup:
-		return ToolName, nil
-	case "jira-report":
-		return JiraToolName, nil
-	default:
-		return "", errors.New("unsupported gateway workgroup")
-	}
+func ToolForWorkgroup(id string) (string, error) {
+	definition, err := workgroup.Lookup(id)
+	return definition.Tool, err
 }
 
 type Input struct {

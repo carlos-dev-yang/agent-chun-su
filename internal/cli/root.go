@@ -117,7 +117,8 @@ func (o *options) setup() *cobra.Command {
 			return err
 		}
 		defer s.Close()
-		for _, id := range []string{mail.Workgroup, "jira-report"} {
+		for _, definition := range workgroup.Definitions() {
+			id := definition.ID
 			if err = workgroup.InstallFor(root, id, c.Limits.MaxArtifactBytes); err != nil {
 				return err
 			}

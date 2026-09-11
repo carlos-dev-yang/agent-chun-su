@@ -28,8 +28,8 @@ const TestedModel = "gpt-5.5"
 const Profile = "chunsu_mail"
 const ProcessFile = "process.json"
 const MaxVersionBytes = 4096
-const PermittedMailTool = "chunsu_mail.mail_source_get"
-const PermittedJiraTool = "chunsu_jira.jira_issue_get"
+const PermittedMailTool = workgroup.MailServerName + "." + workgroup.MailToolName
+const PermittedJiraTool = workgroup.JiraServerName + "." + workgroup.JiraToolName
 const CapabilityViolation = "capability_violation"
 
 type ProcessRecord struct {
@@ -62,15 +62,12 @@ type Result struct {
 	ObservedTools []string        `json:"observed_tools,omitempty"`
 }
 
-func PermittedObservedTool(workgroup string) (string, error) {
-	switch workgroup {
-	case "mail-review":
-		return PermittedMailTool, nil
-	case "jira-report":
-		return PermittedJiraTool, nil
-	default:
-		return "", errors.New("unsupported executor workgroup")
+func PermittedObservedTool(id string) (string, error) {
+	definition, err := workgroup.Lookup(id)
+	if err != nil {
+		return "", err
 	}
+	return definition.Server + "." + definition.Tool, nil
 }
 
 func HasCapabilityViolation(observed []string, workgroup string) bool {
@@ -175,10 +172,11 @@ func Arguments(binary, root string, p workgroup.Package) []string {
 	for _, a := range serverArgs {
 		quoted = append(quoted, strconv.Quote(a))
 	}
-	serverName, tool := "chunsu_mail", "mail_source_get"
-	if p.Workgroup == "jira-report" {
-		serverName, tool = "chunsu_jira", "jira_issue_get"
+	definition, err := workgroup.Lookup(p.Workgroup)
+	if err != nil {
+		return nil
 	}
+	serverName, tool := definition.Server, definition.Tool
 	server := fmt.Sprintf("{ command = %s, args = [%s], enabled = true, required = true, enabled_tools = [%s] }", strconv.Quote(binary), strings.Join(quoted, ","), strconv.Quote(tool))
 	args = append(args, "-c", "mcp_servers={ "+serverName+" = "+server+" }")
 	// The human-authorized snapshot is the whole read scope. No per-message
@@ -196,6 +194,9 @@ func (w *countWriter) Write(p []byte) (int, error) { w.count.Add(int64(len(p)));
 
 func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) {
 	result := Result{ExitCode: -1, Outcome: "not_started"}
+	if _, err := workgroup.Lookup(p.Workgroup); err != nil {
+		return result, err
+	}
 	if p.Executor.Kind != "codex" || p.Executor.Path == "" {
 		return result, errors.New("configure the selected Codex executor before running")
 	}

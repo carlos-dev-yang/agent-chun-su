@@ -209,7 +209,8 @@ func (b Bundle) Validate() error {
 }
 
 func allowedWorkgroup(id string) bool {
-	return id == mail.Workgroup || id == "jira-report"
+	_, err := Lookup(id)
+	return err == nil
 }
 
 func readEmbeddedSkill(id string) (Skill, error) {

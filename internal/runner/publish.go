@@ -140,7 +140,7 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	}
 	out.Status = validation.OperationalStatus
 	out.ReportPath = filepath.Join(r.Store.Root, art.Path)
-	if snapshot.Origin != nil && !j.IsExperiment() && (out.Status == store.Completed || out.Status == store.Partial) {
+	if snapshot.Origin != nil && j.CanAdvanceCoverage() && (out.Status == store.Completed || out.Status == store.Partial) {
 		err = r.Store.RecordCoverage(ctx, snapshot.Origin.ConnectionID, j.ID, gmail.CoverageForReport(snapshot, report))
 	}
 	return out, err
