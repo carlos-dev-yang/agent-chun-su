@@ -2,7 +2,7 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** MOD-01 selected-result analyzer/optimizer execution and synthetic candidate comparison implemented; human usefulness/adoption remains pending.
 **Goal:** Improve the operating rules, tools, schemas, skills, and process using accumulated evidence while preserving independent result evaluation.
 
 **Entry conditions:** P3-07 has established the independent record/proposal model, and enough representative runs exist to investigate a concrete issue. Jira and public distribution are not prerequisites.
@@ -10,6 +10,13 @@
 **Exit evidence:** At least one evidence-backed optimization hypothesis has been investigated and compared, with a documented human decision. No mandatory golden-set expansion is required.
 
 **Out of scope:** Automatic active-rule promotion, private chain-of-thought collection, optimization after every job, and a single combined quality/process score.
+
+The approved [modular-agent goal](MODULAR_AGENT_GOAL_2026-09-11.md) adds versioned
+review criteria and optional review over explicitly selected saved results.
+[MOD-01 evidence](../validation/MOD_01_SELECTED_REVIEW_2026-09-11.md) records the
+actual synthetic investigation/comparison and negative adoption checks. The
+original work units below still need a human-selected representative issue and
+decision before claiming this phase's usefulness milestone.
 
 All implementation paths and commands below are planned deliverables. Acceptance
 scenarios are not completed checks or authorization to create test code. Follow

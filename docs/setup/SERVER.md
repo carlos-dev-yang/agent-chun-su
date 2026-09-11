@@ -18,8 +18,10 @@ dependency versions/licenses and SHA-256 checksums. They contain no account
 credentials or runtime data. Manifests distinguish a dirty working tree from
 the recorded commit. These are unsigned local candidates, not public releases.
 A successful build alone does not establish platform enforcement or account
-access. See [the validation record](../validation/MOD_04_SERVER_2026-09-11.md)
-for the checks actually performed (in the source checkout).
+access. See [the final integration record](../validation/MOD_07_INTEGRATION_2026-09-12.md)
+and [Linux boundary evidence](../validation/MOD_04_SERVER_2026-09-11.md) for
+the checks actually performed. Public manuals, referenced planning/validation
+records and Skills are included so their local links work after extraction.
 
 ## Install on the selected host
 

@@ -38,7 +38,8 @@ def main():
         module_list.append(module)
         remaining = remaining.lstrip()[consumed:]
     public = run("git", "ls-files", "-z", "examples", "evaluation-skills",
-                 "docs/contracts", "docs/setup", "docs/validation/MOD_*").split("\0")
+                 "setup-skills", "workgroups", "docs", "*.md").split("\0")
+    public = [path for path in public if path and not path.endswith(".go")]
     for target in dict.fromkeys(args.target):
         name = "chunsu-" + args.version + "-" + target.replace("/", "-")
         package = output / name

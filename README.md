@@ -129,6 +129,15 @@ Use `backup NEW_DIRECTORY`, `verify-backup DIRECTORY`, and `restore BACKUP_DIREC
 
 See the [local operations runbook](docs/setup/LOCAL_OPERATIONS.md) for pause/resume, blocked work, scheduling, the optional macOS user service, and reviewed run-content retention. Schedules are disabled at creation; `service render` shows the configuration without activating it. Restored data has admission paused and every schedule disabled. Run-content deletion requires a concrete `retention plan` followed by explicit application and preserves a tombstone; acquisition/evaluation/backup copies remain outside its scope.
 
-Core and Phase 2–5 command paths and the approved Phase 6 saved ingestion subset are implemented. [Validation records](docs/validation/) distinguish synthetic checks, actual restricted executor runs and the bounded live Gmail candidate pilot. Broader lifecycle/reliability checks, personal reporting quality, service activation and MS1–MS4 milestone acceptance remain pending. Live Jira access, Jira AI reporting and later-phase distribution/development workflows are not included.
+The [modular-agent checkpoint](docs/validation/MOD_07_INTEGRATION_2026-09-12.md)
+records the installed macOS mail walkthrough, Linux arm64 service/secret/isolation
+checks and emulated Linux amd64 core operation. It also preserves a repeated
+model-output failure that the host rejected. Optional review, approved Jira
+reporting and read-only Git review are implemented; personal usefulness and
+human adoption remain separate milestones. Actual company/EC2 connections,
+multi-user SSO, remote worker transport and mutating development work are not
+claimed by this single-owner candidate.
 
-The [latest readiness check](docs/implementation/STATUS_2026-09-07.md) records the project structure, rerun saved Jira checks and remaining connection inputs. The [Jira connection preparation](docs/setup/JIRA_CONNECTION_PREPARATION.md) separates required deployment/scope decisions from later metadata discovery. The [September 6 handoff](docs/implementation/STATUS_2026-09-06.md) preserves the earlier execution evidence.
+The [September 7 readiness check](docs/implementation/STATUS_2026-09-07.md)
+preserves the earlier state. The [Jira connection preparation](docs/setup/JIRA_CONNECTION_PREPARATION.md)
+separates required deployment/scope decisions from later metadata discovery.
