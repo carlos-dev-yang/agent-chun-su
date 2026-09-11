@@ -36,6 +36,7 @@ type Output struct {
 	Source *mail.Message     `json:"source,omitempty"`
 	Issue  *jiraGatewayIssue `json:"issue,omitempty"`
 	Detail string            `json:"detail,omitempty"`
+	Record *SnapshotRecord   `json:"record,omitempty"`
 }
 type Evidence struct {
 	Tool     string `json:"tool"`
@@ -102,6 +103,17 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 				return e
 			}
 			input = b
+			definition, lookupErr := workgroup.Lookup(manifest.Workgroup)
+			if lookupErr != nil {
+				return lookupErr
+			}
+			if definition.SnapshotSources != nil {
+				if e = definition.ValidateInput(b, c.Limits); e != nil {
+					return e
+				}
+				found = true
+				break
+			}
 			if manifest.Workgroup == "jira-report" {
 				if _, e = jira.ParseReportInput(b); e != nil {
 					return e
@@ -119,6 +131,13 @@ func Serve(ctx context.Context, root, jobID, attemptID string) error {
 	}
 	if !found {
 		return errors.New("gateway input artifact is missing")
+	}
+	definition, err := workgroup.Lookup(manifest.Workgroup)
+	if err != nil {
+		return err
+	}
+	if definition.SnapshotSources != nil {
+		return serveSnapshot(ctx, root, s, c, j, manifest, input, definition)
 	}
 	if manifest.Workgroup == "jira-report" {
 		reportInput, e := jira.ParseReportInput(input)

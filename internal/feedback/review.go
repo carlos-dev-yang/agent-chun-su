@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"chunsu/internal/codereview"
 	"chunsu/internal/config"
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
@@ -172,6 +173,15 @@ func (s Service) reviewSource(ctx context.Context, id string) (ReviewSource, err
 			return out, e
 		}
 		out.Disclosure = map[string]any{"index": index, "issues": issues}
+	} else if r.Job.Workgroup == codereview.Workgroup {
+		input, e := codereview.Parse(out.Input, s.Config.Limits)
+		if e != nil {
+			return out, e
+		}
+		if e = codereview.Authorize(input, s.Config.Executor); e != nil {
+			return out, e
+		}
+		out.Disclosure = input
 	} else {
 		return out, errors.New("review input adapter is not available for this workgroup")
 	}
@@ -428,6 +438,11 @@ func (s Service) Analyze(ctx context.Context, criteriaID, question string, jobID
 
 func (s Service) caseForInput(group string, data []byte) (Case, error) {
 	actual := Case{Workgroup: group}
+	if group == codereview.Workgroup {
+		input, err := codereview.Parse(data, s.Config.Limits)
+		actual.CodeSnapshot = &input
+		return actual, err
+	}
 	if group == "jira-report" {
 		input, err := jira.ParseReportInput(data)
 		actual.JiraSnapshot = &input

@@ -30,6 +30,7 @@ type Package struct {
 	Executor          config.Executor   `json:"executor"`
 	Files             map[string]string `json:"files"`
 	Directory         string            `json:"-"`
+	Input             []byte            `json:"-"`
 	Snapshot          mail.Snapshot     `json:"-"`
 	JiraSnapshot      *jira.ReportInput `json:"-"`
 	Bundle            Bundle            `json:"-"`
@@ -66,6 +67,7 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 	if input == nil {
 		return p, fmt.Errorf("verified input artifact is missing")
 	}
+	p.Input = input
 	definition, err := Lookup(j.Workgroup)
 	if err != nil {
 		return p, err

@@ -283,6 +283,15 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	if err = r.Store.AddEvent(finishCtx, jobID, a.ID, "result.generated", map[string]any{"bytes": len(generated.Final)}); err != nil {
 		return out, err
 	}
+	definition, err := workgroup.Lookup(p.Workgroup)
+	if err != nil {
+		return out, err
+	}
+	if definition.ValidateResult != nil {
+		moduleOut, moduleErr := r.completeModuleResult(finishCtx, out, finish, p, generated.Final, observed, definition)
+		moduleOut.Status, moduleOut.Diagnostic = out.Status, out.Diagnostic
+		return moduleOut, moduleErr
+	}
 	if p.Workgroup == "jira-report" {
 		jiraOut, jiraErr := r.completeJiraResult(finishCtx, out, finish, j, a, p, generated.Final, observed)
 		if jiraOut.Status == "" {
@@ -548,6 +557,12 @@ func (r *Runner) collectLookups(ctx context.Context, j store.Job, a store.Attemp
 		if evidence.Result.Issue != nil {
 			if evidence.Result.Issue.ID != evidence.SourceID {
 				return nil, errors.New("jira_lookup_evidence_decode")
+			}
+			observed[evidence.SourceID] = true
+		}
+		if evidence.Result.Record != nil {
+			if evidence.Result.Status != "available" || evidence.Result.Record.ID != evidence.SourceID {
+				return nil, errors.New("snapshot lookup identity differs")
 			}
 			observed[evidence.SourceID] = true
 		}

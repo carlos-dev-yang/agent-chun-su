@@ -39,6 +39,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker())
 	root.AddCommand(o.feedback(), o.workgroup(), o.experiment(), o.review())
 	root.AddCommand(o.gmail(), o.jira())
+	root.AddCommand(o.code())
 	root.AddCommand(o.report(), o.publish(), o.backup(), o.restore(), o.verifyBackup())
 	root.AddCommand(o.schedule(), o.queueControl("pause"), o.queueControl("unpause"), o.queueControl("status"))
 	root.AddCommand(o.retention(), o.service())
@@ -220,19 +221,22 @@ func (o *options) configuration() *cobra.Command {
 			c.MailMode = args[1]
 		case "executor.kind":
 			c.Executor.Kind = args[1]
-			c.Executor.LiveMailApproved = false
-			c.Executor.LiveJiraApproved = false
-			c.Executor.LiveJiraValidationJobID = ""
+			c.Executor.RevokeDisclosure()
 		case "executor.path":
 			c.Executor.Path = args[1]
-			c.Executor.LiveMailApproved = false
-			c.Executor.LiveJiraApproved = false
-			c.Executor.LiveJiraValidationJobID = ""
+			c.Executor.RevokeDisclosure()
 		case "executor.model":
 			c.Executor.Model = args[1]
-			c.Executor.LiveMailApproved = false
-			c.Executor.LiveJiraApproved = false
-			c.Executor.LiveJiraValidationJobID = ""
+			c.Executor.RevokeDisclosure()
+		case "executor.live_code_approved":
+			approved, e := strconv.ParseBool(args[1])
+			if e != nil {
+				return errors.New("code disclosure approval must be true or false")
+			}
+			if approved && (c.Executor.Kind == "" || c.Executor.Path == "") {
+				return errors.New("select the executor before approving code disclosure")
+			}
+			c.Executor.LiveCodeApproved = approved
 		case "executor.live_mail_approved":
 			approved, e := strconv.ParseBool(args[1])
 			if e != nil {
@@ -368,7 +372,7 @@ func (o *options) queue() *cobra.Command {
 		fmt.Fprintln(cmd.OutOrStdout(), "Queued", j.ID)
 		return nil
 	}}
-	cmd.Flags().StringVar(&workgroupID, "workgroup", mail.Workgroup, "Pinned workgroup: mail-review or jira-report")
+	cmd.Flags().StringVar(&workgroupID, "workgroup", mail.Workgroup, "Compiled workgroup ID; see workgroup list")
 	return cmd
 }
 

@@ -109,6 +109,40 @@ func (r *Runner) Publish(ctx context.Context, jobID string) (Outcome, error) {
 	if manifest.Workgroup == "jira-report" {
 		return r.publishJira(ctx, out, j, manifest, bundle, raw, input, available, publicationWait)
 	}
+	definition, err := workgroup.Lookup(j.Workgroup)
+	if err != nil {
+		return out, err
+	}
+	if definition.ValidateResult != nil {
+		if executor.HasCapabilityViolation(generated.ObservedTools, j.Workgroup) {
+			return out, errors.New(executor.CapabilityViolation)
+		}
+		observed, e := r.collectLookups(ctx, j, store.Attempt{ID: j.CurrentAttempt, JobID: j.ID})
+		if e != nil {
+			return out, e
+		}
+		plan, e := definition.ValidateResult(raw, bundle.Schema, input, r.Config.Limits, observed)
+		if e != nil {
+			return out, e
+		}
+		var art store.Artifact
+		if available != nil {
+			art = *available
+		} else {
+			art, e = r.saveModulePresentation(ctx, j.ID, j.CurrentAttempt, plan)
+			if e != nil {
+				return out, e
+			}
+		}
+		if publicationWait {
+			if e = r.Store.CompletePublication(ctx, j.ID, j.CurrentAttempt, plan.Status, art.ID); e != nil {
+				return out, e
+			}
+		}
+		out.Status = plan.Status
+		out.ReportPath = filepath.Join(r.Store.Root, art.Path)
+		return out, nil
+	}
 	snapshot, err := mail.ParseSnapshot(input, r.Config.Limits)
 	if err != nil {
 		return out, err

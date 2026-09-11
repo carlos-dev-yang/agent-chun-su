@@ -2,7 +2,8 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** MOD-05 read-only review scope implemented and validated; mutating development scope remains unselected. See [evidence](../validation/MOD_05_CODE_REVIEW_2026-09-12.md).
+
 **Goal:** Extend the validated framework to one explicitly scoped repository task after mail and Jira have demonstrated the common model.
 
 **Entry conditions:** P4-09 and P6-07 establish mail usefulness and workgroup reuse. D12 selects a concrete development task and its authority; the planning roadmap does not authorize arbitrary repository edits.

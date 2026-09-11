@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["version", "repository", "base_revision", "head_revision", "summary", "reviewed_source_ids", "findings", "limitations"],
+  "properties": {
+    "version": {"type":"integer", "const":1},
+    "repository": {"type":"string", "minLength":1},
+    "base_revision": {"type":"string"},
+    "head_revision": {"type":"string"},
+    "summary": {"type":"string", "minLength":1},
+    "reviewed_source_ids": {"type":"array", "items":{"type":"string"}, "uniqueItems":true},
+    "findings": {
+      "type":"array", "items": {
+        "type":"object", "additionalProperties":false,
+        "required":["source_id","side","start_line","end_line","severity","title","detail","evidence"],
+        "properties": {
+          "source_id":{"type":"string"},
+          "side":{"type":"string","enum":["before","after"]},
+          "start_line":{"type":"integer","minimum":1},
+          "end_line":{"type":"integer","minimum":1},
+          "severity":{"type":"string","enum":["critical","high","medium","low"]},
+          "title":{"type":"string","minLength":1},
+          "detail":{"type":"string","minLength":1},
+          "evidence":{"type":"string","minLength":1}
+        }
+      }
+    },
+    "limitations":{"type":"array","items":{"type":"string"}}
+  }
+}

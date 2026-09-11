@@ -356,10 +356,8 @@ func runCodexReport(ctx context.Context, root string, p workgroup.Package) (Resu
 			switch event.Item.Type {
 			case "mcp_tool_call":
 				// Record capability names only, never their arguments or result payloads.
-				if event.Item.Server == "chunsu_mail" && event.Item.Tool == "mail_source_get" {
-					tool = PermittedMailTool
-				} else if event.Item.Server == "chunsu_jira" && event.Item.Tool == "jira_issue_get" {
-					tool = PermittedJiraTool
+				if definition, e := workgroup.Lookup(p.Workgroup); e == nil && event.Item.Server == definition.Server && event.Item.Tool == definition.Tool {
+					tool = definition.Server + "." + definition.Tool
 				} else {
 					tool = "unexpected_mcp_tool"
 				}

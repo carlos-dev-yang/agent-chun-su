@@ -2,5 +2,5 @@ package workgroups
 
 import "embed"
 
-//go:embed mail-review/* jira-report/*
+//go:embed mail-review/* jira-report/* code-review/*
 var Assets embed.FS

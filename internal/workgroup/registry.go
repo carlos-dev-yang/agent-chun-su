@@ -1,6 +1,7 @@
 package workgroup
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 
@@ -19,20 +20,31 @@ type InputPlan struct {
 	Timezone string
 }
 
+type ReportPlan struct {
+	Markdown   []byte
+	Sources    []byte
+	Status     string
+	Validation any
+}
+
 // Definition describes a compiled module. Data/configuration may select a
 // module, but cannot register executable code or grant tools at runtime.
 type Definition struct {
-	ID            string                                    `json:"id"`
-	SourceKind    string                                    `json:"source_kind"`
-	Tool          string                                    `json:"tool"`
-	Server        string                                    `json:"server"`
-	ValidateInput func([]byte, config.Limits) error         `json:"-"`
-	PrepareInput  func(*Package, []byte) (InputPlan, error) `json:"-"`
+	ID              string                                                                           `json:"id"`
+	SourceKind      string                                                                           `json:"source_kind"`
+	Tool            string                                                                           `json:"tool"`
+	Server          string                                                                           `json:"server"`
+	ValidateInput   func([]byte, config.Limits) error                                                `json:"-"`
+	PrepareInput    func(*Package, []byte) (InputPlan, error)                                        `json:"-"`
+	SnapshotSources func([]byte, config.Limits) (map[string]json.RawMessage, error)                  `json:"-"`
+	AuthorizeInput  func([]byte, config.Limits, config.Executor) error                               `json:"-"`
+	ValidateResult  func([]byte, []byte, []byte, config.Limits, map[string]bool) (ReportPlan, error) `json:"-"`
 }
 
 var definitions = map[string]Definition{
 	mail.Workgroup: mailDefinition(),
 	"jira-report":  jiraDefinition(),
+	"code-review":  codeDefinition(),
 }
 
 func Lookup(id string) (Definition, error) {

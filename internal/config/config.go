@@ -52,6 +52,7 @@ type Executor struct {
 	Model            string `json:"model,omitempty"`
 	Environment      string `json:"environment,omitempty"`
 	LiveMailApproved bool   `json:"live_mail_approved"`
+	LiveCodeApproved bool   `json:"live_code_approved,omitempty"`
 	// LiveJiraApproved is deliberately separate from mail approval. A successful
 	// mail boundary check establishes nothing about Jira source disclosure.
 	LiveJiraApproved     bool   `json:"live_jira_approved"`
@@ -72,6 +73,7 @@ type Routes struct {
 
 func (e *Executor) RevokeDisclosure() {
 	e.LiveMailApproved = false
+	e.LiveCodeApproved = false
 	e.LiveJiraApproved = false
 	e.LiveJiraValidationJobID = ""
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"chunsu/internal/codereview"
 	"chunsu/internal/config"
 	"chunsu/internal/files"
 	"chunsu/internal/jira"
@@ -49,6 +50,7 @@ type Case struct {
 	// JSON shape and fingerprint.
 	Workgroup    string            `json:"workgroup,omitempty"`
 	JiraSnapshot *jira.ReportInput `json:"jira_snapshot,omitempty"`
+	CodeSnapshot *codereview.Input `json:"code_snapshot,omitempty"`
 	Expectations []Expectation     `json:"expectations"`
 	Limitations  []string          `json:"limitations"`
 }
@@ -115,6 +117,13 @@ func caseWorkgroup(c Case) string {
 // the declared workgroup with their typed report input so equal source IDs from
 // different domains cannot compare as the same input.
 func caseFingerprint(c Case) string {
+	if c.CodeSnapshot != nil {
+		b, _ := json.Marshal(struct {
+			Workgroup string            `json:"workgroup"`
+			Snapshot  *codereview.Input `json:"snapshot"`
+		}{caseWorkgroup(c), c.CodeSnapshot})
+		return files.Digest(b)
+	}
 	if c.JiraSnapshot == nil {
 		return fingerprint(c.Snapshot)
 	}
@@ -127,6 +136,20 @@ func caseFingerprint(c Case) string {
 
 func caseSources(c Case, limits config.Limits) (map[string]bool, error) {
 	sources := map[string]bool{}
+	if c.CodeSnapshot != nil {
+		if caseWorkgroup(c) != codereview.Workgroup || c.JiraSnapshot != nil {
+			return nil, errors.New("code case must contain only its code-review input")
+		}
+		b, _ := json.Marshal(c.CodeSnapshot)
+		in, err := codereview.Parse(b, limits)
+		if err != nil {
+			return nil, err
+		}
+		for _, source := range in.Sources {
+			sources[source.ID] = true
+		}
+		return sources, nil
+	}
 	if c.JiraSnapshot == nil {
 		if caseWorkgroup(c) != mail.Workgroup {
 			return nil, errors.New("non-mail case requires its typed workgroup input")
