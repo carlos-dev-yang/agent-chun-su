@@ -15,13 +15,18 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/files"
 	"chunsu/internal/platform"
+	"chunsu/internal/runtimeenv"
 )
 
 // ConversationArguments gives the model no native tools. Structured proposals
 // are validated and dispatched later by the host, outside this process.
 func ConversationArguments(directory, model string) []string {
+	return conversationArguments(directory, model, runtimeenv.Boundary{ReadRoots: []string{directory}})
+}
+
+func conversationArguments(directory, model string, boundary runtimeenv.Boundary) []string {
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", directory, "--output-schema", filepath.Join(directory, "response.schema.json")}
-	args = append(args, ProfileArgs(directory)...)
+	args = append(args, boundaryArgs(boundary)...)
 	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `mcp_servers={}`, "-c", `project_doc_max_bytes=0`, "-c", `model_reasoning_effort="low"`, "--enable", "skip_host_skill_discovery")
 	for _, feature := range disabledFeatures {
 		args = append(args, "--disable", feature)
@@ -29,13 +34,13 @@ func ConversationArguments(directory, model string) []string {
 	return append(args, "--model", model, "-")
 }
 
-func Converse(parent context.Context, root, directory string, selected config.Executor, limits config.Limits, prompt, schema, skill []byte) (result Result, runErr error) {
-	result = Result{ExitCode: -1, Outcome: "not_started"}
+func runCodexStructured(parent context.Context, role, root, directory string, selected config.Executor, limits config.Limits, prompt, schema, skill []byte) (result Result, runErr error) {
+	result = Result{ExitCode: -1, Outcome: "not_started", Role: role, Driver: selected.Kind}
 	if selected.Kind != "codex" || selected.Path == "" {
-		return result, errors.New("대화 실행기가 설정되지 않았습니다. executor.kind/path/model 설정 후 다시 시작하거나 chat --guided를 사용하세요.")
+		return result, errors.New("AI 실행기가 설정되지 않았습니다. executor.kind/path/model 설정 후 다시 시작하거나 chat --guided를 사용하세요.")
 	}
 	if selected.Model != TestedModel {
-		return result, fmt.Errorf("대화 경계 검증 대상 모델은 %s입니다. 모델 변경은 별도 재검증이 필요합니다.", TestedModel)
+		return result, fmt.Errorf("AI 실행 경계 검증 대상 모델은 %s입니다. 모델 변경은 별도 재검증이 필요합니다.", TestedModel)
 	}
 	if err := CheckDataRoot(root); err != nil {
 		return result, err
@@ -50,7 +55,7 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 		return result, err
 	}
 	if version != TestedVersion {
-		return result, fmt.Errorf("대화 경계 검증 대상 실행기는 %s입니다", TestedVersion)
+		return result, fmt.Errorf("AI 실행 경계 검증 대상 실행기는 %s입니다", TestedVersion)
 	}
 	if err = files.PrivateDir(directory); err != nil {
 		return result, err
@@ -60,8 +65,18 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 			return result, err
 		}
 	}
-	arguments := ConversationArguments(directory, selected.Model)
+	environment, err := runtimeenv.Select(selected.Environment)
+	if err != nil {
+		return result, err
+	}
+	boundary, err := environment.Boundary(root, directory)
+	if err != nil {
+		return result, err
+	}
+	result.Boundary = &boundary
+	arguments := conversationArguments(directory, selected.Model, boundary)
 	argumentBytes, _ := json.Marshal(arguments)
+	result.ArgumentsDigest = files.Digest(argumentBytes)
 	defer func() {
 		// Audit metadata only: no transcript, provider diagnostic or native tool payload.
 		b, e := json.MarshalIndent(struct {
@@ -104,7 +119,7 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 	}
 	start := time.Now()
 	if err = cmd.Start(); err != nil {
-		return result, errors.New("대화 실행기를 시작하지 못했습니다")
+		return result, errors.New("AI 실행기를 시작하지 못했습니다")
 	}
 	identity, err := platform.Identify(cmd.Process.Pid)
 	if err != nil {
@@ -147,7 +162,7 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 		// events and the process exit decide success; warnings grant no tools.
 		if event.Item.Type != "" && event.Item.Type != "agent_message" && event.Item.Type != "reasoning" && event.Item.Type != "error" {
 			result.ObservedTools = append(result.ObservedTools, event.Item.Type)
-			parseErr = errors.New("대화 실행기가 허용되지 않은 도구를 요청했습니다. 작업을 실행하지 않았습니다.")
+			parseErr = errors.New("AI 실행기가 허용되지 않은 도구를 요청했습니다. 작업을 실행하지 않았습니다.")
 			break
 		}
 		switch event.Type {
@@ -181,7 +196,7 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 	}
 	if platform.GroupExists(identity.PID) {
 		result.Outcome = "orphaned"
-		return result, errors.New("대화 실행기 프로세스 정리를 확인해야 합니다")
+		return result, errors.New("AI 실행기 프로세스 정리를 확인해야 합니다")
 	}
 	b, _ = json.Marshal(ProcessRecord{State: "exited", Identity: identity})
 	if e := files.Write(directory, ProcessFile, b, true); e != nil {
@@ -195,7 +210,7 @@ func Converse(parent context.Context, root, directory string, selected config.Ex
 		return result, parseErr
 	}
 	if err != nil || failed || !completed || len(result.Final) == 0 {
-		return result, errors.New("대화 실행기가 답변을 완료하지 못했습니다. Codex 로그인·사용량·연결 상태를 확인하세요. 작업은 실행하지 않았습니다.")
+		return result, errors.New("AI 실행기가 답변을 완료하지 못했습니다. Codex 로그인·사용량·연결 상태를 확인하세요. 보존된 실행 기록을 확인하세요.")
 	}
 	result.Outcome = "generated"
 	return result, nil

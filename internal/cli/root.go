@@ -13,6 +13,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/control"
+	"chunsu/internal/executor"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
 	"chunsu/internal/platform"
@@ -169,6 +170,11 @@ func (o *options) doctor() *cobra.Command {
 				checks["executor"] = p
 			}
 		}
+		routes := map[string]executor.Compatibility{}
+		for _, role := range []string{config.RoleTask, config.RoleReception, config.RoleReview} {
+			routes[role] = executor.Inspect(cmd.Context(), root, c.ExecutorFor(role), c.Limits)
+		}
+		checks["execution_routes"] = routes
 		checks["account_requirement"] = "none for saved-input setup"
 		return output(cmd, checks)
 	}}
@@ -176,6 +182,7 @@ func (o *options) doctor() *cobra.Command {
 
 func (o *options) configuration() *cobra.Command {
 	cmd := &cobra.Command{Use: "config", Short: "Inspect or change non-secret settings"}
+	cmd.AddCommand(o.configRoute())
 	cmd.AddCommand(&cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {

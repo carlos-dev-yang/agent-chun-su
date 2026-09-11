@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"chunsu/internal/config"
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
@@ -237,6 +238,9 @@ func analysisSchema() ([]byte, error) {
 
 func (s Service) runReview(ctx context.Context, request ReviewRequest, skill, schema []byte, input any) (ReviewOutcome, error) {
 	out := ReviewOutcome{}
+	if _, err := s.RecoverReviews(ctx); err != nil {
+		return out, err
+	}
 	data, err := json.Marshal(input)
 	if err != nil {
 		return out, err
@@ -256,7 +260,7 @@ func (s Service) runReview(ctx context.Context, request ReviewRequest, skill, sc
 	if err = files.Write(s.Store.Root, filepath.Join(request.PackagePath, "evidence.json"), data, false); err != nil {
 		return out, err
 	}
-	generated, runErr := executor.Converse(ctx, s.Store.Root, directory, s.Config.Executor, s.Config.Limits, prompt, schema, skill)
+	generated, runErr := executor.Structured(ctx, executor.StructuredRequest{Role: config.RoleReview, Root: s.Store.Root, Directory: directory, Executor: s.Config.Executor, Limits: s.Config.Limits, Prompt: prompt, Schema: schema, Skill: skill})
 	execution := ReviewExecution{Version: Version, RequestID: out.Request.ID, Outcome: generated.Outcome, Executor: generated, Model: s.Config.Executor.Model}
 	if len(generated.Final) > 0 {
 		execution.ResultPath = filepath.ToSlash(filepath.Join(filepath.Dir(request.PackagePath), "result.json"))
@@ -290,6 +294,7 @@ func (s Service) runReview(ctx context.Context, request ReviewRequest, skill, sc
 }
 
 func (s Service) Evaluate(ctx context.Context, jobID, caseID, rubricID, skillID string) (ReviewOutcome, error) {
+	s.Config.Executor = s.Config.ExecutorFor(config.RoleReview)
 	out := ReviewOutcome{}
 	source, err := s.reviewSource(ctx, jobID)
 	if err != nil {
@@ -355,6 +360,7 @@ func (s Service) Evaluate(ctx context.Context, jobID, caseID, rubricID, skillID 
 }
 
 func (s Service) Analyze(ctx context.Context, criteriaID, question string, jobIDs []string) (ReviewOutcome, error) {
+	s.Config.Executor = s.Config.ExecutorFor(config.RoleReview)
 	out := ReviewOutcome{}
 	if len(jobIDs) == 0 || !mail.Nonempty(question) {
 		return out, errors.New("review requires an explicit question and selected jobs")

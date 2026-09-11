@@ -233,8 +233,7 @@ func Restore(ctx context.Context, source, destination string, limit int64) (stri
 	if err != nil {
 		return destination, err
 	}
-	c.Executor.LiveMailApproved = false
-	c.Executor.LiveJiraApproved = false
+	c.RevokeDisclosures()
 	c.Executor.LiveJiraPolicyDigest = ""
 	c.Executor.LiveJiraValidationJobID = ""
 	if err = config.Save(destination, c); err != nil {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"chunsu/internal/config"
 	"chunsu/internal/conversation"
 	"chunsu/internal/onboarding"
 	"chunsu/internal/reception"
@@ -15,7 +16,8 @@ import (
 var errReceptionSteered = errors.New("reception input changed")
 
 func (d *setupDialogue) runAI(initial string) error {
-	if d.config.Executor.Kind == "" || d.config.Executor.Path == "" || d.config.Executor.Model == "" {
+	selected := d.config.ExecutorFor(config.RoleReception)
+	if selected.Kind == "" || selected.Path == "" || selected.Model == "" {
 		return errors.New("대화 실행기를 먼저 설정해 주세요. AI 없이 설정하려면 chat --guided를 사용할 수 있습니다.")
 	}
 	session := reception.New(d.root, d.config, reception.Local)

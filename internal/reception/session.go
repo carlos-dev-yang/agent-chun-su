@@ -22,7 +22,7 @@ type Generation = executor.Result
 type Generator func(context.Context, string, []byte, []byte, []byte) (Generation, error)
 
 func Generate(ctx context.Context, root, directory string, c config.Config, prompt, schema, skill []byte) (Generation, error) {
-	return executor.Converse(ctx, root, directory, c.Executor, c.Limits, prompt, schema, skill)
+	return executor.Structured(ctx, executor.StructuredRequest{Role: config.RoleReception, Root: root, Directory: directory, Executor: c.ExecutorFor(config.RoleReception), Limits: c.Limits, Prompt: prompt, Schema: schema, Skill: skill})
 }
 
 type Event struct {

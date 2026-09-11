@@ -50,6 +50,7 @@ type Executor struct {
 	Kind             string `json:"kind"`
 	Path             string `json:"path"`
 	Model            string `json:"model,omitempty"`
+	Environment      string `json:"environment,omitempty"`
 	LiveMailApproved bool   `json:"live_mail_approved"`
 	// LiveJiraApproved is deliberately separate from mail approval. A successful
 	// mail boundary check establishes nothing about Jira source disclosure.
@@ -60,12 +61,48 @@ type Executor struct {
 	LiveJiraValidationJobID string `json:"live_jira_validation_job_id,omitempty"`
 }
 
+const RoleTask = "task"
+const RoleReception = "reception"
+const RoleReview = "review"
+
+type Routes struct {
+	Reception *Executor `json:"reception,omitempty"`
+	Review    *Executor `json:"review,omitempty"`
+}
+
+func (e *Executor) RevokeDisclosure() {
+	e.LiveMailApproved = false
+	e.LiveJiraApproved = false
+	e.LiveJiraValidationJobID = ""
+}
+
+func (c *Config) RevokeDisclosures() {
+	c.Executor.RevokeDisclosure()
+	if c.Routes.Reception != nil {
+		c.Routes.Reception.RevokeDisclosure()
+	}
+	if c.Routes.Review != nil {
+		c.Routes.Review.RevokeDisclosure()
+	}
+}
+
 type Config struct {
 	Version  int      `json:"version"`
 	Limits   Limits   `json:"limits"`
 	Executor Executor `json:"executor"`
+	Routes   Routes   `json:"routes,omitempty"`
 	MailMode string   `json:"mail_mode"`
 	Timezone string   `json:"timezone"`
+}
+
+func (c Config) ExecutorFor(role string) Executor {
+	if role == RoleReception && c.Routes.Reception != nil {
+		return *c.Routes.Reception
+	}
+	if role == RoleReview && c.Routes.Review != nil {
+		return *c.Routes.Review
+	}
+	return c.Executor
 }
 
 func Defaults() Config {
@@ -168,11 +205,10 @@ func (c Config) Validate() error {
 			return errors.New("configured byte budget exceeds supported range")
 		}
 	}
-	if c.Executor.Kind != "" && c.Executor.Kind != "codex" {
-		return errors.New("the current executor adapter supports kind codex")
-	}
-	if c.Executor.LiveJiraPolicyDigest != "" && !files.ValidDigest(c.Executor.LiveJiraPolicyDigest) {
-		return errors.New("live_jira_policy_digest must be a SHA-256 digest")
+	for _, selected := range []Executor{c.ExecutorFor(RoleTask), c.ExecutorFor(RoleReception), c.ExecutorFor(RoleReview)} {
+		if selected.LiveJiraPolicyDigest != "" && !files.ValidDigest(selected.LiveJiraPolicyDigest) {
+			return errors.New("live_jira_policy_digest must be a SHA-256 digest")
+		}
 	}
 	if c.MailMode != "changes" && c.MailMode != "changes_and_open" {
 		return errors.New("mail_mode must be changes or changes_and_open")

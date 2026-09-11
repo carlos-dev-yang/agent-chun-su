@@ -11,15 +11,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"chunsu/internal/config"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
 	"chunsu/internal/platform"
+	"chunsu/internal/runtimeenv"
 	"chunsu/internal/workgroup"
 )
 
@@ -50,16 +51,20 @@ var disabledFeatures = []string{
 }
 
 type Result struct {
-	Final         []byte          `json:"-"`
-	ExitCode      int             `json:"exit_code"`
-	DurationMS    int64           `json:"duration_ms"`
-	ThreadID      string          `json:"thread_id,omitempty"`
-	Usage         json.RawMessage `json:"usage,omitempty"`
-	StderrBytes   int64           `json:"stderr_bytes"`
-	Outcome       string          `json:"outcome"`
-	Version       string          `json:"version"`
-	FailureCode   string          `json:"failure_code,omitempty"`
-	ObservedTools []string        `json:"observed_tools,omitempty"`
+	Role            string               `json:"role,omitempty"`
+	Driver          string               `json:"driver,omitempty"`
+	Boundary        *runtimeenv.Boundary `json:"boundary,omitempty"`
+	ArgumentsDigest string               `json:"arguments_digest,omitempty"`
+	Final           []byte               `json:"-"`
+	ExitCode        int                  `json:"exit_code"`
+	DurationMS      int64                `json:"duration_ms"`
+	ThreadID        string               `json:"thread_id,omitempty"`
+	Usage           json.RawMessage      `json:"usage,omitempty"`
+	StderrBytes     int64                `json:"stderr_bytes"`
+	Outcome         string               `json:"outcome"`
+	Version         string               `json:"version"`
+	FailureCode     string               `json:"failure_code,omitempty"`
+	ObservedTools   []string             `json:"observed_tools,omitempty"`
 }
 
 func PermittedObservedTool(id string) (string, error) {
@@ -95,37 +100,24 @@ func MinimalEnv() []string {
 }
 
 func ProfileArgs(directory string) []string {
-	fs := fmt.Sprintf("{ %s = %s, %s = %s }", strconv.Quote(":minimal"), strconv.Quote("read"), strconv.Quote(directory), strconv.Quote("read"))
+	return boundaryArgs(runtimeenv.Boundary{ReadRoots: []string{directory}})
+}
+
+func boundaryArgs(boundary runtimeenv.Boundary) []string {
+	entries := []string{strconv.Quote(":minimal") + " = " + strconv.Quote("read")}
+	for _, root := range boundary.ReadRoots {
+		entries = append(entries, strconv.Quote(root)+" = "+strconv.Quote("read"))
+	}
+	fs := "{ " + strings.Join(entries, ", ") + " }"
 	return []string{"-c", "default_permissions=" + strconv.Quote(Profile), "-c", "permissions." + Profile + ".filesystem=" + fs, "-c", "permissions." + Profile + ".network.enabled=false"}
 }
 
-// macOS permits writes in system temporary directories even under the tested
-// read-only custom profile. Keep host controls and execution packages outside
-// those exceptions; resolve symlinks before deciding whether a root is supported.
 func CheckDataRoot(root string) error {
-	if runtime.GOOS != "darwin" {
-		return nil
-	}
-	resolved, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return errors.New("cannot resolve the executor data root")
-	}
-	resolved, err = filepath.Abs(resolved)
+	environment, err := runtimeenv.Select("")
 	if err != nil {
 		return err
 	}
-	const systemTemporaryDirectory = "/tmp"
-	for _, temporary := range []string{os.TempDir(), systemTemporaryDirectory} {
-		canonical, err := filepath.EvalSymlinks(temporary)
-		if err != nil {
-			return errors.New("cannot verify the macOS temporary-directory boundary")
-		}
-		relative, err := filepath.Rel(canonical, resolved)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			return errors.New("executor data root is inside a macOS temporary-directory write exception; use a private data directory outside system temporary storage")
-		}
-	}
-	return nil
+	return environment.CheckRoot(root)
 }
 
 func Version(ctx context.Context, path string) (string, error) {
@@ -161,8 +153,12 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 }
 
 func Arguments(binary, root string, p workgroup.Package) []string {
+	return reportArguments(binary, root, p, runtimeenv.Boundary{ReadRoots: []string{p.Directory}})
+}
+
+func reportArguments(binary, root string, p workgroup.Package, boundary runtimeenv.Boundary) []string {
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", p.Directory, "--output-schema", filepath.Join(p.Directory, mail.ExecutorSchemaName)}
-	args = append(args, ProfileArgs(p.Directory)...)
+	args = append(args, boundaryArgs(boundary)...)
 	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `project_doc_max_bytes=0`, "--enable", "skip_host_skill_discovery")
 	for _, f := range disabledFeatures {
 		args = append(args, "--disable", f)
@@ -192,8 +188,8 @@ type countWriter struct{ count atomic.Int64 }
 
 func (w *countWriter) Write(p []byte) (int, error) { w.count.Add(int64(len(p))); return len(p), nil }
 
-func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) {
-	result := Result{ExitCode: -1, Outcome: "not_started"}
+func runCodexReport(ctx context.Context, root string, p workgroup.Package) (Result, error) {
+	result := Result{ExitCode: -1, Outcome: "not_started", Role: config.RoleTask, Driver: p.Executor.Kind}
 	if _, err := workgroup.Lookup(p.Workgroup); err != nil {
 		return result, err
 	}
@@ -251,7 +247,19 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			return result, errors.New("pinned package integrity mismatch")
 		}
 	}
-	cmd := exec.CommandContext(ctx, p.Executor.Path, Arguments(executable, root, p)...)
+	environment, err := runtimeenv.Select(p.Executor.Environment)
+	if err != nil {
+		return result, err
+	}
+	boundary, err := environment.Boundary(root, p.Directory)
+	if err != nil {
+		return result, err
+	}
+	result.Boundary = &boundary
+	arguments := reportArguments(executable, root, p, boundary)
+	argumentBytes, _ := json.Marshal(arguments)
+	result.ArgumentsDigest = files.Digest(argumentBytes)
+	cmd := exec.CommandContext(ctx, p.Executor.Path, arguments...)
 	cmd.Dir = p.Directory
 	cmd.Env = MinimalEnv()
 	cmd.Stdin = strings.NewReader(string(instructions))

@@ -54,6 +54,26 @@ func scanRecord(row scanner) (Record, error) {
 
 const recordColumns = "id,kind,subject_id,path,digest,bytes,created_at"
 
+func (s *Store) PendingRecords(ctx context.Context, kind, completionKind string, limit int) ([]Record, error) {
+	if limit <= 0 {
+		return nil, errors.New("record limit must be positive")
+	}
+	rows, err := s.DB.QueryContext(ctx, "SELECT "+recordColumns+" FROM records AS requested WHERE kind=? AND NOT EXISTS (SELECT 1 FROM records AS completed WHERE completed.kind=? AND completed.subject_id=requested.id) ORDER BY created_at,id LIMIT ?", kind, completionKind, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []Record{}
+	for rows.Next() {
+		record, err := scanRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) Record(ctx context.Context, id string) (Record, error) {
 	return scanRecord(s.DB.QueryRowContext(ctx, "SELECT "+recordColumns+" FROM records WHERE id=?", id))
 }

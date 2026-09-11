@@ -14,13 +14,13 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/executor"
+	"chunsu/internal/feedback"
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
 	"chunsu/internal/gmail"
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/onboarding"
-	"chunsu/internal/platform"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 )
@@ -634,40 +634,12 @@ func Recover(ctx context.Context, s *store.Store, c config.Config) (int, error) 
 			continue
 		}
 		path := filepath.Join("runs", j.ID, "attempts", j.CurrentAttempt, executor.ProcessFile)
-		b, e := files.Read(s.Root, path, c.Limits.MaxArtifactBytes)
-		if errors.Is(e, os.ErrNotExist) {
-			continue
+		if err = executor.Reconcile(ctx, s.Root, path, c.Limits); err != nil {
+			return 0, err
 		}
-		if e != nil {
-			return 0, e
-		}
-		var record executor.ProcessRecord
-		if e = mail.Decode(b, &record); e != nil {
-			return 0, e
-		}
-		if record.State == "starting" {
-			return 0, errors.New("executor start was interrupted before identity was recorded; inspect surviving processes before resuming")
-		}
-		if record.State == "not_started" || record.State == "exited" {
-			continue
-		}
-		if record.State != "running" {
-			return 0, errors.New("unknown executor process state")
-		}
-		cleanupCtx, cancel := context.WithTimeout(ctx, time.Duration(c.Limits.LockWaitSeconds)*time.Second)
-		e = platform.ReconcileProcess(cleanupCtx, record.Identity)
-		cancel()
-		if e != nil {
-			return 0, fmt.Errorf("job %s: %w", j.ID, e)
-		}
-		record.State = "exited"
-		b, e = json.Marshal(record)
-		if e != nil {
-			return 0, e
-		}
-		if e = files.Write(s.Root, path, b, true); e != nil {
-			return 0, e
-		}
+	}
+	if _, err = (feedback.Service{Store: s, Config: c}).RecoverReviews(ctx); err != nil {
+		return 0, err
 	}
 	return s.RecoverInterrupted(ctx)
 }
