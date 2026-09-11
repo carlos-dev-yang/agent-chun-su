@@ -1,8 +1,9 @@
 # 외부 서비스 연결 안내
 
 준비된 서비스: Google Drive(Docs·Sheets), Figma, GitHub, Slack, Telegram, Gmail.
-현재 Chun-su에 실제 구현된 것은 이 목록 중 **Gmail 읽기 connector**다.
-나머지는 설치 매뉴얼과 구현 준비 단계다.
+현재 **Gmail 읽기 connector**와 **Telegram 본인 DM 대화 연결**이 구현되어 있다.
+Telegram live 봇 검증은 token/페어링 후 진행한다. 다른 4개는 설치 매뉴얼 단계다.
+기본 메신저 연결은 [Telegram 시작 안내](TELEGRAM.md)의 `bin/chunsu telegram`을 사용한다.
 
 2026-09-11 [별도 실행 점검](../validation/INTEGRATION_RUNTIME_ATTEMPT_2026-09-11.md)에서
 대화 진입점이 없음을 확인한 뒤, 사용자 승인으로 `chat`과 설정 처리 프로세스를
@@ -40,7 +41,8 @@ AI 없이 쓸 수 있는 `chat --guided`는 기존의 고정 문답형 설정이
 
 - Gmail: 기존 연결 선택 → 실제 계정 확인으로 재사용. 새 연결은 계정·Desktop client
   JSON 경로·조회 조건 → 범위 확인 → 브라우저 로그인 → 연결 결과까지 진행한다.
-- 다른 5개 서비스: 번들 설정 팩을 로컬에 설치하고 해당 매뉴얼을 안내한다. 제공자
+- Telegram: Mac의 `bin/chunsu telegram`으로 본인 DM을 연결한다.
+- 다른 4개 서비스: 번들 설정 팩을 로컬에 설치하고 해당 매뉴얼을 안내한다. 제공자
   프로그램 자동 설치·계정 연결·Chun-su adapter가 완성된 것으로 표시하지 않는다.
 - `취소`/`뒤로`: 현재 답변 또는 로컬 설정 단계를 취소한다. 문답형에서는 서비스 선택으로 돌아간다. 인증 중 취소는
   호스트 정리를 기다린다. `종료`/Ctrl-C/입력 종료는 대화를 끝내고 진행 중 인증을 취소한다.

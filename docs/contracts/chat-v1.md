@@ -2,7 +2,8 @@
 
 Approved on 2026-09-11: converse freely through the configured AI executor and
 restrict executable actions in the host. This adds a terminal conversation client;
-it does not add a public chat server, a remote messenger receiver, or a DB migration.
+this terminal contract adds no public chat server or DB migration. The subsequent
+[Telegram transport](telegram-v1.md) projects a smaller capability set into paired private DMs.
 
 ## Execution path
 

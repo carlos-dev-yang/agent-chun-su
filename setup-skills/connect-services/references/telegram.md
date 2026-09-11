@@ -1,8 +1,20 @@
 # Telegram 설치 매뉴얼
 
-확인일: 2026-09-10. 상태: 외부 절차 조사 완료, Chun-su receiver/sender 미구현.
+확인일: 2026-09-11. 상태: 본인 DM 페어링·수신·답장 구현, 실제 봇 검증 대기.
 목표 기능: 본인과 봇 대화, 선택 그룹의 요청, 승인된 답장·알림·파일 전달.
 개인 Telegram 계정의 전체 대화 이력을 수집하는 기능은 Bot API와 다르다.
+
+## 현재 사용할 기본 연결
+
+Mac 터미널에서 `chunsu telegram`을 실행한다. 처음에는 BotFather token을 화면에
+표시하지 않고 받아 Keychain에 저장하고, 일회용 `/start CODE`로 본인 DM을 연결한다.
+다음 실행부터는 같은 봇/본인 연결을 재사용한다. 기존 설정의 Codex로 대화하며
+상태·작업 목록·공개 매뉴얼 읽기/설치만 호스트에서 실행한다. Gmail 인증과 보고서
+본문은 Mac의 `chunsu chat`으로 안내한다. 그룹·다른 목적지·파일 전송은 아직 지원하지 않는다.
+
+`/help`, `/cancel`, `/reset`을 지원한다. Mac 프로세스가 실행 중일 때만 응답한다.
+아래 일반 확장 절차와 달리 이 기본 명령은 이미 구현됐다. 실제 token/페어링 없이
+연결 완료나 live 검증 완료로 표시하지 않는다.
 
 ## 사용자에게 물을 내용
 
@@ -24,7 +36,7 @@
 BotFather와 봇 생성 흐름은 [Telegram 튜토리얼](https://core.telegram.org/bots/tutorial),
 봇의 privacy/참여별 수신 범위는 [공식 FAQ](https://core.telegram.org/bots/faq)를 따른다.
 페어링을 통한 사용자 ID 입력 최소화는 [Hermes gateway 사례](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)를
-참고한 Chun-su 구현 제안이다. 현재 이 단계의 host 기능은 없다.
+참고했다. 현재 본인 DM에 한정한 host 페어링과 확인 답장 경로가 구현되어 있다.
 
 ## 경로 B — 고정 Bot API helper 후보
 
@@ -51,8 +63,8 @@ helper가 `getMe`로 봇 identity를 확인하고 `getWebhookInfo`로 기존 web
   응답을 받지 못했다고 같은 메시지를 무조건 재전송하지 않는다.
 - 골든 사례: 대화방을 넘는 자료 유출 방지, 긴 보고서 분할 시 순서와 source 링크
   유지, 포맷 escape, 첨부파일 접근 실패 고지, 원문 속 설치 명령 무시.
-- 상시 gateway/일정 알림은 별도 운영 선택이다. 이번에는 봇 생성·수신·전송이나
-  background activation을 하지 않았다.
+- 기본 DM receiver/reply는 로컬 모의 Bot API와 실제 AI로 검증했다. 사용자 봇의
+  live 수신·답장은 token/페어링 후 확인한다. 상시 실행 등록·일정 알림은 별도 운영 선택이다.
 
 ## 문제 해결과 해제
 

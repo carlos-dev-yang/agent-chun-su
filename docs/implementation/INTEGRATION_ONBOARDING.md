@@ -132,7 +132,7 @@ IN 번호는 이번 확장 준비의 로컬 작업 식별자이며 기존 Phase 
 | IN-02 / P4-01·02, P7-03 | partial | 새 연결 OAuth 경로와 기존 연결 확인 구현, 실제 기존 계정 확인 성공. 새 브라우저 승인·만료 후 in-place 복구·신규 계정 오인 시나리오의 live 검증은 미완료 |
 | IN-03 / P3-02·06 | proposed | 연동 버전/도구 표면과 검증 근거 연결. 변경 시 재검증 표시, 미충족 필수 근거로 활성화하지 않음 |
 | IN-04 / 확장 | proposed | Drive Docs/Sheets와 GitHub 호스트 adapter. 지정 원문 읽기, 범위 밖 거부, 선택된 작성 기능의 결과 재조회 |
-| IN-05 / 확장 | proposed | Telegram polling·페어링·대화/알림. 타 사용자 차단, 중복 update, 불명확한 send 결과 처리 |
+| IN-05 / 확장 | implemented; live pending | Telegram 본인 DM polling·페어링·AI 대화/답장. 모의 API + 실제 AI, 타 사용자·중복·취소·전송 불명확 확인. 실제 봇 token/페어링과 일정 알림은 미완료 |
 | IN-06 / 확장 | proposed | Slack 내부 앱·Socket Mode·채널별 권한. 이벤트와 읽기 권한 검증, 조직 정책/토큰 유형 한계 기록 |
 | IN-07 / 확장 | proposed | Figma REST 읽기와 지원 MCP 편의 경로. client 자격, file/node 범위, 도구별 쓰기 가능성 검증 |
 | IN-08 / P7-02·04 | proposed | 새 환경 설치·업데이트·중단 복구·제거. 기존 개인 설정을 덮어쓰지 않고 설치 변경분만 복귀 |
@@ -154,3 +154,6 @@ IN 번호는 이번 확장 준비의 로컬 작업 식별자이며 기존 Phase 
 직접 설치, 새 쓰기 권한은 이번 구현에서 정하지 않았다. DB 마이그레이션은 없다.
 
 검증 결과는 [IN-00 준비 검증](../validation/INTEGRATION_PREPARATION_2026-09-10.md)에 기록한다.
+
+사용자의 Telegram 테스트 요청에 따른 [IN-05 기본 연결](TELEGRAM_CHAT.md)과
+[검증 증거](../validation/TELEGRAM_CHAT_2026-09-11.md)를 추가했다.

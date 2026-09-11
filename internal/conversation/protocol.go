@@ -100,8 +100,12 @@ func Decode(data []byte) (Reply, error) {
 }
 
 func Schema() ([]byte, error) {
+	return SchemaFor(Capabilities())
+}
+
+func SchemaFor(capabilities []Capability) ([]byte, error) {
 	names := []string{}
-	for _, c := range Capabilities() {
+	for _, c := range capabilities {
 		names = append(names, c.Name)
 	}
 	return json.Marshal(map[string]any{
@@ -115,6 +119,10 @@ func Schema() ([]byte, error) {
 }
 
 func Prompt(history []Event, limit int64) ([]byte, error) {
+	return PromptFor(history, limit, Capabilities(), "local_terminal")
+}
+
+func PromptFor(history []Event, limit int64, capabilities []Capability, channel string) ([]byte, error) {
 	skill, err := Skill()
 	if err != nil {
 		return nil, err
@@ -124,10 +132,11 @@ func Prompt(history []Event, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	b, err := json.Marshal(struct {
+		Channel      string               `json:"channel"`
 		Capabilities []Capability         `json:"capabilities"`
 		Services     []onboarding.Service `json:"services"`
 		History      []Event              `json:"history"`
-	}{Capabilities(), services, history})
+	}{channel, capabilities, services, history})
 	if err != nil {
 		return nil, err
 	}

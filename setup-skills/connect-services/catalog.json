@@ -56,8 +56,10 @@
       "id": "telegram",
       "name": "Telegram",
       "manual": "references/telegram.md",
-      "chunsu_status": "매뉴얼 준비; receiver/sender 미구현",
-      "optional_programs": [],
+      "chunsu_status": "본인 DM 페어링·대화 receiver/reply 구현; live 봇 검증 대기, 그룹·범용 전송 미지원",
+      "optional_programs": [
+        "chunsu"
+      ],
       "aliases": [
         "텔레그램"
       ]

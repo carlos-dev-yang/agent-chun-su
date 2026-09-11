@@ -7,8 +7,8 @@ description: Prepare or guide Chun-su setup for Google Drive Docs and Sheets, Fi
 
 이 Skill은 Chun-su의 **설정 안내용**이다. 일반 메일/Jira 보고 실행기의 Skill과
 다른 자산이다. 현재 이 파일을 보고 실행기에 넣거나 전역 실행 권한을 풀지 않는다.
-현재 Gmail 읽기만 native 지원된다. 나머지는 공식 설치 경로를 조사한 매뉴얼이며
-나머지 서비스 adapter는 구현 전이다. `chunsu chat`은 설정된 AI 실행기로 자연스럽게 대화하며, 허용된 설정 작업만
+현재 Gmail 읽기 connector와 Telegram 본인 DM 대화 경로가 구현되어 있다.
+Telegram의 실제 봇 검증은 token/페어링 후 진행하며, 나머지 서비스는 설치 매뉴얼 단계다. `chunsu chat`은 설정된 AI 실행기로 자연스럽게 대화하며, 허용된 설정 작업만
 호스트에 요청한다. AI 없이 같은 설정 절차를 쓰려면 `chunsu chat --guided`를 사용한다.
 실행 중 worker가 있으면 그 호스트를 사용하고, 없으면 별도 설정 프로세스를 시작한다.
 

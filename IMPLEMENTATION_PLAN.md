@@ -32,6 +32,12 @@ Codex conversation path, explicit Skill, typed capabilities and actual dialogue
 checks. The earlier fixed setup flow remains under `chat --guided`. This does not
 complete other live adapters, report admission from chat, or the quality release gate.
 
+The user subsequently selected Telegram for a basic chat test. The bounded
+[IN-05 private chat implementation](docs/implementation/TELEGRAM_CHAT.md) adds
+local token entry, owner pairing and private DM replies using the existing AI/action
+boundary. [Validation](docs/validation/TELEGRAM_CHAT_2026-09-11.md) separates the
+mock Bot API plus real Codex checks from the still-pending live bot pairing.
+
 ## 1. Purpose and scope
 
 Build a small personal framework that prepares work for a replaceable AI

@@ -6,7 +6,8 @@ Jira supports the approved bounded [live reporting workflow](docs/setup/JIRA_REP
 with explicit Skills and independent evaluation; human usefulness and recurring
 activation remain pending. See [service connection preparation](docs/setup/INTEGRATIONS.md)
 for the six-service setup manuals and offline guided planner. Of those six,
-only Gmail currently has a native Chun-su connector.
+Gmail has a native reading connector; Telegram now has a private chat transport
+with the live bot pilot pending.
 
 Start natural AI chat with `bin/chunsu chat` or `bin/chunsu chat '회의 준비 도와줘'`.
 It uses the configured Codex executor and maintains conversation context. The model
@@ -15,9 +16,15 @@ status, saved-job/report lookup, setup manuals, and local Gmail setup/verificati
 Unsupported actions receive extension guidance. The report executor is unchanged.
 Use `chat --guided` for setup questions without an AI account. A separate setup
 host starts when needed; an existing worker is reused. Of the six services, the
-other five still install local guidance only. See the
+other four still install local guidance only. See the
 [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
 [chat contract](docs/contracts/chat-v1.md).
+
+Use `bin/chunsu telegram` to enter a bot token locally, pair your own DM, and chat
+through the same Codex executor. No public webhook server is required. Other users,
+groups and local-only auth/report actions are excluded. See
+[Telegram setup](docs/setup/TELEGRAM.md) and the
+[verification record](docs/validation/TELEGRAM_CHAT_2026-09-11.md).
 
 ## Development
 
