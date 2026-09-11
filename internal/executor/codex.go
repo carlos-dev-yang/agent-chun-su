@@ -166,7 +166,7 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 func Arguments(binary, root string, p workgroup.Package) []string {
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", p.Directory, "--output-schema", filepath.Join(p.Directory, mail.ExecutorSchemaName)}
 	args = append(args, ProfileArgs(p.Directory)...)
-	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "--enable", "skip_host_skill_discovery")
+	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `project_doc_max_bytes=0`, "--enable", "skip_host_skill_discovery")
 	for _, f := range disabledFeatures {
 		args = append(args, "--disable", f)
 	}
