@@ -4,6 +4,13 @@
 6개 live adapter, 설치 권한, 공통 인증/쓰기 계약은 아직 구현하지 않았다.
 기존 Go + SQLite, 사람의 활성 룰셋 소유권, 실행기 교체 가능성을 유지한다.
 
+2026-09-11 사용자가 요청한 [실제 프로세스·설치 진입 점검](../validation/INTEGRATION_RUNTIME_ATTEMPT_2026-09-11.md)에서
+worker의 자연어 입력 처리와 `chat` 진입점이 없고, 실행 중 `gmail connect`도
+writer 잠금으로 막히는 것을 확인했다. AI 설치 대화와 6개 개별 인증은 검증하지
+못했다. IN-01·IN-02의 우선 완료 증거는 worker를 켜 둔 상태에서 자연어 요청,
+추가 질문, 인증 인계, 호스트 연결 결과 확인이 이어지는 실제 대화 기록이다.
+이 점검은 미구현 권한 계약이나 전체 adapter 구현을 승인·완료 처리하지 않는다.
+
 ## 범위와 기본 판단
 
 기본 지원 목표는 Drive(Docs/Sheets), Figma, GitHub, Slack, Telegram, Gmail이다.
