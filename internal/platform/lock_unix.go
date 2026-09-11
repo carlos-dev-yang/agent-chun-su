@@ -19,9 +19,28 @@ const lockPoll = 50 * time.Millisecond
 type Lock struct{ file *os.File }
 
 func Acquire(ctx context.Context, root string, timeout time.Duration) (*Lock, error) {
+	if err := files.RequirePrivateDir(root); err != nil {
+		return nil, err
+	}
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
+		return nil, err
+	}
 	p := filepath.Join(root, "state", "controller.lock")
 	f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, files.FileMode)
 	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		f.Close()
+		return nil, errors.New("controller lock must be a private regular file")
+	}
+	if err = files.RequireOwner(info); err != nil {
+		f.Close()
 		return nil, err
 	}
 	deadline := time.NewTimer(timeout)

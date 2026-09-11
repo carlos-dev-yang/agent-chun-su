@@ -21,7 +21,7 @@ const Version = 1
 const Planned = "planned"
 const Applying = "applying"
 const Completed = "completed"
-const Limitation = "Only this job's run directory and private request/event details are removed. Acquisition checkpoints, evaluations, proposals, source-coverage metadata, backups and external copies remain. Reproduction of this run will no longer be available. This is logical deletion, not secure media erasure."
+const Limitation = "Only this job's run directory and private request/event details are removed. Acquisition checkpoints, evaluations, proposals, review packages/results, audit receipts, source-coverage metadata, backups and external copies remain. Reproduction of this run will no longer be available. This is logical deletion, not secure media erasure."
 
 type Entry struct {
 	Digest string `json:"digest"`

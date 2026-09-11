@@ -90,10 +90,21 @@ type Event struct {
 }
 
 func Open(ctx context.Context, root string, c config.Config, initialize bool) (*Store, error) {
+	if err := files.RequirePrivateDir(root); err != nil {
+		return nil, err
+	}
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
+		return nil, err
+	}
 	p := filepath.Join(root, DBRelative)
 	info, statErr := os.Lstat(p)
 	if statErr == nil && (!info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) {
 		return nil, errors.New("database must be a regular managed file")
+	}
+	if statErr == nil {
+		if err := files.RequirePrivateFile(p); err != nil {
+			return nil, err
+		}
 	}
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 		return nil, statErr
@@ -137,6 +148,9 @@ func OpenReadOnly(ctx context.Context, root string) (*Store, error) {
 		return nil, err
 	}
 	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
+		return nil, err
+	}
+	if err := files.RequirePrivateFile(filepath.Join(root, DBRelative)); err != nil {
 		return nil, err
 	}
 	info, err := os.Lstat(filepath.Join(root, DBRelative))

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"chunsu/internal/access"
+	"chunsu/internal/audit"
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/executor"
@@ -55,6 +57,32 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		return r.setupHost.Handle(ctx, req)
 	}
 	switch req.Operation {
+	case "revoke_access":
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		blockErr := access.Block(r.Store.Root)
+		var cancelErr error
+		if r.active != "" {
+			cancelErr = r.Store.Cancel(ctx, r.active)
+		}
+		if r.cancel != nil {
+			r.cancel()
+		}
+		pauseErr := r.Store.SetPaused(ctx, true)
+		current, configErr := config.Load(r.Store.Root)
+		if configErr == nil {
+			current.RevokeDisclosures()
+			configErr = config.Save(r.Store.Root, current)
+		}
+		auditErr := audit.Record(r.Store.Root, "access.revoke_requested", r.active, "")
+		return map[string]any{"execution_blocked": blockErr == nil, "queue_paused": pauseErr == nil, "active_job": r.active, "disclosure_revoked": configErr == nil}, errors.Join(blockErr, cancelErr, pauseErr, configErr, auditErr)
+	case "resume_access":
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if err := access.Resume(r.Store.Root); err != nil {
+			return nil, err
+		}
+		return map[string]string{"execution": "enabled", "next": "review route disclosure approvals and queue pause state before resuming work"}, nil
 	case "delegate":
 		if !mail.Nonempty(req.Answer) || int64(len(req.Answer)) > r.Config.Limits.MaxSourceBytes {
 			return nil, errors.New("delegation requires a bounded user request")

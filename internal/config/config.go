@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"chunsu/internal/audit"
 	"chunsu/internal/files"
 )
 
@@ -177,6 +178,9 @@ func Load(root string) (Config, error) {
 	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
 		return c, err
 	}
+	if err := files.RequirePrivateFile(filepath.Join(root, FileName)); err != nil {
+		return c, err
+	}
 	b, err := files.Read(root, FileName, DefaultMaxArtifactBytes)
 	if err != nil {
 		return c, fmt.Errorf("read configuration (run setup first): %w", err)
@@ -222,11 +226,17 @@ func (c Config) Validate() error {
 }
 
 func Save(root string, c Config) error {
+	if err := files.RequirePrivateDir(root); err != nil {
+		return err
+	}
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err = audit.Record(root, "configuration.prepared", FileName, files.Digest(b)); err != nil {
 		return err
 	}
 	return files.Write(root, FileName, append(b, '\n'), true)

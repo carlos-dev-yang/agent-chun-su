@@ -47,7 +47,10 @@ func ValidDigest(digest string) bool {
 func PrivateDir(p string) error {
 	info, err := os.Lstat(p)
 	if errors.Is(err, os.ErrNotExist) {
-		return os.MkdirAll(p, DirMode)
+		if err = os.MkdirAll(p, DirMode); err != nil {
+			return err
+		}
+		return RequirePrivateDir(p)
 	}
 	if err != nil {
 		return err
@@ -58,7 +61,7 @@ func PrivateDir(p string) error {
 	if info.Mode().Perm()&0077 != 0 {
 		return fmt.Errorf("data directory must be private (0700): %s", p)
 	}
-	return nil
+	return RequireOwner(info)
 }
 
 func RequirePrivateDir(p string) error {
@@ -69,7 +72,18 @@ func RequirePrivateDir(p string) error {
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0077 != 0 {
 		return errors.New("managed data directories must be real private directories (0700)")
 	}
-	return nil
+	return RequireOwner(info)
+}
+
+func RequirePrivateFile(p string) error {
+	info, err := os.Lstat(p)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		return errors.New("managed file must be a private regular file (0600)")
+	}
+	return RequireOwner(info)
 }
 
 func relativeOK(name string) bool {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"chunsu/internal/access"
 	"chunsu/internal/config"
 	"chunsu/internal/runtimeenv"
 	"chunsu/internal/workgroup"
@@ -98,14 +99,55 @@ func selection(selected config.Executor, root string) (Driver, error) {
 }
 
 func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) {
+	if err := access.Check(root); err != nil {
+		return Result{ExitCode: -1, Outcome: "not_started"}, err
+	}
+	if !p.Synthetic {
+		current, err := config.Load(root)
+		if err != nil {
+			return Result{ExitCode: -1, Outcome: "not_started"}, err
+		}
+		route := current.Executor
+		if route.Kind != p.Executor.Kind || route.Path != p.Executor.Path || route.Model != p.Executor.Model || route.Environment != p.Executor.Environment {
+			return Result{ExitCode: -1, Outcome: "not_started"}, errors.New("selected route changed before source disclosure; restart the controller with the reviewed configuration")
+		}
+		definition, err := workgroup.Lookup(p.Workgroup)
+		if err != nil {
+			return Result{ExitCode: -1, Outcome: "not_started"}, err
+		}
+		if definition.AuthorizeInput != nil {
+			err = definition.AuthorizeInput(p.Input, p.Limits, route)
+		} else {
+			switch p.Workgroup {
+			case "mail-review":
+				if !route.LiveMailApproved {
+					err = errors.New("mail disclosure was revoked for the selected route")
+				}
+			case "jira-report":
+				if !route.LiveJiraApproved {
+					err = errors.New("Jira disclosure was revoked for the selected route")
+				}
+			default:
+				err = errors.New("this module has no source-disclosure authorization adapter")
+			}
+		}
+		if err != nil {
+			return Result{ExitCode: -1, Outcome: "not_started"}, err
+		}
+	}
 	driver, err := selection(p.Executor, root)
 	if err != nil {
 		return Result{ExitCode: -1, Outcome: "not_started"}, err
 	}
-	return driver.Report(ctx, root, p)
+	executionCtx, cancel := access.Watch(ctx, root, time.Duration(p.Limits.PollSeconds)*time.Second)
+	defer cancel()
+	return driver.Report(executionCtx, root, p)
 }
 
 func Structured(ctx context.Context, r StructuredRequest) (Result, error) {
+	if err := access.Check(r.Root); err != nil {
+		return Result{ExitCode: -1, Outcome: "not_started"}, err
+	}
 	if r.Role != config.RoleReception && r.Role != config.RoleReview {
 		return Result{}, errors.New("unsupported structured agent role")
 	}
@@ -113,7 +155,9 @@ func Structured(ctx context.Context, r StructuredRequest) (Result, error) {
 	if err != nil {
 		return Result{ExitCode: -1, Outcome: "not_started"}, err
 	}
-	return driver.Structured(ctx, r)
+	executionCtx, cancel := access.Watch(ctx, r.Root, time.Duration(r.Limits.PollSeconds)*time.Second)
+	defer cancel()
+	return driver.Structured(executionCtx, r)
 }
 
 // Converse preserves the original call surface; role owners should use

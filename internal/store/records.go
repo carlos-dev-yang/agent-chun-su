@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"chunsu/internal/audit"
 	"chunsu/internal/files"
 )
 
@@ -41,6 +42,9 @@ func (s *Store) PutRecord(ctx context.Context, kind, subject string, payload any
 		r.Path = filepath.ToSlash(filepath.Join("proposals", r.ID+".json"))
 	}
 	if err = files.Write(s.Root, r.Path, data, false); err != nil {
+		return r, err
+	}
+	if err = audit.Record(s.Root, "record.prepared", r.ID, r.Digest); err != nil {
 		return r, err
 	}
 	_, err = s.DB.ExecContext(ctx, "INSERT INTO records(id,kind,subject_id,path,digest,bytes,created_at) VALUES(?,?,?,?,?,?,?)", r.ID, r.Kind, r.SubjectID, r.Path, r.Digest, r.Bytes, r.CreatedAt)

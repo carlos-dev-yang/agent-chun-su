@@ -40,8 +40,8 @@ target, personal quality judgments, or permission to publish external changes.
 | MOD-03 | P2, P7 | Separate agent driver, execution environment and compatibility evidence | [Actual separate routes, runtime receipts, interrupted review recovery and restoration](../validation/MOD_03_EXECUTION_ROUTES_2026-09-11.md) | complete |
 | MOD-04 | P7 | Portable installation and operation on macOS and Linux/server | [Actual Linux archive installation, secrets, service, native boundary and recovery](../validation/MOD_04_SERVER_2026-09-11.md) | complete (declared technical scope) |
 | MOD-05 | P9 | A bounded development-work module, starting with read-only review | [Actual captured Git review, precise source evidence and independent analyzer](../validation/MOD_05_CODE_REVIEW_2026-09-12.md) | complete (read-only scope) |
-| MOD-06 | Organization boundary | Node/workspace ownership and controlled access appropriate to the supported deployment | Owner-derived authority, isolated roots, protected management path, revocation/evidence; document unsupported shared multi-user modes | in_progress |
-| MOD-07 | Integration | Complete coherent local/server walkthrough and handoff | Existing regressions, installation/use instructions, actual vs pending environment checks, all technical units accounted for | not_started |
+| MOD-06 | Organization boundary | Node/workspace ownership and controlled access appropriate to the supported deployment | [Actual OS-owner/peer checks, task/reception revocation and host audit](../validation/MOD_06_OWNER_ACCESS_2026-09-12.md) | complete (single-owner scope) |
+| MOD-07 | Integration | Complete coherent local/server walkthrough and handoff | Existing regressions, installation/use instructions, actual vs pending environment checks, all technical units accounted for | in_progress |
 
 Dependencies follow the listed order. A small dependency extraction needed by an
 earlier unit is permitted and recorded with that unit. Existing P3 human-usefulness

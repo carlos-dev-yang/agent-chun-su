@@ -40,8 +40,8 @@ func EncryptedOperation(request HelperRequest) (HelperResponse, error) {
 	if !filepath.IsAbs(keyPath) || !filepath.IsAbs(directory) {
 		return HelperResponse{}, errors.New("configure absolute master-key and encrypted-store paths")
 	}
-	keyInfo, err := os.Lstat(keyPath)
-	if err != nil || !keyInfo.Mode().IsRegular() || keyInfo.Mode().Perm()&0077 != 0 {
+	err := files.RequirePrivateFile(keyPath)
+	if err != nil {
 		return HelperResponse{}, errors.New("master key must be a private regular file")
 	}
 	if err = files.PrivateDir(directory); err != nil {

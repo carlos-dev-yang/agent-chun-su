@@ -39,8 +39,17 @@ type Handler func(context.Context, Request) (any, error)
 
 // Listen must be called only by the process holding the data-root writer lock.
 func Listen(parent context.Context, root string, limit int64, timeout time.Duration, handler Handler) (*Server, error) {
+	if err := files.RequirePrivateDir(root); err != nil {
+		return nil, err
+	}
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
+		return nil, err
+	}
 	path := filepath.Join(root, SocketPath)
 	if info, err := os.Lstat(path); err == nil {
+		if err = files.RequireOwner(info); err != nil {
+			return nil, err
+		}
 		if info.Mode()&os.ModeSocket == 0 {
 			return nil, errors.New("management path is not a socket")
 		}
@@ -71,6 +80,9 @@ func Listen(parent context.Context, root string, limit int64, timeout time.Durat
 			go func() {
 				defer s.workers.Done()
 				defer conn.Close()
+				if e := verifyPeer(conn); e != nil {
+					return
+				}
 				_ = conn.SetDeadline(time.Now().Add(timeout))
 				var req Request
 				reader := io.LimitReader(conn, limit+1)
@@ -105,6 +117,12 @@ func (s *Server) Close() error {
 }
 
 func Call(ctx context.Context, root string, timeout time.Duration, limit int64, req Request) (json.RawMessage, bool, error) {
+	if err := files.RequirePrivateDir(root); err != nil {
+		return nil, true, err
+	}
+	if err := files.RequirePrivateDir(filepath.Join(root, "state")); err != nil {
+		return nil, true, err
+	}
 	data, err := json.Marshal(req)
 	if err != nil {
 		return nil, true, err
@@ -121,6 +139,9 @@ func Call(ctx context.Context, root string, timeout time.Duration, limit int64, 
 		return nil, true, err
 	}
 	defer conn.Close()
+	if err = verifyPeer(conn); err != nil {
+		return nil, true, err
+	}
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 	if _, err = conn.Write(append(data, '\n')); err != nil {
 		return nil, true, err

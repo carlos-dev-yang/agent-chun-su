@@ -124,6 +124,12 @@ The management socket remains local to the private data home. Use an authenticat
 SSH session as that OS user for remote commands. A second writer is refused.
 The reception and task AI processes remain separate from this controller.
 
+Use `chunsu access status` to inspect actual OS ownership and execution access.
+`chunsu access revoke` pauses work, cancels running agents and removes source
+disclosure approvals; `access resume` leaves disclosure and queue decisions for
+explicit review. [Owner access](../contracts/owner-access-v1.md) describes the
+matching-user socket, audit receipts and the supported deployment boundary.
+
 ## Update and recovery
 
 Stop the existing controller/service, make a `chunsu backup` in a separate

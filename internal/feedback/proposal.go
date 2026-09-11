@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"chunsu/internal/audit"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
 	"chunsu/internal/store"
@@ -177,5 +178,8 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	if err != nil {
 		return record, err
 	}
-	return record, files.Write(s.Store.Root, path, data, true)
+	if err = files.Write(s.Store.Root, path, data, true); err != nil {
+		return record, err
+	}
+	return record, audit.Record(s.Store.Root, "control.selected", record.ID, selected)
 }
