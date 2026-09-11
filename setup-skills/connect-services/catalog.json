@@ -1,5 +1,5 @@
 {
-  "reviewed_on": "2026-09-10",
+  "reviewed_on": "2026-09-11",
   "purpose": "Offline setup guidance index; not an executable permission policy.",
   "services": [
     {
@@ -7,42 +7,73 @@
       "name": "Google Drive — Docs·Sheets",
       "manual": "references/drive.md",
       "chunsu_status": "매뉴얼 준비; native adapter 미구현",
-      "optional_programs": ["gws", "gcloud"]
+      "optional_programs": [
+        "gws",
+        "gcloud"
+      ],
+      "aliases": [
+        "드라이브",
+        "docs",
+        "sheets",
+        "문서",
+        "시트"
+      ]
     },
     {
       "id": "figma",
       "name": "Figma",
       "manual": "references/figma.md",
       "chunsu_status": "매뉴얼 준비; native adapter 미구현",
-      "optional_programs": []
+      "optional_programs": [],
+      "aliases": [
+        "피그마"
+      ]
     },
     {
       "id": "github",
       "name": "GitHub",
       "manual": "references/github.md",
       "chunsu_status": "매뉴얼 준비; native adapter 미구현",
-      "optional_programs": ["gh"]
+      "optional_programs": [
+        "gh"
+      ],
+      "aliases": [
+        "깃허브",
+        "깃헙"
+      ]
     },
     {
       "id": "slack",
       "name": "Slack",
       "manual": "references/slack.md",
       "chunsu_status": "매뉴얼·앱 manifest 준비; receiver/adapter 미구현",
-      "optional_programs": []
+      "optional_programs": [],
+      "aliases": [
+        "슬랙"
+      ]
     },
     {
       "id": "telegram",
       "name": "Telegram",
       "manual": "references/telegram.md",
       "chunsu_status": "매뉴얼 준비; receiver/sender 미구현",
-      "optional_programs": []
+      "optional_programs": [],
+      "aliases": [
+        "텔레그램"
+      ]
     },
     {
       "id": "gmail",
       "name": "Gmail",
       "manual": "references/gmail.md",
-      "chunsu_status": "native 읽기 구현; 초안/전송과 공통 온보딩 미구현",
-      "optional_programs": ["chunsu"]
+      "chunsu_status": "문답형 신규 연결·기존 계정 확인 및 native 읽기 구현; 초안/전송 미구현",
+      "optional_programs": [
+        "chunsu"
+      ],
+      "aliases": [
+        "지메일",
+        "메일"
+      ]
     }
   ]
 }

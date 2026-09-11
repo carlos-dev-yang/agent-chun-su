@@ -41,6 +41,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.report(), o.publish(), o.backup(), o.restore(), o.verifyBackup())
 	root.AddCommand(o.schedule(), o.queueControl("pause"), o.queueControl("unpause"), o.queueControl("status"))
 	root.AddCommand(o.retention(), o.service())
+	root.AddCommand(o.chat())
 	return root
 }
 
@@ -90,6 +91,9 @@ func output(cmd *cobra.Command, v any) error {
 
 func (o *options) setup() *cobra.Command {
 	cmd := &cobra.Command{Use: "setup", Short: "Initialize private local settings and SQLite without replacing existing data"}
+	cmd.AddCommand(o.setupServe())
+	cmd.AddCommand(o.setupTask(false), o.setupTask(true))
+	cmd.AddCommand(o.setupStop())
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {

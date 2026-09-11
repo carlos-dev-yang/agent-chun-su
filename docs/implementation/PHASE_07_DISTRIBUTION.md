@@ -2,13 +2,14 @@
 
 [Master plan](../../IMPLEMENTATION_PLAN.md)
 
-**Status:** Not started  
+**Status:** In progress (bounded setup dialogue only; release scope and packaging pending)
 **Goal:** Make the proven local workflow easy to install and maintain for a clearly stated user and platform scope.
 
 The user-authorized [six-service onboarding preparation](INTEGRATION_ONBOARDING.md)
 provides research, bundled setup guidance and an offline preparation helper for
-P7-01/P7-03. Installer/runtime integration and release acceptance remain unimplemented;
-this preparation does not change the phase or task completion states.
+P7-01/P7-03. The later user-approved [guided setup delivery](../validation/SETUP_CHAT_2026-09-11.md)
+adds a bounded conversation/host path for local manuals and Gmail. General packaging,
+other live integrations and release acceptance remain pending; this does not complete P7-03.
 
 **Entry conditions:** The manual feedback/live-mail milestones are complete. Service claims require P5-09. Public distribution and additional OS support remain explicit choices.
 
@@ -40,7 +41,7 @@ the work-unit and validation rules in the master plan.
 
 ### P7-03 — Provide a terminal-first install and setup path
 
-- **Status:** not_started
+- **Status:** in_progress (guided setup subset implemented; general installer/package pending)
 - **Depends on:** P7-02, P1-02, P1-06.
 - **Work:** Implement or package a simple user-local install/update/remove path and clear setup/help. Verify paths independently of the development shell. Preserve existing configuration, active controls, reports, and secrets.
 - **Deliverable:** Installer/package assets and a concise user guide.

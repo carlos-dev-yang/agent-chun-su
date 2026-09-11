@@ -8,6 +8,13 @@ activation remain pending. See [service connection preparation](docs/setup/INTEG
 for the six-service setup manuals and offline guided planner. Of those six,
 only Gmail currently has a native Chun-su connector.
 
+Start guided setup with `bin/chunsu chat` or `bin/chunsu chat 'Gmail 연결해줘'`.
+It initializes a fresh local home, starts a separate setup host when needed, and
+reuses an existing worker's management channel. Gmail supports new OAuth setup
+and verification of an existing connection. The other five services install
+local guidance only. This is a fixed dialogue flow; it does not call an LLM.
+See the [setup conversation checkpoint](docs/validation/SETUP_CHAT_2026-09-11.md).
+
 ## Development
 
 The module selects Go 1.26.8 automatically. Dependencies are pinned in `go.mod`

@@ -19,6 +19,13 @@ and [setup entrypoint](docs/setup/INTEGRATIONS.md) record the prepared assets an
 bounded implementation units. Preparation does not establish six live connectors
 or authorize account access, external writes, or a new executor permission model.
 
+On 2026-09-11 the user approved implementing and running the setup conversation
+and its processing host after the failed entrypoint walkthrough. The
+[setup conversation checkpoint](docs/validation/SETUP_CHAT_2026-09-11.md) records
+the bounded delivery: guided local setup, six-service manual installation,
+asynchronous Gmail connection/verification through the host, and preserved report
+executor permissions. Other live adapters and public distribution remain pending.
+
 ## 1. Purpose and scope
 
 Build a small personal framework that prepares work for a replaceable AI
@@ -218,7 +225,7 @@ order, not a demand to implement every phase before obtaining value.
 | [4 — Live read-only mail](docs/implementation/PHASE_04_LIVE_MAIL.md) | Useful reports from one explicitly scoped account | Phase 3 and live-data decisions | One 20-message batch collected and candidate report produced; partial scope and human review remain explicit |
 | [5 — Repeated local operation](docs/implementation/PHASE_05_OPERATIONS.md) | Queue recovery, schedules, terminal intervention, backup, and optional service | Manual live-mail pilot | Operations commands and synthetic checkpoints prepared; live MS3 pending |
 | [6 — Jira report reuse](docs/implementation/PHASE_06_JIRA.md) | The same core supports a second workgroup | Phase 3 and manual mail pilot; service not required | Approved grouped live report, explicit Skills and independent evaluation verified; wider phase and human acceptance remain pending |
-| [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Not started |
+| [7 — Installation and distribution](docs/implementation/PHASE_07_DISTRIBUTION.md) | A reviewable release package for a declared support scope | Useful operation and selected release scope | Bounded setup dialogue implemented; release scope and packaging pending |
 | [8 — Deeper optimization](docs/implementation/PHASE_08_OPTIMIZATION.md) | Evidence-based improvements across runs without mandatory golden-set growth | Phase 3 and sufficient recorded use | Not started |
 | [9 — Development-work pilot](docs/implementation/PHASE_09_DEVELOPMENT.md) | One bounded repository task with appropriate controls and evidence | Mail/Jira reuse evidence and an explicit development scope | Not started; conditional |
 

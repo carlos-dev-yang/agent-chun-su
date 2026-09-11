@@ -2,14 +2,53 @@
 
 준비된 서비스: Google Drive(Docs·Sheets), Figma, GitHub, Slack, Telegram, Gmail.
 현재 Chun-su에 실제 구현된 것은 이 목록 중 **Gmail 읽기 connector**다.
-나머지는 설치 매뉴얼과 구현 준비 단계이며, 아래 준비 도구가 계정을 연결하거나
-서비스를 설치하지는 않는다.
+나머지는 설치 매뉴얼과 구현 준비 단계다.
 
 2026-09-11 [별도 실행 점검](../validation/INTEGRATION_RUNTIME_ATTEMPT_2026-09-11.md)에서
-현재 `worker`는 자연어를 받지 않고 `chat` 진입점도 없음을 확인했다. 아래 AI 안내는
-외부 AI에 매뉴얼을 읽히는 방식이다. 춘수 자체와 대화하는 설치 흐름은 아직 없다.
-또한 현재 Gmail 연결 명령은 같은 데이터 디렉터리의 worker가 실행 중이면 잠금으로
-막힌다. 실제 대화형 설치 검증에는 설정 세션과 호스트 연결 경로 구현이 선행되어야 한다.
+대화 진입점이 없음을 확인한 뒤, 사용자 승인으로 `chat`과 설정 처리 프로세스를
+구현했다. [현재 실행 검증](../validation/SETUP_CHAT_2026-09-11.md)을 확인한다.
+
+## 춘수와 대화로 설정하기
+
+```sh
+bin/chunsu chat
+# 또는 첫 요청을 함께 입력
+bin/chunsu chat 'Gmail 연결해줘'
+```
+
+처음 실행하면 로컬 설정과 DB를 준비하고 별도의 `setup serve` 프로세스를 자동으로
+실행한다. 같은 데이터 경로의 worker가 이미 있으면 그 프로세스에 요청한다.
+자동으로 시작한 설정 프로세스는 대화 종료 시 함께 종료하며 기존 worker는 유지한다.
+별도 데이터 경로는 `--home`으로 선택한다. 실행기 계정 없이도 설정 대화를 시작할 수 있다.
+
+현재는 서비스 이름과 정해진 질문으로 진행하는 **문답형 설정 UI**다. LLM을 호출하지
+않으며 일반 업무 자유대화는 아직 지원하지 않는다. 설치 동작은 고정된 호스트 작업이다.
+
+- Gmail: 기존 연결 선택 → 실제 계정 확인으로 재사용. 새 연결은 계정·Desktop client
+  JSON 경로·조회 조건 → 범위 확인 → 브라우저 로그인 → 연결 결과까지 진행한다.
+- 다른 5개 서비스: 번들 설정 팩을 로컬에 설치하고 해당 매뉴얼을 안내한다. 제공자
+  프로그램 자동 설치·계정 연결·Chun-su adapter가 완성된 것으로 표시하지 않는다.
+- `취소`/`뒤로`: 현재 단계를 취소하고 서비스 선택으로 돌아간다. 인증 중 취소는
+  호스트 정리를 기다린다. `종료`/Ctrl-C/입력 종료는 대화를 끝내고 진행 중 인증을 취소한다.
+- 토큰·client JSON 내용은 붙여넣지 않는다. 경로만 받고 OAuth와 Keychain 처리는
+  호스트가 담당한다. 메일 수집·AI 공개 승인·스케줄은 연결만으로 활성화되지 않는다.
+
+브라우저를 직접 열려면 `chat --no-browser`를 사용한다. 인증 URL은 로컬 터미널에만
+표시하며 기록·공유하지 않는다. OAuth client 준비는 [Google 인증 매뉴얼](../../setup-skills/connect-services/references/google-auth.md)에 있다.
+
+설정 작업 ID로 실패나 중단 상태를 다시 확인할 수 있다.
+
+```sh
+bin/chunsu setup status TASK_ID
+bin/chunsu setup cancel TASK_ID
+bin/chunsu setup stop
+```
+
+설정 호스트를 직접 운영하려면 `setup` 후 별도 터미널에서 `setup serve`를 실행한다.
+이 프로세스는 AI 작업이나 스케줄을 실행하지 않는다. `setup stop`은 설정 전용
+호스트만 종료하며 보고 worker에는 적용되지 않는다. 보고 worker도 사용할 때는
+worker를 먼저 실행하고 `chat`을 붙인다. 예전 `gmail connect`/`reauth` 직접 명령은
+여전히 단독 제어가 필요하므로, 실행 중 새 연결에는 `chat`을 사용한다.
 
 ## 지금 사용할 수 있는 두 가지 준비 방식
 
@@ -41,7 +80,7 @@ python3 setup-skills/connect-services/scripts/prepare.py --services drive,github
 
 `write`는 원하는 사용 목적의 표시다. 전송/수정 권한을 승인하거나 실행하지 않는다.
 현재 `chunsu integrations install` 같은 명령은 없으며 이 도구도 해당 명령을
-가정하지 않는다. 실제 설치·인증·검증을 수행하는 공통 실행 경로는 다음 구현이다.
+가정하지 않는다. Python 준비 도구와 위 Go 설정 대화의 실행 범위는 다르다.
 
 ## 서비스 매뉴얼
 

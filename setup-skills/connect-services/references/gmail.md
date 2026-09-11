@@ -1,7 +1,7 @@
 # Gmail 설치 매뉴얼
 
-확인일: 2026-09-10. 상태: **Chun-su native 읽기 connector 구현됨**.
-대화형 초기 설정 통합과 draft/send/modify는 미구현이다. 이전 사용자의 연결과
+확인일: 2026-09-11. 상태: **Chun-su native 읽기 connector와 문답형 설정 구현됨**.
+draft/send/modify는 미구현이다. 이전 사용자의 연결과
 검증 결과를 새 사용자의 계정 연결 상태로 간주하지 않는다.
 
 ## 사용자에게 물을 내용
@@ -14,7 +14,19 @@
 자동 확정하지 않는다. 대화에는 token/secret 대신 보호된 client 파일의 위치만 받는다.
 client가 없으면 [Google 공통 로그인 준비](google-auth.md)부터 안내한다.
 
-## 경로 A — AI 안내 + 기존 Chun-su 명령
+## 경로 A — 춘수 설정 대화
+
+`chunsu chat 'Gmail 연결해줘'`를 실행한다. 새 사용자는 초기 로컬 설정도 자동으로
+만든다. 기존 연결을 선택하면 계정을 실제로 확인한 뒤 재사용한다. 새 연결은 계정,
+Desktop client JSON 경로, 조회 조건을 묻고 선택 범위를 확인한 뒤 브라우저 인증으로
+넘긴다. 범위 밖 thread 조회, 메일 수집, AI 공개를 자동 활성화하지 않는다.
+
+worker가 실행 중이어도 호스트가 인증 작업을 비동기로 처리한다. `취소`로 중단하거나
+`setup status TASK_ID`로 결과를 확인할 수 있다. 호스트 재시작 후 진행 중이던 작업은
+중단 상태로 표시하며 연결 목록을 먼저 확인한다. 만료된 연결의 in-place `reauth`는
+아직 대화에 포함되지 않아 기존 단독 CLI 복구 경로를 사용한다.
+
+## 경로 B — 기존 Chun-su 명령
 
 현재 실행 가능한 native 경로다. 실행 전에 실제 binary와 `gmail --help`를 확인한다.
 아래 대문자는 사용자 선택값으로 대체할 자리이며 준비 helper가 실행하지 않는다.
@@ -31,16 +43,18 @@ bin/chunsu gmail check CONNECTION_ID
 `check`는 계정/갱신 확인이고 본문 수집은 아니다. 기존 연결이 맞으면 connect 대신
 check로 시작한다. 승인된 범위에서 `gmail collect CONNECTION_ID`로 원문을 보존한
 뒤 queue/review를 선택한다. read-only 보고 실행기에는 이 설치 명령을 주지 않는다.
-[현재 구현과 상세 복구](../../../docs/setup/GMAIL_PILOT.md).
+상세 pilot 근거와 복구 설명은 소스 저장소의 `docs/setup/GMAIL_PILOT.md`에 있다.
 
 native OAuth는 Desktop client, PKCE/loopback callback과 macOS Keychain을 쓴다.
 일반 설정에 refresh token을 저장하지 않으며 현재 scope는 `gmail.readonly` 하나다.
 지원되지 않는 비밀 저장 환경에서 평문으로 우회하지 않는다.
 
-## 경로 B — 고정 helper 후보 / 다른 Google 도구
+직접 `gmail connect`/`reauth` 명령은 worker와 같은 writer 잠금을 사용한다.
+worker 실행 중 새 연결은 위 설정 대화를 사용한다.
 
-공통 설치 helper는 기존 `gmail list/check/connect/reauth`를 감싸서 같은 질문·결과
-표시를 제공하는 방향이다. 신규 OAuth 구현을 중복해서 만들 필요는 없다.
+## 다른 Google 도구
+
+설정 호스트는 기존 Gmail OAuth와 계정 확인 구현을 재사용한다.
 
 gws와 공식 Gmail MCP도 대안으로 조사했지만 기존 native 계정/기록/갱신 경로를
 대체하려면 별도 adapter 검증이 필요하다. gws 설치나 다른 AI의 Gmail plugin 설치가

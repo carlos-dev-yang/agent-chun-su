@@ -40,6 +40,7 @@ func (o *options) run() *cobra.Command {
 			return err
 		}
 		r := &runner.Runner{Store: s, Config: c}
+		defer r.CloseSetup()
 		server, err := control.Listen(cmd.Context(), s.Root, c.Limits.MaxArtifactBytes, time.Duration(c.Limits.LockWaitSeconds)*time.Second, r.Handle)
 		if err != nil {
 			return err
@@ -100,6 +101,7 @@ func (o *options) worker() *cobra.Command {
 			return err
 		}
 		r := &runner.Runner{Store: s, Config: c}
+		defer r.CloseSetup()
 		server, err := control.Listen(cmd.Context(), s.Root, c.Limits.MaxArtifactBytes, time.Duration(c.Limits.LockWaitSeconds)*time.Second, r.Handle)
 		if err != nil {
 			return err

@@ -8,7 +8,9 @@ description: Prepare or guide Chun-su setup for Google Drive Docs and Sheets, Fi
 이 Skill은 Chun-su의 **설정 안내용**이다. 일반 메일/Jira 보고 실행기의 Skill과
 다른 자산이다. 현재 이 파일을 보고 실행기에 넣거나 전역 실행 권한을 풀지 않는다.
 현재 Gmail 읽기만 native 지원된다. 나머지는 공식 설치 경로를 조사한 매뉴얼이며
-Chun-su의 공통 installer/adapter는 구현 전이다.
+나머지 서비스 adapter는 구현 전이다. `chunsu chat`은 고정 절차의 문답형 설정 UI로,
+설정 팩 설치와 Gmail 새 연결·기존 연결 확인을 호스트에 요청한다. LLM을 호출하지 않는다.
+실행 중 worker가 있으면 그 호스트를 사용하고, 없으면 별도 설정 프로세스를 시작한다.
 
 ## 진행
 
@@ -42,6 +44,11 @@ Chun-su의 공통 installer/adapter는 구현 전이다.
 - Gmail: [gmail.md](references/gmail.md). 기존 native 읽기 경로 우선; 전송은 별도 기능.
 
 ## 오프라인 준비 helper
+
+실제 Gmail 연결 요청에는 먼저 `chunsu chat 'Gmail 연결해줘'` 경로를 안내한다.
+client JSON 내용이나 비밀을 AI 대화로 받지 않는다. 설정 대화에서는 파일 경로만
+입력하고 브라우저에서 인증한다. `setup status TASK_ID`로 결과를 확인하며 연결
+성공은 룰셋 검증 완료가 아니다. 다른 5개 서비스는 로컬 매뉴얼 설치까지만 지원한다.
 
 Skill 디렉터리 기준으로 `python3 scripts/prepare.py --interactive`를 실행한다.
 또는 `--services drive,gmail --mode assisted --intent read`처럼 선택한다.

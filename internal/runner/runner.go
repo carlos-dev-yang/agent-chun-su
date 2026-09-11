@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,18 +19,28 @@ import (
 	"chunsu/internal/gmail"
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
+	"chunsu/internal/onboarding"
 	"chunsu/internal/platform"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 )
 
 type Runner struct {
-	Store  *store.Store
-	Config config.Config
-	mu     sync.Mutex
-	active string
-	cancel context.CancelFunc
+	Store     *store.Store
+	Config    config.Config
+	mu        sync.Mutex
+	active    string
+	cancel    context.CancelFunc
+	setupOnce sync.Once
+	setupHost *onboarding.Host
 }
+
+func (r *Runner) CloseSetup() {
+	if r.setupHost != nil {
+		r.setupHost.Close()
+	}
+}
+
 type Outcome struct {
 	JobID      string `json:"job_id"`
 	AttemptID  string `json:"attempt_id"`
@@ -39,6 +50,10 @@ type Outcome struct {
 }
 
 func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
+	if strings.HasPrefix(req.Operation, onboarding.Prefix) {
+		r.setupOnce.Do(func() { r.setupHost = &onboarding.Host{Root: r.Store.Root, Config: r.Config} })
+		return r.setupHost.Handle(ctx, req)
+	}
 	switch req.Operation {
 	case "queue":
 		workgroupID := req.Workgroup
