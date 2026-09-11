@@ -5,7 +5,8 @@ preserving the existing report executor boundary. No DB schema change.
 
 ## Entry points and ownership
 
-`chat [REQUEST]` is a fixed terminal dialogue, not an LLM session. Service IDs and
+`chat --guided [REQUEST]` is a fixed terminal dialogue, not an LLM session.
+The default `chat` uses the separate [AI chat contract](chat-v1.md). Service IDs and
 aliases come from the embedded catalog. It accepts one service at a time, handles
 Gmail questions, and requests fixed host actions. Unknown input is not executed.
 

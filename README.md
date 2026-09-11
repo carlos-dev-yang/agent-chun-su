@@ -8,12 +8,16 @@ activation remain pending. See [service connection preparation](docs/setup/INTEG
 for the six-service setup manuals and offline guided planner. Of those six,
 only Gmail currently has a native Chun-su connector.
 
-Start guided setup with `bin/chunsu chat` or `bin/chunsu chat 'Gmail 연결해줘'`.
-It initializes a fresh local home, starts a separate setup host when needed, and
-reuses an existing worker's management channel. Gmail supports new OAuth setup
-and verification of an existing connection. The other five services install
-local guidance only. This is a fixed dialogue flow; it does not call an LLM.
-See the [setup conversation checkpoint](docs/validation/SETUP_CHAT_2026-09-11.md).
+Start natural AI chat with `bin/chunsu chat` or `bin/chunsu chat '회의 준비 도와줘'`.
+It uses the configured Codex executor and maintains conversation context. The model
+can draft text and propose actions; the host only dispatches its declared capabilities:
+status, saved-job/report lookup, setup manuals, and local Gmail setup/verification.
+Unsupported actions receive extension guidance. The report executor is unchanged.
+Use `chat --guided` for setup questions without an AI account. A separate setup
+host starts when needed; an existing worker is reused. Of the six services, the
+other five still install local guidance only. See the
+[AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
+[chat contract](docs/contracts/chat-v1.md).
 
 ## Development
 

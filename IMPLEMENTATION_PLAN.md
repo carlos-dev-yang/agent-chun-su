@@ -26,6 +26,12 @@ the bounded delivery: guided local setup, six-service manual installation,
 asynchronous Gmail connection/verification through the host, and preserved report
 executor permissions. Other live adapters and public distribution remain pending.
 
+The user then requested natural chat with executable actions restricted by the host.
+The [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) records the configured
+Codex conversation path, explicit Skill, typed capabilities and actual dialogue
+checks. The earlier fixed setup flow remains under `chat --guided`. This does not
+complete other live adapters, report admission from chat, or the quality release gate.
+
 ## 1. Purpose and scope
 
 Build a small personal framework that prepares work for a replaceable AI

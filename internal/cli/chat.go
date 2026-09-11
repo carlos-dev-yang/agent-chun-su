@@ -123,7 +123,8 @@ func (o *options) setupServe() *cobra.Command {
 
 func (o *options) chat() *cobra.Command {
 	var noBrowser bool
-	cmd := &cobra.Command{Use: "chat [REQUEST]", Short: "Guided setup conversation with a separate host process", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	var guided bool
+	cmd := &cobra.Command{Use: "chat [REQUEST]", Short: "Natural AI conversation with host-enforced actions", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
 			return err
@@ -150,19 +151,23 @@ func (o *options) chat() *cobra.Command {
 		defer stopHost()
 		d := &setupDialogue{ctx: ctx, root: root, config: c, out: cmd.OutOrStdout(), noBrowser: noBrowser}
 		d.lines = readSetupLines(ctx, cmd.InOrStdin(), c.Limits.MaxSourceBytes)
-		fmt.Fprintln(d.out, "춘수 설정 대화입니다. 서비스 이름이나 ‘Gmail 연결해줘’처럼 입력하세요.")
-		fmt.Fprintln(d.out, "정해진 설치 절차를 진행합니다. 토큰이나 비밀값은 입력하지 마세요. 뒤로/취소: 서비스 선택, 종료: 대화 종료.")
 		initial := ""
 		if len(args) != 0 {
 			initial = args[0]
 		}
-		err = d.run(initial)
+		if guided {
+			fmt.Fprintln(d.out, "춘수 문답형 설정입니다. 서비스 이름을 입력하세요. 취소: 서비스 선택, 종료: 대화 종료.")
+			err = d.run(initial)
+		} else {
+			err = d.runAI(initial)
+		}
 		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 			return nil
 		}
 		return err
 	}}
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Show Google sign-in URL locally instead of opening the browser")
+	cmd.Flags().BoolVar(&guided, "guided", false, "Use fixed setup questions without an AI executor")
 	return cmd
 }
 
@@ -251,6 +256,7 @@ type setupDialogue struct {
 	out       io.Writer
 	lines     <-chan setupLine
 	noBrowser bool
+	lastSetup *onboarding.Result
 }
 
 func (d *setupDialogue) ask(prompt string) (string, error) {
@@ -479,6 +485,7 @@ func (d *setupDialogue) gmail() error {
 func (d *setupDialogue) startAndWait(operation string, request onboarding.Request) error {
 	result, err := d.call(operation, request)
 	if err != nil {
+		d.lastSetup = &onboarding.Result{Status: "failed", Message: "설정 요청을 시작하지 못했습니다."}
 		fmt.Fprintln(d.out, "설정을 시작하지 못했습니다:", err)
 		return nil
 	}
@@ -492,6 +499,9 @@ func (d *setupDialogue) startAndWait(operation string, request onboarding.Reques
 	defer ticker.Stop()
 	shown, opened := "", false
 	for {
+		safeResult := result
+		safeResult.AuthURL = ""
+		d.lastSetup = &safeResult
 		if result.Message != shown {
 			fmt.Fprintln(d.out, result.Message)
 			shown = result.Message
