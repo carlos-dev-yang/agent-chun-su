@@ -17,6 +17,7 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
+	"chunsu/internal/secrets"
 )
 
 const RecordPath = "state/service/registration.json"
@@ -42,8 +43,8 @@ type Result struct {
 }
 
 func identity(root string) (label, path, domain string, err error) {
-	if runtime.GOOS != "darwin" {
-		err = errors.New("user-service lifecycle currently supports macOS; use worker in the foreground on other supported systems")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		err = errors.New("user-service lifecycle supports macOS and Linux; use an explicitly supported environment")
 		return
 	}
 	if !filepath.IsAbs(root) {
@@ -56,6 +57,16 @@ func identity(root string) (label, path, domain string, err error) {
 		return
 	}
 	label = LabelPrefix + files.Digest([]byte(root))[:LabelDigestLength]
+	if runtime.GOOS == "linux" {
+		base, e := os.UserConfigDir()
+		if e != nil {
+			err = e
+			return
+		}
+		path = filepath.Join(base, "systemd", "user", label+".service")
+		domain = "user/" + strconv.Itoa(os.Getuid())
+		return
+	}
 	path = filepath.Join(home, "Library", "LaunchAgents", label+".plist")
 	domain = "gui/" + strconv.Itoa(os.Getuid())
 	return
@@ -67,6 +78,9 @@ func escaped(s string) string {
 }
 
 func Render(root string, atLogin bool) (Definition, error) {
+	if runtime.GOOS == "linux" {
+		return renderLinux(root, atLogin)
+	}
 	label, path, domain, err := identity(root)
 	if err != nil {
 		return Definition{}, err
@@ -91,7 +105,7 @@ func Render(root string, atLogin bool) (Definition, error) {
 	}
 	b.WriteString("</array>\n<key>EnvironmentVariables</key><dict>")
 	// Persist the explicitly captured user environment; no shell startup is used.
-	for _, key := range []string{"HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "CODEX_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR"} {
+	for _, key := range hostEnvironmentKeys() {
 		value := os.Getenv(key)
 		if key == "HOME" {
 			value = home
@@ -111,6 +125,10 @@ func Render(root string, atLogin bool) (Definition, error) {
 	return Definition{Label: label, Path: path, Domain: domain, Digest: files.Digest([]byte(body)), AtLogin: atLogin, Body: body}, nil
 }
 
+func hostEnvironmentKeys() []string {
+	return []string{"HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "CODEX_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", secrets.HelperEnv, secrets.KeyFileEnv, secrets.StoreDirectoryEnv}
+}
+
 func Install(root string, atLogin bool) (Definition, error) {
 	d, err := Render(root, atLogin)
 	if err != nil {
@@ -125,7 +143,11 @@ func Install(root string, atLogin bool) (Definition, error) {
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return d, e
 	}
-	if err = files.Write(root, DefinitionPath, []byte(d.Body), true); err != nil {
+	definitionPath := DefinitionPath
+	if runtime.GOOS == "linux" {
+		definitionPath = LinuxDefinitionPath
+	}
+	if err = files.Write(root, definitionPath, []byte(d.Body), true); err != nil {
 		return d, err
 	}
 	b, err := json.MarshalIndent(d, "", "  ")
@@ -150,12 +172,18 @@ func Install(root string, atLogin bool) (Definition, error) {
 		if digest != d.Digest {
 			return d, errors.New("service target differs; existing user configuration was preserved")
 		}
+		if runtime.GOOS == "linux" {
+			return d, loginLink(d, false)
+		}
 		return d, nil
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return d, e
 	}
 	// The launchd filename intentionally differs from our internal definition path.
 	err = files.Write(parent, filepath.Base(d.Path), []byte(d.Body), false)
+	if err == nil && runtime.GOOS == "linux" {
+		err = loginLink(d, false)
+	}
 	return d, err
 }
 
@@ -201,6 +229,9 @@ func Command(ctx context.Context, root, action string, timeout time.Duration) (R
 		return Result{}, err
 	}
 	result := Result{Label: d.Label, Action: action}
+	if runtime.GOOS == "linux" {
+		return systemdCommand(ctx, root, action, timeout, d)
+	}
 	launchctl, err := exec.LookPath(LaunchctlName)
 	if err != nil {
 		return result, err
@@ -285,6 +316,11 @@ func Remove(ctx context.Context, root string, timeout time.Duration) (Definition
 		}
 		if digest != d.Digest {
 			return d, errors.New("installed definition differs; refusing to remove it")
+		}
+		if runtime.GOOS == "linux" {
+			if err = loginLink(d, true); err != nil {
+				return d, err
+			}
 		}
 		if err = os.Remove(d.Path); err != nil {
 			return d, err

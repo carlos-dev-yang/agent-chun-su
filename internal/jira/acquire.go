@@ -233,7 +233,7 @@ func (c Collector) CollectLive(ctx context.Context, profile Profile) (Record, er
 	if err = c.checkpoint(ctx, &r); err != nil {
 		return r, err
 	}
-	k, err := secrets.Open()
+	k, err := secrets.OpenFor(profile.Secret.Store)
 	if err != nil {
 		return c.fail(ctx, r, "keychain_unavailable", err)
 	}
@@ -277,7 +277,7 @@ func (c Collector) ResumeLive(ctx context.Context, profile Profile, id string) (
 			return r, errors.New("live Jira acquisition has no continuation; start a new acquisition")
 		}
 	}
-	k, err := secrets.Open()
+	k, err := secrets.OpenFor(profile.Secret.Store)
 	if err != nil {
 		return r, err
 	}

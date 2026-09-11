@@ -20,7 +20,7 @@ import (
 const (
 	CloudProvider       = "jira-cloud"
 	LiveReaderKind      = "jira-cloud-v1"
-	KeychainSecretStore = "macos-keychain"
+	KeychainSecretStore = secrets.KeychainStore
 )
 
 // SecretRef is a user-owned Keychain binding. It never contains a token.
@@ -133,8 +133,8 @@ func (r SecretRef) Validate(required bool) error {
 	if !required && r.Store == "" && r.Service == "" && r.Account == "" {
 		return nil
 	}
-	if r.Store != KeychainSecretStore || !plainText(r.Service, 256) {
-		return errors.New("Jira secret must be a bounded macOS Keychain service reference")
+	if (r.Store != KeychainSecretStore && r.Store != secrets.HelperStore) || !plainText(r.Service, 256) {
+		return errors.New("Jira secret must name a supported credential store and bounded service reference")
 	}
 	a, err := mail.ParseAddress(r.Account)
 	if err != nil || a.Address != r.Account {
@@ -256,7 +256,7 @@ func Connect(ctx context.Context, p Profile, c config.Config) (Profile, error) {
 	if err := p.Secret.Validate(true); err != nil {
 		return p, err
 	}
-	k, err := secrets.Open()
+	k, err := secrets.OpenFor(p.Secret.Store)
 	if err != nil {
 		return p, err
 	}

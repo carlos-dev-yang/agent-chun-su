@@ -10,7 +10,7 @@ import (
 )
 
 func (o *options) service() *cobra.Command {
-	cmd := &cobra.Command{Use: "service", Short: "Prepare or explicitly manage an optional macOS user LaunchAgent"}
+	cmd := &cobra.Command{Use: "service", Short: "Manage an optional macOS LaunchAgent or Linux systemd user service"}
 	for _, operation := range []string{"render", "install"} {
 		var atLogin bool
 		child := &cobra.Command{Use: operation, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {

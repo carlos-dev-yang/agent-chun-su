@@ -185,7 +185,7 @@ func Connect(parent context.Context, root string, c config.Config, clientData []
 
 type persistTokenSource struct {
 	inner    oauth2.TokenSource
-	keychain secrets.Keychain
+	keychain secrets.Store
 	ref      string
 	previous string
 	ctx      context.Context
@@ -291,7 +291,7 @@ func Disconnect(ctx context.Context, root string, connection Connection, revoke 
 	return deleteReferences(ctx, k, append(append([]string{}, connection.RetiredSecretRefs...), connection.RefreshRef, connection.ClientSecretRef)...)
 }
 
-func deleteReferences(parent context.Context, k secrets.Keychain, refs ...string) error {
+func deleteReferences(parent context.Context, k secrets.Store, refs ...string) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), time.Duration(DefaultHTTPTimeoutSeconds)*time.Second)
 	defer cancel()
 	var combined error

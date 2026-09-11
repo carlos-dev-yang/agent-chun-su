@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !linux
 
 package platform
 
@@ -8,5 +8,5 @@ import (
 )
 
 func ReadSecret(context.Context, int) (string, error) {
-	return "", errors.New("interactive secret setup currently requires macOS")
+	return "", errors.New("interactive secret setup requires a supported local terminal")
 }

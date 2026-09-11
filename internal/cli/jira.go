@@ -185,6 +185,7 @@ func (o *options) jira() *cobra.Command {
 func (o *options) jiraConnect() *cobra.Command {
 	var id, siteHost, cloudID, account, project, board, todoID, todoName, dueField, startField, zone, service, keychainAccount, selection, content string
 	var maxIssues, maxPages int
+	var secretStore string
 	cmd := &cobra.Command{Use: "connect", Args: cobra.NoArgs, Short: "Verify and save a read-only Jira Cloud profile using a user-owned Keychain item", RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), true)
 		if err != nil {
@@ -200,7 +201,7 @@ func (o *options) jiraConnect() *cobra.Command {
 		if keychainAccount == "" {
 			keychainAccount = account
 		}
-		profile := jira.Profile{Version: jira.Version, ID: id, Provider: jira.CloudProvider, SiteHost: siteHost, CloudID: cloudID, ExpectedAccount: account, ProjectKey: project, BoardID: board, TodoStatusID: todoID, TodoStatusName: todoName, DueField: dueField, StartField: startField, Timezone: zone, Secret: jira.SecretRef{Store: jira.KeychainSecretStore, Service: service, Account: keychainAccount}, Policy: jira.LivePolicy{Selection: selection, WindowDays: jira.ReportWindowDays, ContentScope: content, MaxIssues: maxIssues, MaxPages: maxPages}}
+		profile := jira.Profile{Version: jira.Version, ID: id, Provider: jira.CloudProvider, SiteHost: siteHost, CloudID: cloudID, ExpectedAccount: account, ProjectKey: project, BoardID: board, TodoStatusID: todoID, TodoStatusName: todoName, DueField: dueField, StartField: startField, Timezone: zone, Secret: jira.SecretRef{Store: secretStore, Service: service, Account: keychainAccount}, Policy: jira.LivePolicy{Selection: selection, WindowDays: jira.ReportWindowDays, ContentScope: content, MaxIssues: maxIssues, MaxPages: maxPages}}
 		ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(c.Limits.TimeoutSeconds)*time.Second)
 		defer cancel()
 		profile, err = jira.Connect(ctx, profile, c)
@@ -223,6 +224,7 @@ func (o *options) jiraConnect() *cobra.Command {
 	cmd.Flags().StringVar(&dueField, "due-field", "", "Reviewed due-date field ID")
 	cmd.Flags().StringVar(&startField, "start-field", "", "Reviewed start-date field ID")
 	cmd.Flags().StringVar(&zone, "timezone", "", "IANA report timezone")
+	cmd.Flags().StringVar(&secretStore, "secret-store", jira.KeychainSecretStore, "macos-keychain or credential-helper")
 	cmd.Flags().StringVar(&service, "keychain-service", "", "Existing macOS Keychain service name")
 	cmd.Flags().StringVar(&keychainAccount, "keychain-account", "", "Existing macOS Keychain account; defaults to --account")
 	cmd.Flags().StringVar(&selection, "selection", jira.GroupedSelection, "Reviewed Jira selection policy")

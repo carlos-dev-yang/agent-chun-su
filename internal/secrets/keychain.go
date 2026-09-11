@@ -34,7 +34,7 @@ const (
 	unknownExitStatus           = -1
 )
 
-var ErrUnavailable = errors.New("macOS Keychain operation failed; no plaintext fallback is used")
+var ErrUnavailable = errors.New("credential store operation failed; no plaintext fallback is used")
 var ErrMissing = errors.New("credential reference is missing; reconnect the account")
 
 type nativeStatus struct {
@@ -102,9 +102,9 @@ func nativeFailure(ctx context.Context, operation, diagnostic string, cause erro
 
 type Keychain struct{ Program string }
 
-func Open() (Keychain, error) {
+func OpenKeychain() (Keychain, error) {
 	if runtime.GOOS != "darwin" {
-		return Keychain{}, errors.New("live Gmail secret storage currently requires macOS Keychain")
+		return Keychain{}, errors.New("this host has no macOS Keychain; configure CHUNSU_SECRET_HELPER before connecting accounts")
 	}
 	path, err := exec.LookPath("security")
 	if err != nil {
