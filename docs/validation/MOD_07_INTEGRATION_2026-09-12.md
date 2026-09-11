@@ -105,14 +105,36 @@ After service removal, access was revoked and a backup restored into another
 home. The restoration preserved six audit receipts and the execution block,
 kept admission paused and all route disclosure approvals false, and excluded
 the credential key. No service startup link was left for this validation home.
-The temporary executable-specific AppArmor rule and the task-only VM are removed
-or stopped after the final archive verification; global security settings were
-never disabled. Preserved task data remains available for inspection.
+The temporary executable-specific AppArmor rule was removed after final archive
+verification; the global user-namespace restriction still read enabled. The
+task-only VM was stopped. Preserved task data remains available for inspection.
 
 The first three-target candidate archives were approximately 13–14 MiB each;
 the standalone core executables were approximately 21–23 MiB. Extra documentation
 does not become a runtime dependency. Each final archive carries file checksums,
 dependency versions/licenses and an unsigned local-candidate manifest.
+
+## Final candidate
+
+`modular-20260912-rc2` was built from clean commit
+`5b79816b717af0caa91f76f92db760db37a84e84`. Its three installers ran successfully.
+The macOS installation preserved configuration and read the completed rc1
+report; all packaged public Markdown links resolved. The Linux arm64 update
+preserved configuration and repeated the real credential-helper round trip.
+The Linux amd64 container installed and ran setup, module discovery and owner
+status under emulation. No additional AI report was requested for this
+documentation/packaging update.
+
+| Archive in `dist/` | SHA-256 |
+|---|---|
+| `chunsu-modular-20260912-rc2-darwin-arm64.tar.gz` | `f7a51bdcaf69a31fa3e5bb7b47330ba6ad927c09ecaa04b803000558d57867ab` |
+| `chunsu-modular-20260912-rc2-linux-arm64.tar.gz` | `1888b880613b10b036f801692ed2fd371ded88a00cc798b4b08e65545efafaef` |
+| `chunsu-modular-20260912-rc2-linux-amd64.tar.gz` | `8982bc64d4de552e6ca3285e1a6555985da8063237da7fb36e8e0f73b62d636f` |
+
+The final source checkpoint updates only completion evidence after these
+archives were built; its later commit is not misrepresented as their source.
+The local development binary was also rebuilt. No temporary validation worker,
+service registration or validation VM remains running.
 
 ## Validation and outstanding decisions
 
