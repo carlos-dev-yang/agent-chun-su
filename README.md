@@ -1,7 +1,22 @@
 # Chun-su
 
-A terminal-first personal AI workflow controller built with Go and embedded SQLite.
-Human-owned workgroup assets stay outside the executor. Mail reporting comes first.
+A local/server AI workflow controller built with Go and embedded SQLite.
+Human-owned Skills, golden cases, evaluation, analyzer/optimizer criteria and
+adoption policies stay outside task executors. Mail reporting comes first.
+Reception, task execution and optional result review have separate contexts and
+configurable routes. The Codex CLI/model pin is a temporary stabilization rule
+inside the first driver; execution environments have a separate interface.
+
+The approved [modular-agent goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md)
+records bounded implementation and actual evidence. See
+[local/Linux server installation](docs/setup/SERVER.md),
+[selected-result review](docs/setup/RESULT_REVIEW.md),
+[read-only Git review](examples/code-review/README.md) and
+[owner access/revocation](docs/contracts/owner-access-v1.md).
+One controller owns each private data home and SQLite database. Optional workers
+do not share it as independent writers. Company/EC2 connections still require
+the actual approved node, account and model route.
+
 Jira supports the approved bounded [live reporting workflow](docs/setup/JIRA_REPORTING.md)
 with explicit Skills and independent evaluation; human usefulness and recurring
 activation remain pending. See [service connection preparation](docs/setup/INTEGRATIONS.md)
@@ -12,8 +27,9 @@ with the live bot pilot pending.
 Start natural AI chat with `bin/chunsu chat` or `bin/chunsu chat '회의 준비 도와줘'`.
 It uses the configured Codex executor and maintains conversation context. The model
 can draft text and propose actions; the host only dispatches its declared capabilities:
-status, saved-job/report lookup, setup manuals, and local Gmail setup/verification.
-Unsupported actions receive extension guidance. The report executor is unchanged.
+status, saved-job/report lookup, bounded task delegation, setup manuals, and local
+Gmail setup/verification. CLI and Telegram reuse the reception layer; admitted
+work runs in a separate task process. Unsupported actions receive extension guidance.
 Use `chat --guided` for setup questions without an AI account. A separate setup
 host starts when needed; an existing worker is reused. Of the six services, the
 other four still install local guidance only. See the
@@ -73,7 +89,7 @@ Real Gmail disclosure is disabled by default. After a synthetic walkthrough veri
 
 ## Feedback and controlled changes
 
-Use `feedback import` for versioned cases/rubrics, result evaluations, feedback and independent optimization findings. `feedback compare` keeps failures and unknown judgments visible. `workgroup propose` stores an inactive guide/schema version, `workgroup diff` shows the concrete before/after assets, and `experiment` queues the same saved input with that candidate. `workgroup decide` records adoption, rejection or rollback. AI source tools expose none of these control operations.
+Use `feedback import` for versioned cases/rubrics, result evaluations, feedback and independent optimization findings. `review evaluate` evaluates explicitly selected results; `review pin` and `review analyze` apply selected analyzer/optimizer criteria when requested. `feedback compare` pins explicit evaluation selections and keeps failures/unknown judgments visible. `workgroup propose` stores an inactive guide/schema version, `workgroup diff` shows the concrete before/after assets, and `experiment` queues the same saved input with that candidate. `workgroup decide` records adoption, rejection or rollback; adoption requires a reviewed release policy and matching checks. AI source tools expose none of these control operations.
 
 The initial rubric in `examples/evaluation/` is a draft. Actual personal expectations and a useful first improvement loop still require human review. Run `setup` after an upgrade to apply supported additive schema changes; unknown future schemas are never reset.
 

@@ -37,7 +37,8 @@ def main():
         module, consumed = decoder.raw_decode(remaining.lstrip())
         module_list.append(module)
         remaining = remaining.lstrip()[consumed:]
-    public = run("git", "ls-files", "-z", "examples", "evaluation-skills").split("\0")
+    public = run("git", "ls-files", "-z", "examples", "evaluation-skills",
+                 "docs/contracts", "docs/setup", "docs/validation/MOD_*").split("\0")
     for target in dict.fromkeys(args.target):
         name = "chunsu-" + args.version + "-" + target.replace("/", "-")
         package = output / name
@@ -54,6 +55,8 @@ def main():
                              ("docs/contracts/credential-helper-v1.md", "CREDENTIALS.md")):
             shutil.copyfile(ROOT / source, package / dest)
         (package / "install.sh").chmod(0o755)
+        guide = (package / "SERVER.md").read_text()
+        (package / "SERVER.md").write_text(guide.replace("](../", "](docs/"))
         (package / "TARGET").write_text(target + "\n")
         for path in filter(None, public):
             dest = package / path

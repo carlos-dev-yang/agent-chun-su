@@ -4,7 +4,7 @@
 **Date:** 2026-09-05  
 **Status:** Implementation through Phase 5 and the approved bounded Jira/Skill integration implemented; human acceptance and background activation remain pending
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** Common mail/Jira execution with explicit Skills, live read-only Jira acquisition and independent result evaluation verified; user usefulness, candidate adoption and background activation pending
+**Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review

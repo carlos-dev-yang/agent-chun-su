@@ -122,6 +122,7 @@ func (o *options) feedback() *cobra.Command {
 func (o *options) workgroup() *cobra.Command {
 	cmd := &cobra.Command{Use: "workgroup", Short: "Review candidate controls and record explicit adoption or rollback"}
 	var activeWorkgroup string
+	cmd.AddCommand(&cobra.Command{Use: "list", Short: "List the compiled workgroup modules", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error { return output(cmd, workgroup.Definitions()) }})
 	show := &cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, close, err := o.open(cmd.Context(), false)
 		if err != nil {
