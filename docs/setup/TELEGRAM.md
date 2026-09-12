@@ -2,7 +2,7 @@
 
 기본 연결: **본인 Telegram DM → 이 Mac의 춘수 → 기존 Codex 실행기**.
 봇을 운영할 별도 공개 서버는 필요 없다. Mac과 춘수 프로세스가 실행 중이어야 한다.
-현재 개인 대화 수신·답장 코드는 구현했으며, 실제 사용자 봇 검증은 token/페어링을 기다린다.
+개인 대화 수신·답장을 지원한다. 지원 실행기와 실제 검증 범위는 아래 연결 점검을 참고한다.
 
 ## 처음 연결
 
@@ -22,7 +22,8 @@
    코드의 기본 유효 시간은 5분이다. 첫 발신자를 자동으로 관리자로 삼지 않는다.
 5. “춘수와 연결되었습니다”라는 답장을 받으면 같은 DM에서 일을 요청한다.
 
-실행기는 현재 설정된 `executor.kind/path/model`과 Codex 로그인을 사용한다.
+실행기는 `routes.reception`이 있으면 해당 설정을, 없으면
+`executor.kind/path/model`과 기존 Codex 로그인을 사용한다.
 이 프로젝트 환경에서는 이미 연결되어 있으므로 새 AI API key 입력은 필요 없다.
 새 환경에서는 `setup`과 실행기 설정이 먼저 필요하다. `telegram`은 로컬 초기 설정을
 준비하지만 실행기 계정을 임의로 선택하거나 구독하지 않는다.
@@ -57,6 +58,25 @@ bin/chunsu telegram status
 저장된 봇과 페어링 여부를 표시한다. 이 명령은 token을 읽거나 서버 작동 여부를
 추정하지 않는다. 실제 통신 상태는 실행 터미널과 봇 답장으로 확인한다.
 
+Codex 업데이트 이후 “AI 실행 경계 검증 대상 실행기는 codex-cli 0.153.4입니다”가
+나오면 춘수가 설치된 Codex 버전을 지원하지 않아 AI 호출 전에 차단된 것이다.
+대화 맥락 문제가 아니므로 `/reset`으로 해결되지 않는다.
+
+```sh
+bin/chunsu doctor
+```
+
+`execution_routes.reception`에서 실제 버전과 대화 경로의 호환 상태를 확인한다.
+현재 macOS/arm64 대화 경로는 Codex `0.153.4`와 `0.154.0-alpha.6.2`, 모델
+`gpt-5.5`를 지원한다. 미지원 실행기는 polling 전에 중단하며 설치/지원 버전을
+터미널에 표시한다. 실행 중 Codex가 바뀌어도 매 생성에서 다시 확인한다.
+보고서 실행·검토 경로의 버전 검증은 별개다.
+
+이 체크아웃의 수정본은 `go build -o bin/chunsu ./cmd/chunsu`로 빌드한다.
+이미 실행 중인 춘수에는 새 바이너리가 자동 반영되지 않는다. 실행 터미널에서
+Ctrl-C 후 `bin/chunsu telegram`을 다시 실행한다. 저장된 token/페어링은 재사용하며,
+실패한 요청은 자동 재실행하지 않으므로 필요한 메시지를 다시 보낸다.
+
 기존 webhook이 발견되면 그대로 보존하고 중단한다. polling 충돌/인증/네트워크/
 전송 결과 불명확 상황에서도 무조건 재시도하지 않는다. 기존 프로그램 사용 여부와
 실제 답장 여부를 확인하고 다시 실행한다. 처리한 update는 재시작 후 자동 재실행하지 않는다.
@@ -65,5 +85,6 @@ bin/chunsu telegram status
 `--api-base`는 최초 연결의 API 위치를 명시적으로 선택할 때만 사용한다. 일반 사용자는
 기본값을 유지한다. HTTP는 명시적 loopback fixture에만 허용하며 live token을 사용하지 않는다.
 
-[실제 검증 범위](../validation/TELEGRAM_CHAT_2026-09-11.md)와
+[최초 검증 범위](../validation/TELEGRAM_CHAT_2026-09-11.md),
+[Codex 업데이트 호환성 검증](../validation/TELEGRAM_CODEX_COMPATIBILITY_2026-09-13.md)과
 [호스트 계약](../contracts/telegram-v1.md)을 참조한다.

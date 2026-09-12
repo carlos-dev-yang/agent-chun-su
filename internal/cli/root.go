@@ -174,7 +174,7 @@ func (o *options) doctor() *cobra.Command {
 		}
 		routes := map[string]executor.Compatibility{}
 		for _, role := range []string{config.RoleTask, config.RoleReception, config.RoleReview} {
-			routes[role] = executor.Inspect(cmd.Context(), root, c.ExecutorFor(role), c.Limits)
+			routes[role] = executor.Inspect(cmd.Context(), role, root, c.ExecutorFor(role), c.Limits)
 		}
 		checks["execution_routes"] = routes
 		checks["account_requirement"] = "none for saved-input setup"

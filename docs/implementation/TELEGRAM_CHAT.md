@@ -20,6 +20,12 @@
 허용된 호스트 작업/미지원 안내 → 다른 sender 거부와 중복·취소 확인이다.
 토큰·본인 Telegram 입력이 없는 동안 live 연결 성공으로 기록하지 않는다.
 
+2026-09-13 사용자 운용 중 Codex 업데이트로 대화가 거부된 문제를 수정했다.
+IN-05/MOD-03 범위에서 macOS/arm64 대화 경로에 현재 설치된 CLI의 호환성을
+검증·추가하고, polling 전 검사와 실제 버전을 표시하는 오류 안내를 구현했다.
+[수행한 검사와 재시작 절차](../validation/TELEGRAM_CODEX_COMPATIBILITY_2026-09-13.md)를
+기록했다. 보고서·검토 경로의 새 실행기 지원과 실제 봇에서 수정 후 답장 확인은 별도다.
+
 공식 근거: [BotFather 튜토리얼](https://core.telegram.org/bots/tutorial),
 [Bot API](https://core.telegram.org/bots/api#getupdates),
 [FAQ](https://core.telegram.org/bots/faq).

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"chunsu/internal/config"
+	"chunsu/internal/executor"
 	"chunsu/internal/files"
 	"chunsu/internal/platform"
 	"chunsu/internal/secrets"
@@ -68,8 +69,14 @@ func (o *options) telegram() *cobra.Command {
 		if e != nil {
 			return e
 		}
-		if c.Executor.Kind != "codex" || c.Executor.Path == "" || c.Executor.Model == "" {
-			return errors.New("먼저 기존 Codex 실행기의 executor.kind/path/model을 설정해 주세요")
+		selected := c.ExecutorFor(config.RoleReception)
+		if selected.Kind != "codex" || selected.Path == "" || selected.Model == "" {
+			return errors.New("먼저 대화 실행기의 kind/path/model을 설정해 주세요. chunsu config route reception으로 확인할 수 있습니다")
+		}
+		// Check before polling so incompatible installations do not consume DMs.
+		compatibility := executor.Inspect(cmd.Context(), config.RoleReception, root, selected, c.Limits)
+		if compatibility.Status != "prerequisites_match" {
+			return fmt.Errorf("Telegram 대화 실행기 확인 실패: %s", compatibility.Detail)
 		}
 		lock, e := telegram.Lock(cmd.Context(), root, c.Limits)
 		if e != nil {

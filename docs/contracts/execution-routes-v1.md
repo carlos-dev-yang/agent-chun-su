@@ -7,7 +7,13 @@ first compiled driver is Codex and the first environment is `native-restricted`.
 Unknown drivers/environments are rejected; they are not shell commands or
 configuration-defined plugins.
 
-The temporary Codex stabilization policy still requires CLI 0.153.4 / gpt-5.5.
+The temporary Codex stabilization policy requires CLI 0.153.4 / gpt-5.5 for
+task and review routes. The reception route also accepts CLI
+0.154.0-alpha.6.2 / gpt-5.5 on macOS/arm64, following the bounded
+[Telegram compatibility revalidation](../validation/TELEGRAM_CODEX_COMPATIBILITY_2026-09-13.md).
+Other versions, models and the new combination on other platforms still require
+their own revalidation. Compatibility inspection uses the selected role, so a
+matching reception route does not make task or review execution eligible.
 The core configuration, reception and review logic no longer require that
 specific provider. Supporting another driver or compatibility combination
 requires adapter/enforcement evidence before enabling it. A stored new model

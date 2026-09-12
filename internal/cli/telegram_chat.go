@@ -9,6 +9,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
+	"chunsu/internal/executor"
 	"chunsu/internal/files"
 	"chunsu/internal/reception"
 	"chunsu/internal/telegram"
@@ -19,6 +20,14 @@ type telegramTurnResult struct {
 	history []conversation.Event
 	err     error
 	fatal   bool
+}
+
+func telegramFailureMessage(err error) string {
+	var compatibility *executor.CompatibilityError
+	if errors.As(err, &compatibility) {
+		return "AI 실행기 호환성 문제로 답변을 생성하지 못했습니다. " + compatibility.Error() + " 호스트 터미널의 chunsu doctor로 확인하고 지원되는 실행기를 설정하거나 춘수를 업데이트한 뒤 다시 실행해 주세요."
+	}
+	return "요청을 완료하지 못했습니다. 설치된 춘수 터미널에서 원인을 확인해 주세요."
 }
 
 func telegramTurn(ctx context.Context, root string, c config.Config, sessionID string, history []conversation.Event, u telegram.Update, emit func(string) error) telegramTurnResult {
@@ -214,7 +223,7 @@ func serveTelegram(cmd *cobra.Command, root string, c config.Config, b telegram.
 					emit := func(text string) error { return sendRecorded(workCtx, &receipt, text) }
 					result := telegramTurn(workCtx, root, c, session, history, u, emit)
 					if result.err != nil && !result.fatal && workCtx.Err() == nil {
-						if e := emit("요청을 완료하지 못했습니다. 설치된 춘수 터미널에서 원인을 확인해 주세요. 대화가 길어졌다면 /reset으로 새로 시작할 수 있습니다."); e != nil {
+						if e := emit(telegramFailureMessage(result.err)); e != nil {
 							result.err = e
 							result.fatal = true
 						}

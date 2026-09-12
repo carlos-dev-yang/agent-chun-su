@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os/exec"
 	"path/filepath"
@@ -39,9 +38,6 @@ func runCodexStructured(parent context.Context, role, root, directory string, se
 	if selected.Kind != "codex" || selected.Path == "" {
 		return result, errors.New("AI 실행기가 설정되지 않았습니다. executor.kind/path/model 설정 후 다시 시작하거나 chat --guided를 사용하세요.")
 	}
-	if selected.Model != TestedModel {
-		return result, fmt.Errorf("AI 실행 경계 검증 대상 모델은 %s입니다. 모델 변경은 별도 재검증이 필요합니다.", TestedModel)
-	}
 	if err := CheckDataRoot(root); err != nil {
 		return result, err
 	}
@@ -54,8 +50,8 @@ func runCodexStructured(parent context.Context, role, root, directory string, se
 	if err != nil {
 		return result, err
 	}
-	if version != TestedVersion {
-		return result, fmt.Errorf("AI 실행 경계 검증 대상 실행기는 %s입니다", TestedVersion)
+	if err = codexCompatibility(role, version, selected.Model); err != nil {
+		return result, err
 	}
 	if err = files.PrivateDir(directory); err != nil {
 		return result, err

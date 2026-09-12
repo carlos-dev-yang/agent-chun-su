@@ -56,7 +56,7 @@ type Compatibility struct {
 
 // Inspect checks installed compatibility without model traffic or authentication.
 // It is a prerequisite check, not proof that a new host's isolation has passed.
-func Inspect(ctx context.Context, root string, selected config.Executor, limits config.Limits) Compatibility {
+func Inspect(ctx context.Context, role, root string, selected config.Executor, limits config.Limits) Compatibility {
 	result := Compatibility{Driver: selected.Kind, Environment: selected.Environment, Model: selected.Model, Status: "unavailable"}
 	if result.Environment == "" {
 		result.Environment = runtimeenv.NativeRestricted
@@ -73,9 +73,9 @@ func Inspect(ctx context.Context, root string, selected config.Executor, limits 
 		result.Detail = err.Error()
 		return result
 	}
-	if version != TestedVersion || selected.Model != TestedModel {
+	if err = codexCompatibility(role, version, selected.Model); err != nil {
 		result.Status = "needs_revalidation"
-		result.Detail = "this initial driver is temporarily pinned to " + TestedVersion + " / " + TestedModel
+		result.Detail = err.Error()
 		return result
 	}
 	result.Status = "prerequisites_match"
