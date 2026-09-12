@@ -5,11 +5,13 @@ import datetime
 import hashlib
 import json
 import os
+import posixpath
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tarfile
+from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ("darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64")
@@ -17,6 +19,17 @@ TARGETS = ("darwin/arm64", "darwin/amd64", "linux/arm64", "linux/amd64")
 
 def run(*args, **kwargs):
     return subprocess.check_output(args, cwd=ROOT, text=True, **kwargs).strip()
+
+
+def root_links(text, source):
+    """Resolve links from a copied guide's source folder into the package root."""
+    def replace(match):
+        target = urlsplit(match.group(1))
+        if target.scheme or target.netloc or not target.path or target.path.startswith("/"):
+            return match.group(0)
+        path = posixpath.normpath(posixpath.join(str(Path(source).parent), target.path))
+        return "](" + urlunsplit(("", "", path, target.query, target.fragment)) + ")"
+    return re.sub(r"\]\(([^)\s]+)\)", replace, text)
 
 
 def main():
@@ -57,7 +70,7 @@ def main():
             shutil.copyfile(ROOT / source, package / dest)
         (package / "install.sh").chmod(0o755)
         guide = (package / "SERVER.md").read_text()
-        (package / "SERVER.md").write_text(guide.replace("](../", "](docs/"))
+        (package / "SERVER.md").write_text(root_links(guide, "docs/setup/SERVER.md"))
         (package / "TARGET").write_text(target + "\n")
         for path in filter(None, public):
             dest = package / path

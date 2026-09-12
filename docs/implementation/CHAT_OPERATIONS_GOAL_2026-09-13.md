@@ -12,7 +12,7 @@ explicitly stopped, and simple local/server installation.
 | CHAT-00 | Record the authorized direction and preserve existing work | Baseline captured; work units and limits recorded | complete |
 | CHAT-01 | Structured, bounded error accumulation and reports | CLI walkthrough retained `model_failed`, reloaded it, acknowledged it without deletion, and found no request text in reports | complete |
 | CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | Live Codex acknowledgment/context/cancel passed; broken-AI and unconfirmed-send flows passed; Linux API disconnect/reconnect preserved intake and replied after recovery | complete |
-| CHAT-03 | Process supervision, health and explicit stop | macOS exit/stall recovery passed; Linux exit recovery passed and restart/stop transition correction is under final verification | in_progress |
+| CHAT-03 | Process supervision, health and explicit stop | macOS exit/stall recovery; Linux exit/SIGTERM recovery, explicit stop, reboot staying OS-inactive and removal passed | complete |
 | CHAT-04 | Chat operations and supported feature setup | Fixed commands, workflow installation, queue controls and owned worker start/stop passed with a broken AI executable | complete |
 | CHAT-05 | Simple installation and repair flow | Pair/enable/check/lifecycle commands and installer opt-in implemented; candidate packaging pending | in_progress |
 | CHAT-06 | Integration and handoff | Relevant existing checks and actual failure/recovery walkthroughs; local commits; actual vs unperformed platform/live checks recorded | pending |
@@ -107,3 +107,14 @@ or real bot token was used. New test source files were not added.
 
 Related existing runner/feedback tests passed. The reception, transport,
 service, supervisor and CLI packages compiled and passed `go vet`.
+
+## CHAT-03 final native checks
+
+macOS launchd restored a killed supervisor; the supervisor restored a killed
+receiver and a SIGSTOP-stalled receiver. Explicit stop and removal succeeded.
+Linux systemd restored a killed supervisor and the corrected implementation
+restored one interrupted by SIGTERM while enabled. The service was explicitly
+stopped, the validation VM rebooted, and both app intent and actual systemd
+state stayed stopped (`inactive`); removal then succeeded. `systemd-analyze
+--user verify` accepted the generated definition. The earlier restart loop and
+transition-removal failure were corrected rather than ignored.
