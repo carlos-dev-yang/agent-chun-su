@@ -14,8 +14,8 @@ explicitly stopped, and simple local/server installation.
 | CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | Live Codex acknowledgment/context/cancel passed; broken-AI and unconfirmed-send flows passed; Linux API disconnect/reconnect preserved intake and replied after recovery | complete |
 | CHAT-03 | Process supervision, health and explicit stop | macOS exit/stall recovery; Linux exit/SIGTERM recovery, explicit stop, reboot staying OS-inactive and removal passed | complete |
 | CHAT-04 | Chat operations and supported feature setup | Fixed commands, workflow installation, queue controls and owned worker start/stop passed with a broken AI executable | complete |
-| CHAT-05 | Simple installation and repair flow | Pair/enable/check/lifecycle commands and installer opt-in implemented; candidate packaging pending | in_progress |
-| CHAT-06 | Integration and handoff | Relevant existing checks and actual failure/recovery walkthroughs; local commits; actual vs unperformed platform/live checks recorded | pending |
+| CHAT-05 | Simple installation and repair flow | Clean-revision packages for macOS arm64/Linux arm64/amd64; installed macOS/Linux arm64 and verified linked guides and checksums | complete |
+| CHAT-06 | Integration and handoff | Implementation, native checks and packages complete; existing bot supervisor handoff awaits OS Keychain access | in_progress |
 
 The OS service manager supervises a small chat supervisor. The receiver owns
 transport retries and durable per-message receipts; a failed AI turn cannot stop
@@ -118,3 +118,19 @@ stopped, the validation VM rebooted, and both app intent and actual systemd
 state stayed stopped (`inactive`); removal then succeeded. `systemd-analyze
 --user verify` accepted the generated definition. The earlier restart loop and
 transition-removal failure were corrected rather than ignored.
+
+## Installation handoff
+
+Candidate `chat-ops-20260913-rc1` was built from clean source `9fc4a79` for
+macOS arm64, Linux arm64 and Linux amd64. macOS and native Linux arm64 package
+install/setup/error inspection passed. The Linux amd64 core executable ran via
+emulation; no native amd64 AI/sandbox claim is added. New guide links resolved
+and a malformed error record stayed inspectable without echoing its contents.
+The checkout's `bin/chunsu` now contains the candidate. The already-running
+legacy receiver still uses its original process image and was not interrupted.
+
+See [the integration and handoff record](../validation/CHAT_OPERATIONS_2026-09-13.md).
+The remaining live step is: after the user restores Keychain access, verify
+`telegram check`, gracefully stop the original foreground receiver, enable the
+supervisor, verify connected polling and request a short user DM. Never extract
+the live token from process memory or switch its secret store to bypass OS denial.
