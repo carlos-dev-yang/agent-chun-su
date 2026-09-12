@@ -7,11 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"chunsu/internal/audit"
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/conversation"
+	"chunsu/internal/errorreport"
+	"chunsu/internal/features"
 	"chunsu/internal/onboarding"
+	"chunsu/internal/service"
 	"chunsu/internal/store"
+	"chunsu/internal/telegram"
 )
 
 type HostResult struct {
@@ -48,14 +53,71 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{}, errors.New("reception channel does not permit this action")
 	}
 	switch action.Name {
+	case conversation.StartWorker, conversation.StopWorker:
+		if channel != Telegram {
+			return HostResult{}, errors.New("worker supervision belongs to the Telegram receiver; use local service commands here")
+		}
+		enabled := action.Name == conversation.StartWorker
+		if err := service.SetWorkerEnabled(h.Root, enabled); err != nil {
+			return HostResult{}, err
+		}
+		err := audit.Record(h.Root, "chat."+action.Name, "", "")
+		return HostResult{Status: "requested", Detail: map[string]any{"worker_requested": enabled, "next": "수신기가 소유한 관리 프로세스를 전환합니다. /status의 worker_running으로 실제 시작·종료를 확인하세요. 별도 실행 중인 외부 worker는 유지되며 /pause와 /cancel로 업무를 제어할 수 있습니다."}}, err
+	case conversation.ListFeatures:
+		items, err := features.Catalog()
+		return HostResult{Status: "available", Detail: items}, err
+	case conversation.InstallFeature:
+		var result any
+		err := h.call(ctx, control.Request{Operation: "install_feature", SourceName: action.Service}, &result)
+		return HostResult{Status: "processed", Detail: result}, err
+	case conversation.ListErrors:
+		items, err := errorreport.List(h.Root, h.Config.Limits)
+		return HostResult{Status: "observed", Detail: items}, err
+	case conversation.AcknowledgeError:
+		if !strings.Contains(request, action.Reference) {
+			return HostResult{}, errors.New("오류 확인에는 사용자가 지정한 오류 ID가 필요합니다")
+		}
+		err := errorreport.Acknowledge(ctx, h.Root, action.Reference, h.Config.Limits)
+		return HostResult{Status: "acknowledged", Detail: "현재 발생분을 확인 처리했습니다. 기록은 보존됩니다."}, err
+	case conversation.PauseQueue, conversation.ResumeQueue:
+		operation := "pause"
+		if action.Name == conversation.ResumeQueue {
+			operation = "unpause"
+		}
+		var result any
+		err := h.call(ctx, control.Request{Operation: operation}, &result)
+		return HostResult{Status: "processed", Detail: result}, err
+	case conversation.CancelJob, conversation.RetryJob:
+		if !known[action.Reference] && !strings.Contains(request, action.Reference) {
+			return HostResult{}, errors.New("사용자가 지정하거나 현재 조회한 작업 ID가 필요합니다")
+		}
+		operation := "cancel"
+		if action.Name == conversation.RetryJob {
+			operation = "retry"
+		}
+		var result any
+		err := h.call(ctx, control.Request{Operation: operation, JobID: action.Reference}, &result)
+		return HostResult{Status: "processed", Detail: result}, err
 	case conversation.RuntimeStatus:
 		var status struct {
-			ActiveJob   string `json:"active_job"`
-			Owner       string `json:"owner"`
-			QueuePaused bool   `json:"queue_paused"`
+			ActiveJob     string `json:"active_job"`
+			Owner         string `json:"owner"`
+			QueuePaused   bool   `json:"queue_paused"`
+			WorkerRunning bool   `json:"worker_running"`
 		}
 		err := h.call(ctx, control.Request{Operation: "status"}, &status)
-		return HostResult{Status: "observed", Detail: status}, err
+		health, alive, healthErr := telegram.ReadHealth(h.Root, h.Config.Limits)
+		result := map[string]any{"controller_available": err == nil, "controller": status, "chat_receiver_alive": alive}
+		if desired, e := service.WorkerEnabled(h.Root); e == nil {
+			result["worker_requested"] = desired
+		}
+		if healthErr == nil {
+			result["chat"] = health
+		}
+		if err != nil {
+			result["recovery"] = "호스트 관리 연결이 준비되지 않았습니다. 수신기가 자동 복구를 시도하며 /errors로 확인할 수 있습니다."
+		}
+		return HostResult{Status: "observed", Detail: result}, healthErr
 	case conversation.ReadGuide:
 		b, err := conversation.Guide(action.Service)
 		if err != nil {

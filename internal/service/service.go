@@ -28,6 +28,7 @@ const LaunchctlName = "launchctl"
 const MaxCommandOutput = 64 << 10
 
 type Definition struct {
+	Kind    string `json:"kind,omitempty"`
 	Label   string `json:"label"`
 	Path    string `json:"path"`
 	Domain  string `json:"domain"`
@@ -36,13 +37,14 @@ type Definition struct {
 	Body    string `json:"body"`
 }
 type Result struct {
+	Running  bool   `json:"running"`
 	Label    string `json:"label"`
 	Action   string `json:"action"`
 	Output   string `json:"output"`
 	ExitCode int    `json:"exit_code"`
 }
 
-func identity(root string) (label, path, domain string, err error) {
+func identity(root, kind string) (label, path, domain string, err error) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		err = errors.New("user-service lifecycle supports macOS and Linux; use an explicitly supported environment")
 		return
@@ -56,7 +58,14 @@ func identity(root string) (label, path, domain string, err error) {
 		err = e
 		return
 	}
-	label = LabelPrefix + files.Digest([]byte(root))[:LabelDigestLength]
+	prefix := LabelPrefix
+	if kind == Chat {
+		prefix = ChatLabelPrefix
+	} else if kind != Worker {
+		err = errors.New("unsupported service kind")
+		return
+	}
+	label = prefix + files.Digest([]byte(root))[:LabelDigestLength]
 	if runtime.GOOS == "linux" {
 		base, e := os.UserConfigDir()
 		if e != nil {
@@ -77,11 +86,13 @@ func escaped(s string) string {
 	return b.String()
 }
 
-func Render(root string, atLogin bool) (Definition, error) {
+func Render(root string, atLogin bool) (Definition, error) { return RenderFor(root, Worker, atLogin) }
+
+func RenderFor(root, kind string, atLogin bool) (Definition, error) {
 	if runtime.GOOS == "linux" {
-		return renderLinux(root, atLogin)
+		return renderLinux(root, kind, atLogin)
 	}
-	label, path, domain, err := identity(root)
+	label, path, domain, err := identity(root, kind)
 	if err != nil {
 		return Definition{}, err
 	}
@@ -100,7 +111,7 @@ func Render(root string, atLogin bool) (Definition, error) {
 	var b bytes.Buffer
 	b.WriteString(xml.Header + `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">` + "\n<plist version=\"1.0\"><dict>\n")
 	fmt.Fprintf(&b, "<key>Label</key><string>%s</string>\n<key>ProgramArguments</key><array>", escaped(label))
-	for _, arg := range []string{executable, "--home", root, "worker"} {
+	for _, arg := range arguments(executable, root, kind) {
 		fmt.Fprintf(&b, "<string>%s</string>", escaped(arg))
 	}
 	b.WriteString("</array>\n<key>EnvironmentVariables</key><dict>")
@@ -120,22 +131,29 @@ func Render(root string, atLogin bool) (Definition, error) {
 	} else {
 		b.WriteString("<false/>")
 	}
-	b.WriteString("\n<key>KeepAlive</key><false/>\n<key>ProcessType</key><string>Background</string>\n</dict></plist>\n")
+	if kind == Chat {
+		fmt.Fprintf(&b, "\n<key>KeepAlive</key><dict><key>PathState</key><dict><key>%s</key><true/></dict></dict>\n", escaped(filepath.Join(root, EnabledPath)))
+	} else {
+		b.WriteString("\n<key>KeepAlive</key><false/>\n")
+	}
+	b.WriteString("<key>ProcessType</key><string>Background</string>\n</dict></plist>\n")
 	body := b.String()
-	return Definition{Label: label, Path: path, Domain: domain, Digest: files.Digest([]byte(body)), AtLogin: atLogin, Body: body}, nil
+	return Definition{Kind: kind, Label: label, Path: path, Domain: domain, Digest: files.Digest([]byte(body)), AtLogin: atLogin, Body: body}, nil
 }
 
 func hostEnvironmentKeys() []string {
 	return []string{"HOME", "PATH", "TMPDIR", "LANG", "LC_ALL", "CODEX_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", secrets.HelperEnv, secrets.KeyFileEnv, secrets.StoreDirectoryEnv}
 }
 
-func Install(root string, atLogin bool) (Definition, error) {
-	d, err := Render(root, atLogin)
+func Install(root string, atLogin bool) (Definition, error) { return InstallFor(root, Worker, atLogin) }
+
+func InstallFor(root, kind string, atLogin bool) (Definition, error) {
+	d, err := RenderFor(root, kind, atLogin)
 	if err != nil {
 		return d, err
 	}
 	// Reuse the reviewed definition on an interrupted installation.
-	if existing, e := Read(root); e == nil {
+	if existing, e := ReadFor(root, kind); e == nil {
 		if existing.AtLogin != atLogin {
 			return d, errors.New("service settings differ; remove the existing registration before changing login behavior")
 		}
@@ -143,9 +161,9 @@ func Install(root string, atLogin bool) (Definition, error) {
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return d, e
 	}
-	definitionPath := DefinitionPath
+	definitionPath := filepath.Join(directory(kind), "launch-agent.plist")
 	if runtime.GOOS == "linux" {
-		definitionPath = LinuxDefinitionPath
+		definitionPath = filepath.Join(directory(kind), "worker.service")
 	}
 	if err = files.Write(root, definitionPath, []byte(d.Body), true); err != nil {
 		return d, err
@@ -154,7 +172,7 @@ func Install(root string, atLogin bool) (Definition, error) {
 	if err != nil {
 		return d, err
 	}
-	if err = files.Write(root, RecordPath, b, true); err != nil {
+	if err = files.Write(root, filepath.Join(directory(kind), "registration.json"), b, true); err != nil {
 		return d, err
 	}
 	parent := filepath.Dir(d.Path)
@@ -187,20 +205,25 @@ func Install(root string, atLogin bool) (Definition, error) {
 	return d, err
 }
 
-func Read(root string) (Definition, error) {
+func Read(root string) (Definition, error) { return ReadFor(root, Worker) }
+
+func ReadFor(root, kind string) (Definition, error) {
 	var d Definition
-	b, err := files.Read(root, RecordPath, config.DefaultMaxArtifactBytes)
+	b, err := files.Read(root, filepath.Join(directory(kind), "registration.json"), config.DefaultMaxArtifactBytes)
 	if err != nil {
 		return d, err
 	}
 	if err = mail.Decode(b, &d); err != nil {
 		return d, err
 	}
-	label, path, domain, err := identity(root)
+	label, path, domain, err := identity(root, kind)
 	if err != nil {
 		return d, err
 	}
-	if d.Label != label || d.Path != path || d.Domain != domain || files.Digest([]byte(d.Body)) != d.Digest {
+	if d.Kind == "" {
+		d.Kind = Worker
+	}
+	if d.Kind != kind || d.Label != label || d.Path != path || d.Domain != domain || files.Digest([]byte(d.Body)) != d.Digest {
 		return d, errors.New("service registration does not match this root and user")
 	}
 	return d, nil
@@ -224,7 +247,11 @@ func (b *boundedOutput) Write(p []byte) (int, error) {
 }
 
 func Command(ctx context.Context, root, action string, timeout time.Duration) (Result, error) {
-	d, err := Read(root)
+	return CommandFor(ctx, root, Worker, action, timeout)
+}
+
+func CommandFor(ctx context.Context, root, kind, action string, timeout time.Duration) (Result, error) {
+	d, err := ReadFor(root, kind)
 	if err != nil {
 		return Result{}, err
 	}
@@ -258,6 +285,7 @@ func Command(ctx context.Context, root, action string, timeout time.Duration) (R
 	switch action {
 	case "status":
 		err = run("print", target)
+		result.Running = err == nil
 		// A launchctl exit code is returned explicitly, including not-loaded status.
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
@@ -268,11 +296,13 @@ func Command(ctx context.Context, root, action string, timeout time.Duration) (R
 		if e != nil {
 			return result, e
 		}
-		if c.Executor.Kind == "" || !filepath.IsAbs(c.Executor.Path) {
-			return result, errors.New("configure an absolute executor path before starting the service")
-		}
-		if _, e = exec.LookPath(c.Executor.Path); e != nil {
-			return result, e
+		if kind == Worker {
+			if c.Executor.Kind == "" || !filepath.IsAbs(c.Executor.Path) {
+				return result, errors.New("configure an absolute executor path before starting the service")
+			}
+			if _, e = exec.LookPath(c.Executor.Path); e != nil {
+				return result, e
+			}
 		}
 		digest, _, e := files.HashFile(filepath.Dir(d.Path), filepath.Base(d.Path), config.DefaultMaxArtifactBytes)
 		if e != nil {
@@ -296,16 +326,20 @@ func Command(ctx context.Context, root, action string, timeout time.Duration) (R
 }
 
 func Remove(ctx context.Context, root string, timeout time.Duration) (Definition, error) {
-	d, err := Read(root)
+	return RemoveFor(ctx, root, Worker, timeout)
+}
+
+func RemoveFor(ctx context.Context, root, kind string, timeout time.Duration) (Definition, error) {
+	d, err := ReadFor(root, kind)
 	if err != nil {
 		return d, err
 	}
-	status, err := Command(ctx, root, "status", timeout)
+	status, err := CommandFor(ctx, root, kind, "status", timeout)
 	if err != nil {
 		return d, err
 	}
-	if status.ExitCode == 0 {
-		if _, err = Command(ctx, root, "stop", timeout); err != nil {
+	if status.Running {
+		if _, err = CommandFor(ctx, root, kind, "stop", timeout); err != nil {
 			return d, err
 		}
 	}
@@ -328,5 +362,5 @@ func Remove(ctx context.Context, root string, timeout time.Duration) (Definition
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return d, err
 	}
-	return d, files.RemoveTree(root, "state/service")
+	return d, removeRegistration(root, kind)
 }

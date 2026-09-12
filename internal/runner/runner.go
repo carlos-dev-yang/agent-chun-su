@@ -16,6 +16,7 @@ import (
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/executor"
+	"chunsu/internal/features"
 	"chunsu/internal/feedback"
 	"chunsu/internal/files"
 	"chunsu/internal/gateway"
@@ -28,13 +29,14 @@ import (
 )
 
 type Runner struct {
-	Store     *store.Store
-	Config    config.Config
-	mu        sync.Mutex
-	active    string
-	cancel    context.CancelFunc
-	setupOnce sync.Once
-	setupHost *onboarding.Host
+	WorkerMode bool
+	Store      *store.Store
+	Config     config.Config
+	mu         sync.Mutex
+	active     string
+	cancel     context.CancelFunc
+	setupOnce  sync.Once
+	setupHost  *onboarding.Host
 }
 
 func (r *Runner) CloseSetup() {
@@ -57,6 +59,8 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		return r.setupHost.Handle(ctx, req)
 	}
 	switch req.Operation {
+	case "install_feature":
+		return features.Install(ctx, r.Store.Root, req.SourceName, r.Config)
 	case "revoke_access":
 		r.mu.Lock()
 		defer r.mu.Unlock()
@@ -152,7 +156,7 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		id := r.active
 		r.mu.Unlock()
 		paused, err := r.Store.Paused(ctx)
-		return map[string]any{"active_job": id, "owner": "controller", "queue_paused": paused}, err
+		return map[string]any{"active_job": id, "owner": "controller", "queue_paused": paused, "worker_running": r.WorkerMode}, err
 	case "pause", "unpause":
 		r.mu.Lock()
 		defer r.mu.Unlock()

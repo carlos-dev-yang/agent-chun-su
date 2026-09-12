@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"chunsu/internal/config"
-	"chunsu/internal/executor"
+	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
 	"chunsu/internal/platform"
 	"chunsu/internal/secrets"
@@ -22,32 +22,15 @@ import (
 func (o *options) telegram() *cobra.Command {
 	var tokenFile, apiBase string
 	var pairingTimeout time.Duration
+	var pairedOnly, pairOnly bool
 	cmd := &cobra.Command{Use: "telegram", Short: "Pair a private Telegram bot and chat through the configured executor", Args: cobra.NoArgs}
-	cmd.Flags().StringVar(&tokenFile, "token-file", "", "Read a private local token file instead of masked terminal input; first setup only")
-	cmd.Flags().StringVar(&apiBase, "api-base", telegram.DefaultAPIBase, "Telegram API base; first setup only")
-	cmd.Flags().DurationVar(&pairingTimeout, "pair-timeout", time.Duration(telegram.PairSeconds)*time.Second, "Time to enter the local pairing code in the bot DM")
-	cmd.AddCommand(&cobra.Command{Use: "status", Short: "Inspect saved Telegram binding without reading its token", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		root, e := o.path()
-		if e != nil {
-			return e
-		}
-		c, e := config.Load(root)
-		if e != nil {
-			return e
-		}
-		b, e := telegram.Load(root, c.Limits.MaxArtifactBytes)
-		if errors.Is(e, os.ErrNotExist) {
-			return output(cmd, map[string]any{"configured": false, "next": "chunsu telegram"})
-		}
-		if e != nil {
-			return e
-		}
-		offset, e := telegram.Offset(root, c.Limits.MaxArtifactBytes)
-		if e != nil {
-			return e
-		}
-		return output(cmd, map[string]any{"configured": true, "bot_username": b.Bot.Username, "paired": b.UserID > 0, "next_update": offset, "runtime": "not inferred; inspect the running telegram terminal"})
-	}})
+	cmd.PersistentFlags().StringVar(&tokenFile, "token-file", "", "Read a private local token file instead of masked terminal input; first setup only")
+	cmd.PersistentFlags().StringVar(&apiBase, "api-base", telegram.DefaultAPIBase, "Telegram API base; first setup only")
+	cmd.PersistentFlags().DurationVar(&pairingTimeout, "pair-timeout", time.Duration(telegram.PairSeconds)*time.Second, "Time to enter the local pairing code in the bot DM")
+	cmd.Flags().BoolVar(&pairedOnly, "paired-only", false, "Require a previously paired bot; never prompt")
+	_ = cmd.Flags().MarkHidden("paired-only")
+	cmd.AddCommand(o.telegramStatus())
+
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if pairingTimeout <= 0 {
 			return errors.New("pair timeout must be positive")
@@ -69,26 +52,22 @@ func (o *options) telegram() *cobra.Command {
 		if e != nil {
 			return e
 		}
-		selected := c.ExecutorFor(config.RoleReception)
-		if selected.Kind != "codex" || selected.Path == "" || selected.Model == "" {
-			return errors.New("먼저 대화 실행기의 kind/path/model을 설정해 주세요. chunsu config route reception으로 확인할 수 있습니다")
-		}
-		// Check before polling so incompatible installations do not consume DMs.
-		compatibility := executor.Inspect(cmd.Context(), config.RoleReception, root, selected, c.Limits)
-		if compatibility.Status != "prerequisites_match" {
-			return fmt.Errorf("Telegram 대화 실행기 확인 실패: %s", compatibility.Detail)
-		}
+		// AI compatibility is checked per turn; fixed commands remain available.
 		lock, e := telegram.Lock(cmd.Context(), root, c.Limits)
 		if e != nil {
 			return e
 		}
 		defer lock.Close()
-		keychain, e := secrets.Open()
-		if e != nil {
-			return e
-		}
+		var keychain secrets.Store
 		binding, e := telegram.Load(root, c.Limits.MaxArtifactBytes)
 		if errors.Is(e, os.ErrNotExist) {
+			keychain, e = secrets.Open()
+			if e != nil {
+				return e
+			}
+			if pairedOnly {
+				return errors.New("pair Telegram locally before enabling its service")
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), "춘수 전용 또는 다른 프로그램이 사용하지 않는 봇을 준비해 주세요. Telegram @BotFather에서 /newbot으로 만들 수 있습니다.")
 			var token string
 			if tokenFile != "" {
@@ -151,6 +130,21 @@ func (o *options) telegram() *cobra.Command {
 		} else if tokenFile != "" || cmd.Flags().Changed("api-base") {
 			return errors.New("기존 연결을 보존했습니다. 저장된 봇은 추가 token/api-base 인자 없이 실행해 주세요")
 		}
+		if binding.UserID > 0 {
+			if pairOnly {
+				return output(cmd, map[string]any{"paired": true, "bot_username": binding.Bot.Username})
+			}
+			return runPairedTelegram(cmd, root, c, binding)
+		}
+		if pairedOnly {
+			return errors.New("Telegram pairing is incomplete")
+		}
+		if keychain == nil {
+			keychain, e = secrets.Open()
+			if e != nil {
+				return e
+			}
+		}
 		token, e := keychain.Get(cmd.Context(), binding.TokenRef)
 		if e != nil {
 			return e
@@ -176,15 +170,103 @@ func (o *options) telegram() *cobra.Command {
 				return e
 			}
 		}
-		stop, e := startSetupHost(cmd.Context(), cmd, root, c)
-		if e != nil {
-			return e
+		if pairOnly {
+			return output(cmd, map[string]any{"paired": true, "bot_username": binding.Bot.Username})
 		}
-		defer stop()
-		fmt.Fprintln(cmd.OutOrStdout(), "Telegram @"+binding.Bot.Username+" 에서 대화할 수 있습니다. 본인 DM만 처리합니다. 종료: 이 터미널에서 Ctrl-C.")
-		return serveTelegram(cmd, root, c, binding, client)
+		return runPairedTelegram(cmd, root, c, binding)
 	}
+	pair := &cobra.Command{Use: "pair", Short: "Pair the bot locally without keeping a terminal receiver open", Args: cobra.NoArgs, RunE: func(child *cobra.Command, args []string) error {
+		pairOnly = true
+		defer func() { pairOnly = false }()
+		return cmd.RunE(child, args)
+	}}
+	cmd.AddCommand(pair)
+	o.addTelegramServiceCommands(cmd, func(child *cobra.Command) error { return pair.RunE(child, nil) })
 	return cmd
+}
+
+func runPairedTelegram(cmd *cobra.Command, root string, c config.Config, binding telegram.Binding) error {
+	reports := errorreport.New(root, c.Limits)
+	failures := 0
+	identity, err := platform.Identify(os.Getpid())
+	if err != nil {
+		return err
+	}
+	health := telegram.Health{Identity: identity, StartedAt: time.Now().UTC(), State: "connecting", Poll: "connecting"}
+	writeHealth := func() { health.UnpersistedErrors = reports.Unpersisted(); _ = telegram.WriteHealth(root, health) }
+	defer func() { health.State = "stopped"; writeHealth() }()
+	heartbeat := time.NewTicker(telegram.HealthInterval(c.Limits))
+	defer heartbeat.Stop()
+	for cmd.Context().Err() == nil {
+		health.State = "connecting"
+		writeHealth()
+		err := func() error {
+			keychain, err := secrets.Open()
+			if err != nil {
+				return err
+			}
+			token, err := keychain.Get(cmd.Context(), binding.TokenRef)
+			if err != nil {
+				return err
+			}
+			client, err := telegram.NewClient(binding.APIBase, token, c.Limits)
+			if err != nil {
+				return err
+			}
+			defer client.Close()
+			bot, err := client.Identity(cmd.Context())
+			if err != nil {
+				return err
+			}
+			if bot.ID != binding.Bot.ID {
+				return errors.New("stored token no longer identifies the paired bot")
+			}
+			if err = client.CheckPolling(cmd.Context()); err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Telegram @"+binding.Bot.Username+" 에서 대화할 수 있습니다. 접수 문구와 고정 관리 명령은 AI 준비 상태와 별개로 동작합니다.")
+			return serveTelegram(cmd, root, c, binding, client)
+		}()
+		if cmd.Context().Err() != nil {
+			return nil
+		}
+		code := "startup_failed"
+		if errors.Is(err, secrets.ErrMissing) || errors.Is(err, secrets.ErrUnavailable) {
+			code = "secret_unavailable"
+		}
+		if telegram.ErrorCode(err) != "poll_failed" {
+			code = telegram.ErrorCode(err)
+		}
+		id, _ := reports.Record(cmd.Context(), code, errorreport.Correlation{})
+		if failures == 0 {
+			fmt.Fprintln(cmd.ErrOrStderr(), "채팅 연결을 재시도합니다. chunsu errors로 확인하세요. 오류 ID:", id)
+		}
+		failures++
+		health.State = "retry_wait"
+		health.Poll = code
+		writeHealth()
+		timer := time.NewTimer(telegram.RetryDelay(err, failures, c.Limits))
+		waiting := true
+		for waiting {
+			select {
+			case <-cmd.Context().Done():
+				timer.Stop()
+				return nil
+			case <-timer.C:
+				waiting = false
+			case <-heartbeat.C:
+				_ = reports.Flush(cmd.Context())
+				writeHealth()
+			}
+		}
+		if current, e := config.Load(root); e == nil {
+			c = current
+		}
+		if current, e := telegram.Load(root, c.Limits.MaxArtifactBytes); e == nil && current.UserID > 0 {
+			binding = current
+		}
+	}
+	return nil
 }
 
 func pairTelegram(cmd *cobra.Command, root string, c config.Config, b telegram.Binding, client *telegram.Client, timeout time.Duration) (telegram.Binding, error) {

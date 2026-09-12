@@ -1,5 +1,8 @@
 # Telegram private chat v1
 
+Historical IN-05 baseline. The authorized [persistent chat extension](chat-operations-v1.md)
+supersedes the foreground-only lifecycle, fatal failure behavior and deferred recovery below.
+
 IN-05 implements the user's 2026-09-11 request to test Telegram as the chat entry.
 It is a foreground, local long-polling transport for the existing configured Codex
 conversation adapter. It does not change the report executor, DB schema, report

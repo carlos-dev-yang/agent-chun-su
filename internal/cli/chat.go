@@ -17,6 +17,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/control"
+	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
 	"chunsu/internal/gmail"
 	"chunsu/internal/onboarding"
@@ -89,7 +90,7 @@ func (o *options) setupTask(cancelTask bool) *cobra.Command {
 	}}
 }
 
-// setupServe is a host-only management process. It runs no AI jobs or schedules.
+// setupServe is a host-only management process. It reconciles interrupted jobs but starts no AI jobs or schedules.
 func (o *options) setupServe() *cobra.Command {
 	return &cobra.Command{Use: "serve", Short: "Run the local setup host until Ctrl-C; no AI executor required", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		s, c, closeStore, err := o.open(cmd.Context(), true)
@@ -97,6 +98,9 @@ func (o *options) setupServe() *cobra.Command {
 			return err
 		}
 		defer closeStore()
+		if _, err = runner.Recover(cmd.Context(), s, c); err != nil {
+			return err
+		}
 		r := &runner.Runner{Store: s, Config: c}
 		defer r.CloseSetup()
 		stopped := make(chan struct{})
@@ -146,9 +150,14 @@ func (o *options) chat() *cobra.Command {
 		defer cancel()
 		stopHost, err := startSetupHost(ctx, cmd, root, c)
 		if err != nil {
-			return err
+			_, _ = errorreport.New(root, c.Limits).Record(ctx, "host_failed", errorreport.Correlation{})
+			if guided {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "호스트 관리 연결이 준비되지 않았습니다. /status, /errors, /features는 사용할 수 있습니다.")
+		} else {
+			defer stopHost()
 		}
-		defer stopHost()
 		d := &setupDialogue{ctx: ctx, root: root, config: c, out: cmd.OutOrStdout(), noBrowser: noBrowser}
 		d.lines = readSetupLines(ctx, cmd.InOrStdin(), c.Limits.MaxSourceBytes)
 		initial := ""
@@ -172,53 +181,7 @@ func (o *options) chat() *cobra.Command {
 }
 
 func startSetupHost(ctx context.Context, cmd *cobra.Command, root string, c config.Config) (func(), error) {
-	check := func() (bool, error) {
-		_, handled, err := control.Call(ctx, root, time.Duration(c.Limits.LockWaitSeconds)*time.Second, c.Limits.MaxArtifactBytes, control.Request{Operation: "status"})
-		return handled, err
-	}
-	if handled, err := check(); handled || err != nil {
-		return func() {}, err
-	}
-	binary, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	child := exec.CommandContext(ctx, binary, "--home", root, "setup", "serve")
-	child.Stderr = cmd.ErrOrStderr()
-	child.Cancel = func() error { return child.Process.Signal(os.Interrupt) }
-	child.WaitDelay = time.Duration(gmail.DefaultHTTPTimeoutSeconds+c.Limits.LockWaitSeconds) * time.Second
-	if err = child.Start(); err != nil {
-		return nil, err
-	}
-	done := make(chan error, 1)
-	go func() { done <- child.Wait() }()
-	stop := func() { _ = child.Process.Signal(os.Interrupt); <-done }
-	timer := time.NewTimer(time.Duration(c.Limits.LockWaitSeconds) * time.Second)
-	defer timer.Stop()
-	ticker := time.NewTicker(setupStartupPoll)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-			stop()
-			return nil, errors.New("설정 프로세스에 연결하지 못했습니다. 같은 데이터 경로의 실행 상태를 확인하세요.")
-		case err := <-done:
-			if err == nil {
-				err = errors.New("설정 프로세스가 준비 전에 종료되었습니다")
-			}
-			return nil, err
-		case <-ticker.C:
-			if handled, err := check(); err != nil {
-				stop()
-				return nil, err
-			} else if handled {
-				return stop, nil
-			}
-		}
-	}
+	return startOwnedSetupHost(ctx, cmd, root, c, "")
 }
 
 type setupLine struct {

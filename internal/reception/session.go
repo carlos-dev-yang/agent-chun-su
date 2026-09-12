@@ -47,10 +47,16 @@ func Capabilities(channel string) []conversation.Capability {
 	allowed := []conversation.Capability{}
 	for _, capability := range conversation.Capabilities() {
 		if channel == Local {
+			if capability.Name == conversation.StartWorker || capability.Name == conversation.StopWorker {
+				continue
+			}
 			allowed = append(allowed, capability)
 		} else if channel == Telegram {
 			switch capability.Name {
-			case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs, conversation.DelegateJob:
+			case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs, conversation.DelegateJob,
+				conversation.ListErrors, conversation.AcknowledgeError, conversation.PauseQueue, conversation.ResumeQueue, conversation.CancelJob, conversation.RetryJob, conversation.ListFeatures, conversation.InstallFeature:
+				allowed = append(allowed, capability)
+			case conversation.StartWorker, conversation.StopWorker:
 				allowed = append(allowed, capability)
 			}
 		}
@@ -149,7 +155,7 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 			return errors.Join(ErrUncertain, err)
 		}
 		if actionErr != nil {
-			return actionErr
+			return &ActionError{Cause: actionErr}
 		}
 	}
 	return errors.New("이번 요청의 작업 처리 한도에 도달했습니다. 현재 결과를 바탕으로 이어서 요청할 수 있습니다.")

@@ -13,6 +13,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
+	"chunsu/internal/telegram"
 )
 
 const SystemctlName = "systemctl"
@@ -24,8 +25,8 @@ func unitValue(value string) string {
 	return strconv.Quote(strings.ReplaceAll(value, "%", "%%"))
 }
 
-func renderLinux(root string, atLogin bool) (Definition, error) {
-	label, path, domain, err := identity(root)
+func renderLinux(root, kind string, atLogin bool) (Definition, error) {
+	label, path, domain, err := identity(root, kind)
 	if err != nil {
 		return Definition{}, err
 	}
@@ -42,13 +43,28 @@ func renderLinux(root string, atLogin bool) (Definition, error) {
 		return Definition{}, err
 	}
 	var body strings.Builder
-	body.WriteString("[Unit]\nDescription=Chun-su agent controller\nAfter=network-online.target\n\n[Service]\nType=simple\nUMask=0077\nNoNewPrivileges=true\nKillMode=mixed\nRestart=no\n")
-	args := []string{executable, "--home", root, "worker"}
+	body.WriteString("[Unit]\nDescription=Chun-su agent service\nAfter=network-online.target\n")
+	if kind == Chat {
+		body.WriteString("StartLimitIntervalSec=0\n")
+	}
+	body.WriteString("\n[Service]\nType=simple\nUMask=0077\nNoNewPrivileges=true\nKillMode=mixed\n")
+	if kind == Chat {
+		// The wrapper exits successfully when explicit stop intent is present.
+		// on-failure restores crashes without looping after a stopped reboot.
+		fmt.Fprintf(&body, "Restart=on-failure\nRestartSec=%d\n", c.Limits.RetryDelaySeconds)
+	} else {
+		body.WriteString("Restart=no\n")
+	}
+	args := arguments(executable, root, kind)
 	quoted := []string{}
 	for _, arg := range args {
 		quoted = append(quoted, unitValue(strings.ReplaceAll(arg, "$", "$$")))
 	}
-	fmt.Fprintf(&body, "ExecStart=%s\nTimeoutStopSec=%d\n", strings.Join(quoted, " "), c.Limits.LockWaitSeconds+c.Limits.PollSeconds)
+	stopSeconds := c.Limits.LockWaitSeconds + c.Limits.PollSeconds
+	if kind == Chat {
+		stopSeconds = c.Limits.LockWaitSeconds*3 + telegram.HTTPGraceSeconds
+	}
+	fmt.Fprintf(&body, "ExecStart=%s\nTimeoutStopSec=%d\n", strings.Join(quoted, " "), stopSeconds)
 	for _, key := range hostEnvironmentKeys() {
 		if value := os.Getenv(key); value != "" {
 			fmt.Fprintf(&body, "Environment=%s\n", unitValue(key+"="+value))
@@ -56,7 +72,7 @@ func renderLinux(root string, atLogin bool) (Definition, error) {
 	}
 	body.WriteString("\n[Install]\nWantedBy=default.target\n")
 	text := body.String()
-	return Definition{Label: label, Path: path, Domain: domain, Digest: files.Digest([]byte(text)), AtLogin: atLogin, Body: text}, nil
+	return Definition{Kind: kind, Label: label, Path: path, Domain: domain, Digest: files.Digest([]byte(text)), AtLogin: atLogin, Body: text}, nil
 }
 
 func loginLink(d Definition, remove bool) error {
@@ -114,19 +130,29 @@ func systemdCommand(ctx context.Context, root, action string, timeout time.Durat
 		err = run("is-active", unit)
 		// Inactive is status, but a missing user manager is an operational error.
 		state := strings.TrimSpace(result.Output)
-		if (result.ExitCode == 3 || result.ExitCode == 4) && (state == "inactive" || state == "failed" || state == "unknown") {
-			err = nil
+		switch state {
+		case "active", "activating", "deactivating", "reloading", "refreshing", "maintenance":
+			result.Running = true
+			if result.ExitCode == 0 || result.ExitCode == 3 {
+				err = nil
+			}
+		case "inactive", "failed", "unknown":
+			if result.ExitCode == 3 || result.ExitCode == 4 {
+				err = nil
+			}
 		}
 	case "start":
 		c, e := config.Load(root)
 		if e != nil {
 			return result, e
 		}
-		if c.Executor.Kind == "" || !filepath.IsAbs(c.Executor.Path) {
-			return result, errors.New("configure an absolute executor path before starting the service")
-		}
-		if _, e = exec.LookPath(c.Executor.Path); e != nil {
-			return result, e
+		if d.Kind == Worker {
+			if c.Executor.Kind == "" || !filepath.IsAbs(c.Executor.Path) {
+				return result, errors.New("configure an absolute executor path before starting the service")
+			}
+			if _, e = exec.LookPath(c.Executor.Path); e != nil {
+				return result, e
+			}
 		}
 		digest, _, e := files.HashFile(filepath.Dir(d.Path), filepath.Base(d.Path), config.DefaultMaxArtifactBytes)
 		if e != nil {

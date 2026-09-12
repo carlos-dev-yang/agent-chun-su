@@ -100,7 +100,7 @@ func (o *options) worker() *cobra.Command {
 		if _, err = runner.Recover(cmd.Context(), s, c); err != nil {
 			return err
 		}
-		r := &runner.Runner{Store: s, Config: c}
+		r := &runner.Runner{Store: s, Config: c, WorkerMode: true}
 		defer r.CloseSetup()
 		server, err := control.Listen(cmd.Context(), s.Root, c.Limits.MaxArtifactBytes, time.Duration(c.Limits.LockWaitSeconds)*time.Second, r.Handle)
 		if err != nil {

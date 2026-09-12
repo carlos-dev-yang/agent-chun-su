@@ -9,18 +9,18 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
+	"chunsu/internal/errorreport"
 	"chunsu/internal/onboarding"
 	"chunsu/internal/reception"
+	"chunsu/internal/telegramchat"
 )
 
 var errReceptionSteered = errors.New("reception input changed")
 
 func (d *setupDialogue) runAI(initial string) error {
-	selected := d.config.ExecutorFor(config.RoleReception)
-	if selected.Kind == "" || selected.Path == "" || selected.Model == "" {
-		return errors.New("대화 실행기를 먼저 설정해 주세요. AI 없이 설정하려면 chat --guided를 사용할 수 있습니다.")
-	}
 	session := reception.New(d.root, d.config, reception.Local)
+	reports := errorreport.New(d.root, d.config.Limits)
+	aiBlocked := false
 	fmt.Fprintln(d.out, "춘수와 대화합니다. 할 일을 편하게 말씀해 주세요. 실행은 지원되는 작업으로 제한됩니다.")
 	fmt.Fprintln(d.out, "대화는 설정된 Codex로 전달됩니다. 비밀값은 입력하지 마세요. 취소: 현재 답변 중단, /새대화: 맥락 초기화, 종료: 끝내기.")
 	for {
@@ -37,6 +37,11 @@ func (d *setupDialogue) runAI(initial string) error {
 			}
 		}
 		if request == "/새대화" || request == "/reset" {
+			if err := session.Recover(d.ctx); err != nil {
+				fmt.Fprintln(d.out, "이전 실행 정리를 확인하지 못했습니다. /errors와 호스트 복구 상태를 확인해 주세요.")
+				continue
+			}
+			aiBlocked = false
 			session = reception.New(d.root, d.config, reception.Local)
 			fmt.Fprintln(d.out, "새 대화를 시작했습니다.")
 			continue
@@ -44,6 +49,24 @@ func (d *setupDialogue) runAI(initial string) error {
 		if strings.TrimSpace(request) == "" {
 			continue
 		}
+		if current, err := config.Load(d.root); err == nil {
+			d.config = current
+			session.Config = current
+		}
+		if response, handled, err := d.receptionHost().Command(d.ctx, reception.Local, request); handled {
+			if err != nil {
+				id, _ := reports.Record(d.ctx, "host_failed", errorreport.Correlation{SessionID: session.ID})
+				fmt.Fprintln(d.out, "내부 작업을 완료하지 못했습니다. /errors로 확인해 주세요. 오류 ID:", id)
+			} else {
+				fmt.Fprintln(d.out, response)
+			}
+			continue
+		}
+		if aiBlocked {
+			fmt.Fprintln(d.out, "AI 실행 정리가 필요합니다. /reset과 /errors로 복구 상태를 확인하세요. 고정 명령은 계속 사용할 수 있습니다.")
+			continue
+		}
+		fmt.Fprintln(d.out, telegramchat.Acknowledgment)
 		generate := func(ctx context.Context, directory string, prompt, schema, skill []byte) (reception.Generation, error) {
 			result, steering, err := d.generate(directory, prompt, schema, skill)
 			if steering != "" {
@@ -55,7 +78,6 @@ func (d *setupDialogue) runAI(initial string) error {
 		emit := func(event reception.Event) error {
 			switch event.Kind {
 			case "thinking":
-				fmt.Fprintln(d.out, "춘수가 생각하고 있습니다…")
 			case "reply":
 				fmt.Fprintln(d.out, "춘수:", event.Text)
 			case "action":
@@ -64,7 +86,7 @@ func (d *setupDialogue) runAI(initial string) error {
 			return nil
 		}
 		err := session.Turn(d.ctx, request, d.receptionHost(), generate, emit)
-		if errors.Is(err, reception.ErrUncertain) || errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 			return err
 		}
 		if errors.Is(err, errReceptionSteered) {
@@ -74,7 +96,13 @@ func (d *setupDialogue) runAI(initial string) error {
 			session.History = append(session.History, conversation.Event{Role: "host", Content: "사용자가 답변을 취소했습니다. 미완료 작업을 자동 재실행하지 마세요."})
 			fmt.Fprintln(d.out, "답변을 중단했습니다.")
 		} else if err != nil {
-			fmt.Fprintln(d.out, err)
+			code := reception.ErrorCode(err, d.config)
+			if errors.Is(err, reception.ErrUncertain) {
+				code = "execution_uncertain"
+				aiBlocked = session.Recover(d.ctx) != nil
+			}
+			id, _ := reports.Record(d.ctx, code, errorreport.Correlation{SessionID: session.ID})
+			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
 		}
 	}
 }

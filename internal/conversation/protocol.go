@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"chunsu/internal/features"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
 	"chunsu/internal/onboarding"
@@ -21,6 +22,16 @@ const GmailSetup = "gmail_setup"
 const ListJobs = "list_jobs"
 const ShowReport = "show_report"
 const DelegateJob = "delegate_job"
+const ListErrors = "list_errors"
+const AcknowledgeError = "acknowledge_error"
+const PauseQueue = "pause_queue"
+const ResumeQueue = "resume_queue"
+const CancelJob = "cancel_job"
+const RetryJob = "retry_job"
+const ListFeatures = "list_features"
+const InstallFeature = "install_feature"
+const StartWorker = "start_worker"
+const StopWorker = "stop_worker"
 
 type Capability struct {
 	Name        string `json:"name"`
@@ -31,6 +42,16 @@ type Capability struct {
 
 func Capabilities() []Capability {
 	return []Capability{
+		{StartWorker, "사용자가 요청하면 채팅이 소유한 내부 worker의 지속 실행을 요청한다. 큐 중지와 자료 접근 권한은 보존한다. 외부 worker는 그대로 둔다.", false, false},
+		{StopWorker, "사용자가 요청하면 채팅이 소유한 내부 worker를 중지한다. 진행 중 실행은 중단될 수 있으며 대화와 관리 명령은 유지한다.", false, false},
+		{ListErrors, "누적 운영 오류와 복구 안내를 조회한다. 원문과 비밀값은 포함하지 않는다.", false, false},
+		{AcknowledgeError, "사용자가 검토한 오류 ID의 현재 발생분을 확인 처리한다. 기록을 삭제하거나 해결됐다고 주장하지 않는다.", false, true},
+		{PauseQueue, "사용자 요청에 따라 새 업무 실행을 일시 중지한다. 진행 중 업무와 채팅은 유지한다.", false, false},
+		{ResumeQueue, "사용자가 요청하면 업무 큐를 재개한다. 계정·자료 권한을 변경하지 않는다.", false, false},
+		{CancelJob, "사용자가 취소를 요청한 작업 ID를 취소한다.", false, true},
+		{RetryJob, "사용자가 재시도를 명시한 실패 작업 ID를 기존 재시도 규칙으로 다시 접수한다. 불명확한 작업을 자동 재시도하지 않는다.", false, true},
+		{ListFeatures, "설치 가능한 내장 업무 모듈과 설정 안내를 구분해 조회한다.", false, false},
+		{InstallFeature, "사용자가 선택한 기능 ID를 service에 넣어 내장 업무 모듈 또는 안내 자료를 설치한다. 기존 활성 기준과 권한은 보존한다.", true, false},
 		{None, "사용자에게 답변만 한다. 텍스트 초안·설명·추가 질문 가능.", false, false},
 		{RuntimeStatus, "현재 춘수 실행 상태를 조회한다. 계정과 메일을 조회하지 않는다.", false, false},
 		{ReadGuide, "선택 서비스의 번들 설치 매뉴얼을 읽는다. 설치하거나 계정에 접속하지 않는다.", true, false},
@@ -78,6 +99,10 @@ func Validate(reply Reply) error {
 				return errors.New("unexpected chat service")
 			}
 			return nil
+		}
+		if reply.Action.Name == InstallFeature {
+			_, err := features.Lookup(reply.Action.Service)
+			return err
 		}
 		services, err := onboarding.Services()
 		if err != nil {

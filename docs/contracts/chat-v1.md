@@ -1,5 +1,9 @@
 # Natural chat v1
 
+The [persistent chat extension](chat-operations-v1.md) adds fixed management
+commands, error reporting, supported feature installation and selected-process recovery.
+Its behavior supersedes the fatal error and deferred recovery statements below.
+
 Approved on 2026-09-11: converse freely through the configured AI executor and
 restrict executable actions in the host. This adds a terminal conversation client;
 this terminal contract adds no public chat server or DB migration. The subsequent

@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -25,6 +27,56 @@ const HTTPGraceSeconds = 10
 const UpdateLimit = 50
 const MessageUnits = 4000
 const MaxReplyUnits = MessageUnits * 3
+const MinSendInterval = time.Second
+
+// APIError deliberately excludes Telegram descriptions and request URLs: both
+// can contain private data. Only polling may automatically retry these errors.
+type APIError struct {
+	Status     int
+	Code       int
+	RetryAfter time.Duration
+}
+
+func (e *APIError) Error() string {
+	if e.Code == http.StatusConflict {
+		return "Telegram webhook or concurrent polling conflict; existing receiver configuration was preserved"
+	}
+	return fmt.Sprintf("Telegram request rejected (HTTP %d, code %d)", e.Status, e.Code)
+}
+func ErrorCode(err error) string {
+	var api *APIError
+	if errors.As(err, &api) {
+		switch api.Code {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return "authentication_failed"
+		case http.StatusConflict:
+			return "poll_conflict"
+		}
+	}
+	return "poll_failed"
+}
+
+// RetryDelay backs off failed reads, with a configurable ceiling. Telegram's
+// explicit flood-control delay takes precedence over that local ceiling.
+func RetryDelay(err error, failures int, limits config.Limits) time.Duration {
+	delay := time.Duration(limits.PollSeconds) * time.Second
+	ceiling := time.Duration(limits.RetryDelaySeconds) * time.Second
+	if ceiling < delay {
+		ceiling = delay
+	}
+	for i := 1; i < failures && delay < ceiling; i++ {
+		if delay > ceiling/2 {
+			delay = ceiling
+		} else {
+			delay *= 2
+		}
+	}
+	var api *APIError
+	if errors.As(err, &api) && api.RetryAfter > delay {
+		delay = api.RetryAfter
+	}
+	return delay
+}
 
 type User struct {
 	ID       int64  `json:"id"`
@@ -55,6 +107,8 @@ type Client struct {
 	base, token string
 	http        *http.Client
 	limit       int64
+	sendMu      sync.Mutex
+	nextSend    time.Time
 }
 
 func NewClient(base, token string, limits config.Limits) (*Client, error) {
@@ -103,15 +157,23 @@ func (c *Client) call(ctx context.Context, method string, input, output any) err
 		return errors.New("Telegram response unavailable or too large")
 	}
 	var envelope struct {
-		OK     bool            `json:"ok"`
-		Result json.RawMessage `json:"result"`
-		Code   int             `json:"error_code"`
+		OK         bool            `json:"ok"`
+		Result     json.RawMessage `json:"result"`
+		Code       int             `json:"error_code"`
+		Parameters struct {
+			RetryAfter int64 `json:"retry_after"`
+		} `json:"parameters"`
 	}
 	if json.Unmarshal(raw, &envelope) != nil {
 		return errors.New("invalid Telegram response")
 	}
 	if response.StatusCode != http.StatusOK || !envelope.OK {
-		return fmt.Errorf("Telegram %s rejected (HTTP %d, code %d); inspect token, webhook/polling conflict or rate limit", method, response.StatusCode, envelope.Code)
+		code := envelope.Code
+		if code == 0 {
+			code = response.StatusCode
+		}
+		retry := min(max(envelope.Parameters.RetryAfter, 0), math.MaxInt64/int64(time.Second))
+		return &APIError{Status: response.StatusCode, Code: code, RetryAfter: time.Duration(retry) * time.Second}
 	}
 	if e = json.Unmarshal(envelope.Result, output); e != nil {
 		return errors.New("invalid Telegram result")
@@ -134,7 +196,7 @@ func (c *Client) CheckPolling(ctx context.Context) error {
 		return e
 	}
 	if r.URL != "" {
-		return errors.New("this bot already uses a webhook; it was preserved; use a dedicated bot or review the existing receiver")
+		return &APIError{Status: http.StatusConflict, Code: http.StatusConflict}
 	}
 	return nil
 }
@@ -144,6 +206,8 @@ func (c *Client) Updates(ctx context.Context, offset int64) ([]Update, error) {
 	return r, e
 }
 func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, error) {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
 	if chatID <= 0 {
 		return nil, errors.New("a paired private chat is required")
 	}
@@ -158,13 +222,30 @@ func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, 
 	}
 	var ids []int64
 	for len(units) > 0 {
+		if delay := time.Until(c.nextSend); delay > 0 {
+			if delay > time.Duration(HTTPGraceSeconds)*time.Second {
+				return ids, &APIError{Status: http.StatusTooManyRequests, Code: http.StatusTooManyRequests, RetryAfter: delay}
+			}
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ids, ctx.Err()
+			case <-timer.C:
+			}
+		}
 		n := min(MessageUnits, len(units))
 		if n < len(units) && units[n-1] >= 0xD800 && units[n-1] <= 0xDBFF {
 			n--
 		}
 		var result Message
 		e := c.call(ctx, "sendMessage", map[string]any{"chat_id": chatID, "text": string(utf16.Decode(units[:n])), "link_preview_options": map[string]bool{"is_disabled": true}}, &result)
+		c.nextSend = time.Now().Add(MinSendInterval)
 		if e != nil {
+			var api *APIError
+			if errors.As(e, &api) && api.RetryAfter > MinSendInterval {
+				c.nextSend = time.Now().Add(api.RetryAfter)
+			}
 			return ids, e
 		}
 		if result.ID <= 0 || result.Chat.ID != chatID {

@@ -37,7 +37,7 @@ run its installer as the intended OS user:
 The installer verifies checksums and the host OS/architecture. It installs into
 `$HOME/.local/bin` by default; `--prefix ABSOLUTE_DIRECTORY` selects another
 prefix. Ensure its bin directory is on PATH. It preserves application data and
-does not install or start a service. The runtime needs no Go compiler, Python
+starts no service unless `--enable-telegram` is explicitly selected. The runtime needs no Go compiler, Python
 or SQLite CLI. The AI driver remains a separate prerequisite.
 
 ```sh
@@ -93,7 +93,22 @@ requires that device identity. Installing on a VPC/EC2 host supplies a network
 location; the configured user/service identity and permitted model route still
 determine access and disclosure.
 
-## Run and manage a service
+## Persistent chat on the installed host
+
+After the OS user manager and approved credential helper are ready, use
+`chunsu telegram enable`. It pairs locally if needed, registers the chat supervisor
+and starts it. For a combined install/connection step use
+`./install.sh --with-secret-store --enable-telegram`. The same command works on
+an EC2 host with the required outbound network and user-manager configuration;
+no public inbound port is opened. Local macOS uses Keychain by default.
+
+Use `telegram status` and `errors` through SSH when Telegram is unavailable.
+`telegram stop` saves explicit stop intent; `telegram start` enables it again.
+Inside the paired DM, `/worker start` starts the owned task worker while `/pause`,
+`/cancel ID`, `/errors` and `/install FEATURE_ID` remain fixed host operations.
+See [the complete chat flow](TELEGRAM.md) for supported features and recovery limits.
+
+## Run and manage a worker service
 
 Foreground execution works without a service manager:
 

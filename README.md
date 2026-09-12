@@ -22,7 +22,7 @@ with explicit Skills and independent evaluation; human usefulness and recurring
 activation remain pending. See [service connection preparation](docs/setup/INTEGRATIONS.md)
 for the six-service setup manuals and offline guided planner. Of those six,
 Gmail has a native reading connector; Telegram now has a private chat transport
-with the live bot pilot pending.
+with supervised operation and fixed management commands independent of AI readiness.
 
 Start natural AI chat with `bin/chunsu chat` or `bin/chunsu chat '회의 준비 도와줘'`.
 It uses the configured Codex executor and maintains conversation context. The model
@@ -36,11 +36,15 @@ other four still install local guidance only. See the
 [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
 [chat contract](docs/contracts/chat-v1.md).
 
-Use `bin/chunsu telegram` to enter a bot token locally, pair your own DM, and chat
-through the same Codex executor. No public webhook server is required. Other users,
+Use `bin/chunsu telegram enable` to pair locally and keep chat running under the OS
+user service manager. `telegram status` distinguishes pairing from a live receiver.
+A short acknowledgment precedes AI; `/errors`, `/status`, `/features`, `/install`,
+queue controls and `/worker start` remain available without a working LLM.
+Use `bin/chunsu telegram` for foreground operation. No public webhook server is required. Other users,
 groups and local-only auth/report actions are excluded. See
 [Telegram setup](docs/setup/TELEGRAM.md) and the
-[verification record](docs/validation/TELEGRAM_CHAT_2026-09-11.md).
+[persistent chat contract](docs/contracts/chat-operations-v1.md) and
+[operations goal](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md).
 
 ## Development
 

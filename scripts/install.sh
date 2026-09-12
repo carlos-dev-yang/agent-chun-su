@@ -4,11 +4,13 @@ set -eu
 package_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 install_prefix=${HOME:?}/.local
 include_secret_store=false
+enable_telegram=false
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --prefix) install_prefix=${2:?provide an installation prefix}; shift 2 ;;
     --with-secret-store) include_secret_store=true; shift ;;
-    *) echo 'Usage: install.sh [--prefix DIRECTORY] [--with-secret-store]' >&2; exit 2 ;;
+    --enable-telegram) enable_telegram=true; shift ;;
+    *) echo 'Usage: install.sh [--prefix DIRECTORY] [--with-secret-store] [--enable-telegram]' >&2; exit 2 ;;
   esac
 done
 case "$install_prefix" in /*) ;; *) echo 'Installation prefix must be absolute.' >&2; exit 2 ;; esac
@@ -36,3 +38,10 @@ for install_binary in chunsu chunsu-secret-store; do
   trap - EXIT HUP INT TERM
 done
 printf 'Installed in %s/bin. Existing data and service registrations were preserved.\n' "$install_prefix"
+if [ "$enable_telegram" = true ]; then
+  "$install_prefix/bin/chunsu" setup
+  "$install_prefix/bin/chunsu" telegram enable
+  "$install_prefix/bin/chunsu" telegram status
+else
+  printf 'For persistent chat: %s/bin/chunsu telegram enable\n' "$install_prefix"
+fi

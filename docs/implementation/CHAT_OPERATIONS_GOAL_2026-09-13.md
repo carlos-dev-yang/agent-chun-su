@@ -11,10 +11,10 @@ explicitly stopped, and simple local/server installation.
 |---|---|---|---|
 | CHAT-00 | Record the authorized direction and preserve existing work | Baseline captured; work units and limits recorded | complete |
 | CHAT-01 | Structured, bounded error accumulation and reports | CLI walkthrough retained `model_failed`, reloaded it, acknowledged it without deletion, and found no request text in reports | complete |
-| CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | A short receipt precedes AI; network/model/send failures preserve state without killing intake or replaying uncertain actions | in_progress |
-| CHAT-03 | Process supervision, health and explicit stop | Abnormal exit/stall is detected and restarted; an explicit stop remains stopped; macOS/Linux service definitions are verified | pending |
-| CHAT-04 | Chat operations and supported feature setup | Status/errors/jobs/pause/cancel/features/install remain usable without a working LLM; natural chat reuses typed host actions | pending |
-| CHAT-05 | Simple installation and repair flow | Existing pairing reused; one guided enable path; external-host instructions distinguish installation, authentication and service readiness | pending |
+| CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | Live Codex acknowledgment/context/cancel passed; broken-AI and unconfirmed-send flows passed; Linux API disconnect/reconnect preserved intake and replied after recovery | complete |
+| CHAT-03 | Process supervision, health and explicit stop | macOS exit/stall recovery passed; Linux exit recovery passed and restart/stop transition correction is under final verification | in_progress |
+| CHAT-04 | Chat operations and supported feature setup | Fixed commands, workflow installation, queue controls and owned worker start/stop passed with a broken AI executable | complete |
+| CHAT-05 | Simple installation and repair flow | Pair/enable/check/lifecycle commands and installer opt-in implemented; candidate packaging pending | in_progress |
 | CHAT-06 | Integration and handoff | Relevant existing checks and actual failure/recovery walkthroughs; local commits; actual vs unperformed platform/live checks recorded | pending |
 
 The OS service manager supervises a small chat supervisor. The receiver owns
@@ -74,3 +74,36 @@ No new test source files were added.
 The pre-existing compatibility changes were independently committed as
 `a421c19` before this goal's planning commit. Their reception compatibility policy
 is preserved while prerequisite checks move to per-turn AI admission.
+
+## Current integration boundary
+
+The existing bot receiver remains running on the earlier binary. macOS now
+rejects new Keychain writes (`errSecAuthFailed`) and the read-only `telegram check`
+also rejected access to the existing token (`security exit 51`). No token was
+extracted, copied from process memory, logged or bypassed. The user has been
+asked to restore OS Keychain access before the live supervisor handoff. This is
+a deployment prerequisite, not a reason to stop implementing independent units.
+
+Linux boot validation exposed an `activating/auto-restart` loop after explicit
+stop and removal rejected that transition. The implementation now uses
+`Restart=on-failure`, treats activation/deactivation as service states and stops
+them explicitly. Corrected native validation is required before closing CHAT-03.
+
+## CHAT-02 / CHAT-04 evidence
+
+The existing Telegram walkthrough used the actual macOS reception Codex route:
+short receipt before AI, multi-turn context, host guide installation/status,
+unauthorized sender rejection, duplicate suppression and cancellation passed.
+A separate walkthrough with a deliberately unusable AI executable kept error
+lookup, built-in workflow installation, pause/resume, owned worker start and
+owned worker stop available. An unconfirmed send was retained exactly once and
+the receiver stayed alive. The workflow's existing active selection was reused.
+
+A Linux arm64 walkthrough used the existing local Bot API fixture and an isolated
+encrypted fixture credential store. Stopping the API server retained a
+`poll_failed` report without exiting the receiver; restarting it on the same
+address delivered a subsequent `/help` response. No live company/source input
+or real bot token was used. New test source files were not added.
+
+Related existing runner/feedback tests passed. The reception, transport,
+service, supervisor and CLI packages compiled and passed `go vet`.

@@ -30,6 +30,12 @@ type Diagnostic struct {
 }
 
 var catalog = map[string]Diagnostic{
+	"supervisor_recovered":    {"supervisor", "중단된 채팅 감독 프로세스 복구", "OS 서비스 관리자가 감독 프로세스를 다시 시작했습니다. 이전 수신기와 작업을 확인하고 재연결합니다."},
+	"supervisor_interrupted":  {"supervisor", "실행 의도가 켜진 상태에서 감독 프로세스 종료 신호 수신", "OS 서비스 관리자가 복구합니다. 지속 중지는 chunsu telegram stop을 사용하세요."},
+	"model_timeout":           {"reception", "AI 응답 제한 시간 초과", "현재 요청을 중단했습니다. /reset으로 맥락을 정리하거나 요청을 작게 나누어 보내세요."},
+	"model_not_configured":    {"reception", "대화 AI 실행기 설정 누락", "호스트에서 chunsu config route reception과 chunsu doctor를 확인하세요. 고정 명령은 계속 사용할 수 있습니다."},
+	"model_compatibility":     {"reception", "대화 AI 버전 또는 모델 호환성 불일치", "호스트의 chunsu doctor에서 대화 경로의 지원 버전을 확인하고 실행기를 설정하세요."},
+	"secret_unavailable":      {"chat", "채팅 비밀 저장소 또는 봇 토큰 이용 불가", "호스트의 Keychain 또는 CHUNSU_SECRET_HELPER 설정과 저장된 봇 토큰을 복구하세요. 토큰을 채팅에 보내지 마세요."},
 	"poll_failed":             {"telegram", "메시지 수신 연결 실패", "저장된 수신 위치에서 자동 재연결합니다. 반복되면 호스트 네트워크를 확인하세요."},
 	"authentication_failed":   {"telegram", "Telegram 인증 또는 접근 거부", "수신 재시도는 유지됩니다. 호스트에서 봇 토큰과 접근 권한을 복구하세요."},
 	"poll_conflict":           {"telegram", "다른 수신기 또는 웹훅과 충돌", "같은 봇을 사용하는 다른 수신기나 웹훅을 확인하세요. 기존 웹훅은 자동 삭제하지 않습니다."},
@@ -72,6 +78,7 @@ type Report struct {
 	FirstAt      time.Time    `json:"first_at"`
 	LastAt       time.Time    `json:"last_at"`
 	Recent       []Occurrence `json:"recent"`
+	Storage      string       `json:"storage,omitempty"`
 }
 
 func ID(code string) string { return files.Digest([]byte("chunsu-error:" + code)) }
@@ -163,10 +170,12 @@ func (r *Recorder) flush(ctx context.Context) error {
 		return err
 	}
 	defer l.Close()
+	var failures []error
 	for code, p := range r.pending {
 		old, err := read(r.Root, code, r.Limits)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
+			failures = append(failures, err)
+			continue
 		}
 		if err == nil {
 			p.FirstAt = old.FirstAt
@@ -179,14 +188,16 @@ func (r *Recorder) flush(ctx context.Context) error {
 			return err
 		}
 		if int64(len(data)) > r.Limits.MaxArtifactBytes {
-			return errors.New("error report exceeds configured artifact limit")
+			failures = append(failures, errors.New("error report exceeds configured artifact limit"))
+			continue
 		}
 		if err = files.Write(r.Root, filepath.Join(Directory, code+".json"), append(data, '\n'), true); err != nil {
-			return err
+			failures = append(failures, err)
+			continue
 		}
 		delete(r.pending, code)
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func read(root, code string, limits config.Limits) (Report, error) {
@@ -212,6 +223,7 @@ func read(root, code string, limits config.Limits) (Report, error) {
 	}
 	// Text is always regenerated from the trusted catalog, never echoed from disk.
 	p.Diagnostic = catalog[code]
+	p.Storage = "retained"
 	p.Recent = recent(p.Recent, limits.MaxMessages)
 	return p, nil
 }
@@ -224,7 +236,8 @@ func List(root string, limits config.Limits) ([]Report, error) {
 			continue
 		}
 		if err != nil {
-			return nil, err
+			// Preserve a damaged group while keeping other reports inspectable.
+			p = Report{Version: Version, ID: ID(code), Code: code, Storage: "unreadable", Diagnostic: Diagnostic{Component: "error_store", Summary: "오류 기록을 읽을 수 없습니다: " + code, Recovery: "호스트의 오류 기록 파일·권한·저장 공간을 확인하세요. 해당 파일은 덮어쓰지 않았습니다."}}
 		}
 		reports = append(reports, p)
 	}

@@ -89,22 +89,46 @@ func Advance(root string, id int64) error {
 }
 
 type Receipt struct {
-	UpdateID    int64   `json:"update_id"`
-	State       string  `json:"state"`
-	InputDigest string  `json:"input_digest,omitempty"`
-	ReplyDigest string  `json:"reply_digest,omitempty"`
-	MessageIDs  []int64 `json:"message_ids,omitempty"`
+	UpdateID       int64     `json:"update_id"`
+	State          string    `json:"state"`
+	At             time.Time `json:"at,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	Acknowledgment string    `json:"acknowledgment,omitempty"`
+	AckMessageIDs  []int64   `json:"ack_message_ids,omitempty"`
+	ErrorID        string    `json:"error_id,omitempty"`
+	InputDigest    string    `json:"input_digest,omitempty"`
+	ReplyDigest    string    `json:"reply_digest,omitempty"`
+	MessageIDs     []int64   `json:"message_ids,omitempty"`
 }
 
 func Record(root string, r Receipt, replace bool) error {
 	if r.UpdateID < 0 {
 		return errors.New("invalid update ID")
 	}
+	r.At = time.Now().UTC()
 	raw, e := json.Marshal(r)
 	if e != nil {
 		return e
 	}
 	return files.Write(Directory(root), filepath.Join("receipts", ReceiptName(r.UpdateID)), raw, replace)
+}
+
+func ReadReceipt(root string, id int64, limit int64) (Receipt, error) {
+	var receipt Receipt
+	if id < 0 {
+		return receipt, errors.New("invalid update ID")
+	}
+	raw, err := files.Read(Directory(root), filepath.Join("receipts", ReceiptName(id)), limit)
+	if err != nil {
+		return receipt, err
+	}
+	if err = mail.Decode(raw, &receipt); err != nil {
+		return receipt, err
+	}
+	if receipt.UpdateID != id {
+		return receipt, errors.New("receipt identity mismatch")
+	}
+	return receipt, nil
 }
 
 func ReceiptName(id int64) string { return strconv.FormatInt(id, 10) + ".json" }
