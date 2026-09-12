@@ -10,8 +10,8 @@ explicitly stopped, and simple local/server installation.
 | Unit | Work | Completion evidence | Status |
 |---|---|---|---|
 | CHAT-00 | Record the authorized direction and preserve existing work | Baseline captured; work units and limits recorded | complete |
-| CHAT-01 | Structured, bounded error accumulation and reports | Failures remain inspectable after restart; reports omit secrets and message bodies | in_progress |
-| CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | A short receipt precedes AI; network/model/send failures preserve state without killing intake or replaying uncertain actions | pending |
+| CHAT-01 | Structured, bounded error accumulation and reports | CLI walkthrough retained `model_failed`, reloaded it, acknowledged it without deletion, and found no request text in reports | complete |
+| CHAT-02 | Acknowledgment, resilient intake and mechanical fallback | A short receipt precedes AI; network/model/send failures preserve state without killing intake or replaying uncertain actions | in_progress |
 | CHAT-03 | Process supervision, health and explicit stop | Abnormal exit/stall is detected and restarted; an explicit stop remains stopped; macOS/Linux service definitions are verified | pending |
 | CHAT-04 | Chat operations and supported feature setup | Status/errors/jobs/pause/cancel/features/install remain usable without a working LLM; natural chat reuses typed host actions | pending |
 | CHAT-05 | Simple installation and repair flow | Existing pairing reused; one guided enable path; external-host instructions distinguish installation, authentication and service readiness | pending |
@@ -58,3 +58,19 @@ manage the job worker without automatic restart; they do not supervise Telegram.
 The reception layer already provides typed actions and in-memory context, but
 transport failures currently terminate its receiver. This goal supersedes those
 foreground-only/recovery deferrals within the supported private-chat scope.
+
+## CHAT-01 evidence
+
+`go test ./internal/errorreport ./internal/cli` compiled the affected packages
+(they contain no test files). A direct CLI walkthrough with an unconfigured AI
+executor produced a retained `model_failed` report; a fresh CLI invocation read
+it and `errors ack ID` retained history while acknowledging the occurrence.
+The private error JSON did not contain the submitted message. Known diagnostics
+are grouped by catalog code, with cumulative counts and a recent occurrence
+limit from configuration. Temporary storage failures remain in a bounded
+in-memory aggregate and are exposed as unpersisted counts in chat health.
+No new test source files were added.
+
+The pre-existing compatibility changes were independently committed as
+`a421c19` before this goal's planning commit. Their reception compatibility policy
+is preserved while prerequisite checks move to per-turn AI admission.

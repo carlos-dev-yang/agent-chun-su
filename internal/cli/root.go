@@ -44,7 +44,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.schedule(), o.queueControl("pause"), o.queueControl("unpause"), o.queueControl("status"))
 	root.AddCommand(o.retention(), o.service())
 	root.AddCommand(o.chat(), o.telegram())
-	root.AddCommand(o.access())
+	root.AddCommand(o.access(), o.errors())
 	return root
 }
 
