@@ -6,6 +6,12 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+On 2026-09-13 the user authorized the [persistent chat operations goal](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md):
+short pre-AI acknowledgments, accumulated error reporting, mechanical management
+fallbacks, supported feature setup, supervised recovery until explicit stop and
+simple local/server enablement. It preserves human-owned controls and uncertain
+delivery/action boundaries while replacing the foreground-only chat lifecycle.
+
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review
 of accumulated results, separate reception and task agents, replaceable execution
