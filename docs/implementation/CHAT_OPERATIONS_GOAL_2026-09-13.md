@@ -1,6 +1,6 @@
 # Persistent chat operations goal — 2026-09-13
 
-Status: active. The user explicitly requested short mechanical acknowledgments,
+Status: blocked on live handoff pending OS Keychain access. The user explicitly requested short mechanical acknowledgments,
 accumulated internal error reports, chat-based management and supported feature
 installation, recovery from channel/process failures, supervised operation until
 explicitly stopped, and simple local/server installation.
@@ -15,7 +15,7 @@ explicitly stopped, and simple local/server installation.
 | CHAT-03 | Process supervision, health and explicit stop | macOS exit/stall recovery; Linux exit/SIGTERM recovery, explicit stop, reboot staying OS-inactive and removal passed | complete |
 | CHAT-04 | Chat operations and supported feature setup | Fixed commands, workflow installation, queue controls and owned worker start/stop passed with a broken AI executable | complete |
 | CHAT-05 | Simple installation and repair flow | Clean-revision packages for macOS arm64/Linux arm64/amd64; installed macOS/Linux arm64 and verified linked guides and checksums | complete |
-| CHAT-06 | Integration and handoff | Implementation, native checks and packages complete; existing bot supervisor handoff awaits OS Keychain access | in_progress |
+| CHAT-06 | Integration and handoff | Implementation, native checks and packages complete; existing bot supervisor handoff awaits OS Keychain access | blocked |
 
 The OS service manager supervises a small chat supervisor. The receiver owns
 transport retries and durable per-message receipts; a failed AI turn cannot stop
@@ -87,7 +87,7 @@ a deployment prerequisite, not a reason to stop implementing independent units.
 Linux boot validation exposed an `activating/auto-restart` loop after explicit
 stop and removal rejected that transition. The implementation now uses
 `Restart=on-failure`, treats activation/deactivation as service states and stops
-them explicitly. Corrected native validation is required before closing CHAT-03.
+them explicitly. The corrected native validation passed; see CHAT-03 below.
 
 ## CHAT-02 / CHAT-04 evidence
 

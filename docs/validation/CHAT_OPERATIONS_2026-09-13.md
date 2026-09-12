@@ -66,6 +66,12 @@ existing foreground receiver, run `bin/chunsu telegram enable`, then verify
 DM from the paired user should receive the acknowledgment and AI response.
 This live handoff and the new receiver's real Telegram delivery remain pending.
 
+The same Keychain prerequisite remained unresolved through the original goal
+turn and two consecutive continuations. Read-only process/status checks still
+found the legacy receiver alive and the new supervisor disabled. With independent
+implementation and validation finished, the goal is blocked pending the user's
+OS access recovery; it is not complete. No further credential access was retried.
+
 No real EC2/company network, protected document system, native Linux amd64 AI
 boundary, full macOS logout/reboot, global filesystem failure, provider-wide
 outage or universal uptime guarantee is claimed. Native Linux service and
