@@ -46,6 +46,11 @@ groups and local-only auth/report actions are excluded. See
 [persistent chat contract](docs/contracts/chat-operations-v1.md) and
 [operations goal](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md).
 
+Independent operational monitoring is described in the
+[monitor runbook](docs/setup/OPERATIONS_MONITOR.md). It observes the major chat
+flows and records local incidents without requiring the chat or AI process.
+External notification delivery is a separate integration.
+
 ## Development
 
 The module selects Go 1.26.8 automatically. Dependencies are pinned in `go.mod`

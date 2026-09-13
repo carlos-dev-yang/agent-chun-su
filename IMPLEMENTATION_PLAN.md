@@ -2,11 +2,20 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Approved modular and persistent chat implementation delivered; current Mac has paired supervised Telegram operation; reliability improvements prepared for review; human acceptance and company deployment remain separate
+**Status:** Approved modular and persistent chat implementation delivered; current Mac has supervised Telegram and independent local operations monitoring; broader fault recovery, human acceptance and company deployment remain separate
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
-**Current local observation (2026-09-13):** Read-only checks on the current Mac
+The user subsequently authorized implementing operational monitoring and its
+process integration. The [operations monitor contract](docs/contracts/operations-monitor-v1.md)
+bounds this work to major-flow observations, local incident records and an
+independent user-service lifecycle. Observation/manual recovery is the default;
+external notification destinations and new automatic recovery policies remain
+separate selections. The [monitor validation](docs/validation/OPERATIONS_MONITOR_2026-09-13.md)
+records focused checks, isolated macOS service lifecycle validation and activation
+of the independent observation-only monitor on the current Mac.
+
+**Earlier local observation (2026-09-13):** Read-only checks on the current Mac
 confirmed paired/enabled Telegram, a running launchd service, live supervisor and
 receiver, connected polling, and two completed ordinary-message receipts. The
 [chat reliability preparation](docs/implementation/CHAT_RELIABILITY_PREPARATION_2026-09-13.md)

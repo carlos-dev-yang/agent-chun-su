@@ -61,6 +61,8 @@ func identity(root, kind string) (label, path, domain string, err error) {
 	prefix := LabelPrefix
 	if kind == Chat {
 		prefix = ChatLabelPrefix
+	} else if kind == Monitor {
+		prefix = MonitorLabelPrefix
 	} else if kind != Worker {
 		err = errors.New("unsupported service kind")
 		return
@@ -131,8 +133,12 @@ func RenderFor(root, kind string, atLogin bool) (Definition, error) {
 	} else {
 		b.WriteString("<false/>")
 	}
-	if kind == Chat {
-		fmt.Fprintf(&b, "\n<key>KeepAlive</key><dict><key>PathState</key><dict><key>%s</key><true/></dict></dict>\n", escaped(filepath.Join(root, EnabledPath)))
+	if kind == Chat || kind == Monitor {
+		path := EnabledPath
+		if kind == Monitor {
+			path = MonitorEnabledPath
+		}
+		fmt.Fprintf(&b, "\n<key>KeepAlive</key><dict><key>PathState</key><dict><key>%s</key><true/></dict></dict>\n", escaped(filepath.Join(root, path)))
 	} else {
 		b.WriteString("\n<key>KeepAlive</key><false/>\n")
 	}
