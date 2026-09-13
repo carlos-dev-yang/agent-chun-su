@@ -223,6 +223,10 @@ type setupDialogue struct {
 }
 
 func (d *setupDialogue) ask(prompt string) (string, error) {
+	return d.askInput(prompt, false)
+}
+
+func (d *setupDialogue) askInput(prompt string, preserveCancel bool) (string, error) {
 	fmt.Fprintln(d.out, prompt)
 	fmt.Fprint(d.out, "> ")
 	select {
@@ -239,6 +243,9 @@ func (d *setupDialogue) ask(prompt string) (string, error) {
 		case "종료", "그만", "quit", "exit":
 			return "", io.EOF
 		case "취소", "뒤로", "cancel", "back":
+			if preserveCancel {
+				return line.text, nil
+			}
 			return "", errSetupBack
 		}
 		return line.text, nil

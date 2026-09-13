@@ -35,6 +35,7 @@ var catalog = map[string]Diagnostic{
 	"model_timeout":           {"reception", "AI 응답 제한 시간 초과", "현재 요청을 중단했습니다. /reset으로 맥락을 정리하거나 요청을 작게 나누어 보내세요."},
 	"model_not_configured":    {"reception", "대화 AI 실행기 설정 누락", "호스트에서 chunsu config route reception과 chunsu doctor를 확인하세요. 고정 명령은 계속 사용할 수 있습니다."},
 	"model_compatibility":     {"reception", "대화 AI 버전 또는 모델 호환성 불일치", "호스트의 chunsu doctor에서 대화 경로의 지원 버전을 확인하고 실행기를 설정하세요."},
+	"chat_style_unavailable":  {"reception", "저장된 말투 지침을 읽거나 저장할 수 없음", "/말투 초기화로 기본 말투를 다시 저장하고 호스트의 데이터 디렉터리 권한·저장 공간을 확인하세요."},
 	"secret_unavailable":      {"chat", "채팅 비밀 저장소 또는 봇 토큰 이용 불가", "호스트의 Keychain 또는 CHUNSU_SECRET_HELPER 설정과 저장된 봇 토큰을 복구하세요. 토큰을 채팅에 보내지 마세요."},
 	"poll_failed":             {"telegram", "메시지 수신 연결 실패", "저장된 수신 위치에서 자동 재연결합니다. 반복되면 호스트 네트워크를 확인하세요."},
 	"authentication_failed":   {"telegram", "Telegram 인증 또는 접근 거부", "수신 재시도는 유지됩니다. 호스트에서 봇 토큰과 접근 권한을 복구하세요."},

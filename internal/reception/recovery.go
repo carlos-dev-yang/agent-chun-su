@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
@@ -39,6 +40,10 @@ func (e *ActionError) Error() string { return "reception host action failed" }
 func (e *ActionError) Unwrap() error { return e.Cause }
 
 func ErrorCode(err error, c config.Config) string {
+	var style *chatstyle.Error
+	if errors.As(err, &style) {
+		return "chat_style_unavailable"
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "model_timeout"
 	}

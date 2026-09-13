@@ -39,6 +39,11 @@ retention](docs/implementation/CHAT_MESSAGE_ROUTING_2026-09-13.md): suppress
 internal progress/action messages, preserve bounded host results for tracing,
 and deliver user-facing replies and necessary notices through the chat process.
 
+The user next authorized [CHAT-TONE-01 separate speaking-style
+instructions](docs/implementation/CHAT_TONE_2026-09-13.md): a mechanical `/말투`
+menu with presets and custom input, Markdown-only persistence and fresh style
+injection at every chat generation, separate from base instructions and task agents.
+
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review
 of accumulated results, separate reception and task agents, replaceable execution

@@ -78,6 +78,20 @@ additional same-user sandbox. The model process does not receive its control soc
 
 ## Dialogue, interruption and evidence
 
+The host-owned [CHAT-TONE-01 menu](../implementation/CHAT_TONE_2026-09-13.md)
+handles `/말투` and selection/custom text before ordinary AI admission. The
+selected style is stored separately in `instructions/chat-tone.md`; presets
+are separate embedded Markdown directives. Each reception generation reloads
+the file and includes it as a distinct response-style section, outside model
+history and without changing the response schema or base Skill. The combined
+prompt still obeys the existing source-byte limit. Reset/restart clears pending
+menu interaction, not the saved preference. Fixed commands, local callbacks,
+task execution and result evaluation keep their own existing contracts.
+
+Menu/custom-setting messages never enter AI conversation history. The active
+directive is deliberately persisted in the user's private Markdown file, while
+per-generation trace/executor evidence continues to omit prompt and style text.
+
 Host results are separate history events. After each successful action, the model
 continues the user's request using its actual result. Host-owned event classification
 keeps action-bearing AI progress and host outcomes internal. Only action-free AI

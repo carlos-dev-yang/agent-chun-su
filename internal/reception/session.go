@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
 	"chunsu/internal/executor"
@@ -100,7 +101,11 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 	}
 	delegated := map[string]bool{}
 	for step := 0; step < min(conversation.MaxActionsPerTurn, s.Config.Limits.MaxToolCalls); step++ {
-		prompt, err := conversation.PromptFor(s.History, s.Config.Limits.MaxSourceBytes, Capabilities(s.Channel), s.Channel)
+		style, err := chatstyle.Load(s.Root, s.Config.Limits)
+		if err != nil {
+			return err
+		}
+		prompt, err := conversation.PromptForWithStyle(s.History, s.Config.Limits.MaxSourceBytes, Capabilities(s.Channel), s.Channel, style)
 		if err != nil {
 			return err
 		}

@@ -9,7 +9,7 @@ import (
 	"chunsu/internal/errorreport"
 )
 
-const Help = "할 일을 자연스럽게 말씀해 주세요. AI가 응답하지 않아도 아래 명령은 동작합니다.\n/status 상태 · /errors 오류 보고 · /ack 오류ID 확인 · /jobs 작업 목록\n/pause 업무 큐 중지 · /resume 큐 재개 · /cancel 작업ID 취소 · /retry 작업ID 재시도\n/worker start 업무 실행기 시작 · /worker stop 실행기 중지\n/features 설치 가능 기능 · /install 기능ID 설치 · /guide 서비스ID 안내\n/cancel 현재 답변 중단 · /reset 새 대화 · /help 사용법\n계정 인증과 비밀 입력은 호스트의 로컬/SSH 설정에서 진행합니다."
+const Help = "할 일을 자연스럽게 말씀해 주세요. AI가 응답하지 않아도 아래 명령은 동작합니다.\n/status 상태 · /errors 오류 보고 · /ack 오류ID 확인 · /jobs 작업 목록\n/pause 업무 큐 중지 · /resume 큐 재개 · /cancel 작업ID 취소 · /retry 작업ID 재시도\n/worker start 업무 실행기 시작 · /worker stop 실행기 중지\n/features 설치 가능 기능 · /install 기능ID 설치 · /guide 서비스ID 안내\n/말투 옵션 · /말투 현재 · /말투 초기화\n/cancel 현재 답변 중단 · /reset 새 대화 · /help 사용법\n계정 인증과 비밀 입력은 호스트의 로컬/SSH 설정에서 진행합니다."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.

@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
@@ -19,6 +20,7 @@ var errReceptionSteered = errors.New("reception input changed")
 
 func (d *setupDialogue) runAI(initial string) error {
 	session := reception.New(d.root, d.config, reception.Local)
+	tone := &chatstyle.Dialogue{}
 	reports := errorreport.New(d.root, d.config.Limits)
 	aiBlocked := false
 	fmt.Fprintln(d.out, "춘수와 대화합니다. 할 일을 편하게 말씀해 주세요. 실행은 지원되는 작업으로 제한됩니다.")
@@ -28,13 +30,26 @@ func (d *setupDialogue) runAI(initial string) error {
 		initial = ""
 		if request == "" {
 			var err error
-			request, err = d.ask("")
+			request, err = d.askInput("", tone.Pending())
 			if errors.Is(err, errSetupBack) {
 				continue
 			}
 			if err != nil {
 				return err
 			}
+		}
+		if current, err := config.Load(d.root); err == nil {
+			d.config = current
+			session.Config = current
+		}
+		if response, handled, err := tone.Handle(d.root, d.config.Limits, request); handled {
+			if err != nil {
+				id, _ := reports.Record(d.ctx, reception.ErrorCode(err, d.config), errorreport.Correlation{SessionID: session.ID})
+				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
+			} else {
+				fmt.Fprintln(d.out, response)
+			}
+			continue
 		}
 		if request == "/새대화" || request == "/reset" {
 			if err := session.Recover(d.ctx); err != nil {
@@ -48,10 +63,6 @@ func (d *setupDialogue) runAI(initial string) error {
 		}
 		if strings.TrimSpace(request) == "" {
 			continue
-		}
-		if current, err := config.Load(d.root); err == nil {
-			d.config = current
-			session.Config = current
 		}
 		if response, handled, err := d.receptionHost().Command(d.ctx, reception.Local, request); handled {
 			if err != nil {

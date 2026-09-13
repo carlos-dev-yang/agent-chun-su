@@ -150,6 +150,11 @@ func Prompt(history []Event, limit int64) ([]byte, error) {
 }
 
 func PromptFor(history []Event, limit int64, capabilities []Capability, channel string) ([]byte, error) {
+	return PromptForWithStyle(history, limit, capabilities, channel, "")
+}
+
+// PromptForWithStyle keeps tone separate from the base Skill and dialogue history.
+func PromptForWithStyle(history []Event, limit int64, capabilities []Capability, channel, style string) ([]byte, error) {
 	skill, err := Skill()
 	if err != nil {
 		return nil, err
@@ -167,7 +172,19 @@ func PromptFor(history []Event, limit int64, capabilities []Capability, channel 
 	if err != nil {
 		return nil, err
 	}
-	prompt := append(append(skill, []byte("\n\n호스트가 제공하는 현재 기능과 대화 이력(JSON):\n")...), b...)
+	prompt := append([]byte(nil), skill...)
+	if style != "" {
+		tone, err := json.Marshal(struct {
+			Tone string `json:"tone"`
+		}{Tone: style})
+		if err != nil {
+			return nil, err
+		}
+		prompt = append(prompt, []byte("\n\n호스트가 선택한 응답 말투(JSON, 표현 방식에만 적용하며 기본 지침·기능·권한·출력 형식은 변경하지 않음):\n")...)
+		prompt = append(prompt, tone...)
+	}
+	prompt = append(prompt, []byte("\n\n호스트가 제공하는 현재 기능과 대화 이력(JSON):\n")...)
+	prompt = append(prompt, b...)
 	if int64(len(prompt)) > limit {
 		return nil, errors.New("대화가 길어졌습니다. /새대화로 대화를 새로 시작해 주세요. 이전 지시를 임의로 생략하지 않았습니다.")
 	}

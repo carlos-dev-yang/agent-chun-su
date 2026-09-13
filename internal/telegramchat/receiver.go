@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
@@ -36,6 +37,10 @@ type turnResult struct {
 }
 
 func FailureMessage(err error) string {
+	var style *chatstyle.Error
+	if errors.As(err, &style) {
+		return "저장된 말투 설정을 사용할 수 없습니다. /말투 초기화로 기본 말투를 복구해 주세요."
+	}
 	var compatibility *executor.CompatibilityError
 	if errors.As(err, &compatibility) {
 		return "AI 실행기 호환성 문제로 답변을 생성하지 못했습니다. " + compatibility.Error() + " 호스트의 chunsu doctor로 확인해 주세요."
@@ -242,6 +247,7 @@ func (r Receiver) Serve(parent context.Context) error {
 	var done chan turnResult
 	var history []conversation.Event
 	resetPending := false
+	tone := &chatstyle.Dialogue{}
 	defer func() {
 		cancel()
 		if activeCancel != nil {
@@ -345,6 +351,18 @@ func (r Receiver) Serve(parent context.Context) error {
 					}
 				}
 			}
+			current, configErr := config.Load(r.Root)
+			if configErr == nil {
+				r.Config = current
+			}
+			if response, handled, toneErr := tone.Handle(r.Root, r.Config.Limits, text); handled {
+				if toneErr != nil {
+					receipt.ErrorID = r.record(ctx, reception.ErrorCode(toneErr, r.Config), u.ID, health.SessionID)
+					response = FailureMessage(toneErr) + "\n오류 ID: " + receipt.ErrorID
+				}
+				reply(response)
+				continue
+			}
 			if text == "/cancel" || text == "취소" || text == "/reset" || text == "/새대화" {
 				reset := text == "/reset" || text == "/새대화"
 				if activeCancel != nil {
@@ -362,10 +380,6 @@ func (r Receiver) Serve(parent context.Context) error {
 					reply("현재 진행 중인 답변이 없습니다.")
 				}
 				continue
-			}
-			current, configErr := config.Load(r.Root)
-			if configErr == nil {
-				r.Config = current
 			}
 			host := reception.Host{Root: r.Root, Config: r.Config}
 			response, handled, commandErr := host.Command(ctx, reception.Telegram, text)
