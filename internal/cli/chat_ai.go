@@ -61,6 +61,10 @@ func (d *setupDialogue) runAI(initial string) error {
 			fmt.Fprintln(d.out, "새 대화를 시작했습니다.")
 			continue
 		}
+		if strings.TrimSpace(request) == "/cancel" {
+			fmt.Fprintln(d.out, "현재 진행 중인 답변이 없습니다.")
+			continue
+		}
 		if strings.TrimSpace(request) == "" {
 			continue
 		}
@@ -94,13 +98,22 @@ func (d *setupDialogue) runAI(initial string) error {
 			return err
 		}
 		err := session.Turn(d.ctx, request, d.receptionHost(), generate, emit)
-		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+		if errors.Is(err, reception.ErrUncertain) {
+			aiBlocked = session.Recover(d.ctx) != nil
+			session.History = append(session.History, conversation.Event{
+				Role:    "host",
+				Content: "이전 요청의 완료를 확인하지 못했습니다. 기존 작업을 자동 재실행하지 말고 사용자의 다음 요청을 기다리세요.",
+			})
+			id, _ := reports.Record(d.ctx, "execution_uncertain", errorreport.Correlation{SessionID: session.ID})
+			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
+			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+				return err
+			}
+		} else if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 			return err
-		}
-		if errors.Is(err, errReceptionSteered) {
+		} else if errors.Is(err, errReceptionSteered) {
 			continue
-		}
-		if errors.Is(err, errSetupBack) {
+		} else if errors.Is(err, errSetupBack) {
 			session.History = append(session.History, conversation.Event{Role: "host", Content: "사용자가 답변을 취소했습니다. 미완료 작업을 자동 재실행하지 마세요."})
 			fmt.Fprintln(d.out, "답변을 중단했습니다.")
 		} else if err != nil {
@@ -181,7 +194,7 @@ func (d *setupDialogue) generate(directory string, prompt, schema, skill []byte)
 		switch strings.ToLower(line.text) {
 		case "종료", "그만", "quit", "exit":
 			return result.result, "", io.EOF
-		case "취소", "뒤로", "cancel", "back":
+		case "취소", "뒤로", "cancel", "/cancel", "back":
 			return result.result, "", errSetupBack
 		}
 		if line.text == "" {

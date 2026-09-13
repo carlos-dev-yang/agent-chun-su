@@ -55,9 +55,15 @@ injection at every chat generation, separate from base instructions and task age
 
 The next [chat entrypoint audit](docs/implementation/CHAT_ENTRYPOINT_AUDIT_2026-09-13.md)
 records live process observations and isolated fixed-command checks, then proposes
-clear command discovery, human-readable status and state-specific delay/error
-guidance. CHAT-UX-00 is complete; the proposed message-delivery policies and
-Telegram menu synchronization have not been applied.
+clear command discovery, human-readable status and state-specific error/cancellation
+guidance. CHAT-UX-00 is complete. The user subsequently excluded delay notices,
+selected clearer error/cancellation outcomes, and requested a language-setting
+design for natural status presentation. The [language preparation](docs/implementation/CHAT_LANGUAGE_PREPARATION_2026-09-13.md)
+proposes shared service-language settings; multilingual output and Telegram menu
+synchronization have not been applied.
+The selected [CHAT-UX-03 error/cancellation changes](docs/validation/CHAT_ERROR_GUIDANCE_2026-09-13.md)
+have focused compilation/static-check and isolated CLI evidence. Live Telegram
+delivery and rollout are separate from this source checkpoint.
 
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review

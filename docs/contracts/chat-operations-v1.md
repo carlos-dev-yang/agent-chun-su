@@ -50,6 +50,10 @@ then uses the actual result for the next AI step. These internal events never
 produce a Telegram message. Action-free replies/questions, fixed command results,
 and existing safe failure/required-action notices remain user-facing.
 
+The user's follow-up excludes delay notices. Waiting alone does not trigger
+additional messages or a typing timer. User commands and actual failure or
+cancellation outcomes still receive their appropriate responses.
+
 Polling reconnects from the saved offset. Backoff uses the configured polling and
 retry limits and respects Telegram `retry_after`. Authentication failures reopen
 the selected secret store; restoring the original bot token can take effect on
@@ -61,11 +65,24 @@ uncertain reply and interrupted request are separate operational events.
 One AI turn runs at a time. Fixed commands remain available during AI work. A
 second ordinary request receives a busy response, rather than silently queuing.
 Cancel requests interrupt the generation; a new AI turn waits for cleanup.
+For an active `/cancel` or `/reset`, the first control request receives one
+result after the turn ends and process reconciliation finishes. Repeated control
+requests can report that cancellation is already requested. The final control
+reply uses that command's receipt, separate from the original request's result.
+It distinguishes cancellation, prior completion, prior failure and unresolved
+execution. Already dispatched jobs are not undone. Failed reconciliation blocks
+new AI requests and does not announce a successful reset. Local bare `/cancel`
+uses the current-answer meaning; `/cancel JOB_ID` keeps its existing job control.
 Whole remote turns have the configured time limit, including multiple AI steps.
 An uncertain result triggers process reconciliation and never task replay.
 Orphaned execution blocks further AI work until reconciled; commands remain
 available. `/reset` starts fresh context after recovery. Restarted conversation
 history is empty: no transcript is persisted or automatically replayed.
+
+Immediate failure text distinguishes timeout, host-action failure and uncertain
+execution. When timeout and execution uncertainty coexist, uncertainty takes
+precedence; reaching a deadline does not establish that a task was undone or its
+result is known. The stable error ID still links to retained recovery guidance.
 
 Receipts record the acknowledgment separately from the final reply, with message
 IDs, hashes, update/session IDs, timestamps and an error-group ID. Reaction

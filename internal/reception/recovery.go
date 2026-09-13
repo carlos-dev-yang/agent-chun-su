@@ -44,11 +44,11 @@ func ErrorCode(err error, c config.Config) string {
 	if errors.As(err, &style) {
 		return "chat_style_unavailable"
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "model_timeout"
-	}
 	if errors.Is(err, ErrUncertain) {
 		return "execution_uncertain"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "model_timeout"
 	}
 	var action *ActionError
 	if errors.As(err, &action) {
