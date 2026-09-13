@@ -2,9 +2,17 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Implementation through Phase 5 and the approved bounded Jira/Skill integration implemented; human acceptance and background activation remain pending
+**Status:** Approved modular and persistent chat implementation delivered; live chat supervisor handoff blocked on host Keychain access; human acceptance and company deployment remain separate
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
+
+**Current handoff (2026-09-13):** CHAT-00–05 are complete with macOS/Linux recovery
+and installation evidence. CHAT-06 awaits restored access to the existing macOS
+Keychain token, then migration of the existing foreground receiver to the new
+supervisor and a real Telegram acknowledgment/reply check. The
+[handoff and resumption checklist](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md#resume-chat-06)
+is the current action list; [validation](docs/validation/CHAT_OPERATIONS_2026-09-13.md)
+distinguishes implemented behavior from the remaining live check.
 
 On 2026-09-13 the user authorized the [persistent chat operations goal](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md):
 short pre-AI acknowledgments, accumulated error reporting, mechanical management
@@ -144,8 +152,9 @@ principles when refining implementation details:
 
 The project began as a documentation-only directory. At the user's request,
 Git was initialized in the current checkout and the pre-implementation inputs
-were preserved in commit `7020143`. Implementation now proceeds under that authorization. No
-remote has been configured or pushed. Recheck the working tree before each
+were preserved in commit `7020143`. At that initial checkpoint no remote was
+configured or pushed. The user has since authorized pushing the current work to
+the existing `origin` remote. Recheck the working tree and actual remote state before each
 change and follow the [repository instructions](AGENTS.md).
 
 ## 3. Implementation baseline

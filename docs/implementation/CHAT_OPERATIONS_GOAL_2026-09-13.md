@@ -1,6 +1,8 @@
 # Persistent chat operations goal — 2026-09-13
 
-Status: blocked on live handoff pending OS Keychain access. The user explicitly requested short mechanical acknowledgments,
+Status: blocked on live handoff pending OS Keychain access.
+
+The user explicitly requested short mechanical acknowledgments,
 accumulated internal error reports, chat-based management and supported feature
 installation, recovery from channel/process failures, supervised operation until
 explicitly stopped, and simple local/server installation.
@@ -48,9 +50,9 @@ recovery and a local/SSH repair path; no absolute uptime claim is made.
 ## Starting evidence
 
 Committed baseline: `0ce3e41`. Existing uncommitted changes in Telegram and
-Codex reception compatibility were captured privately before this work. Their
-contents are preserved while the user clarifies whether another task is editing
-the same files. No worktree, remote deployment or new test code is created.
+Codex reception compatibility were captured privately before this work and
+subsequently committed as `a421c19`. They were preserved throughout this goal.
+No worktree, remote deployment or new test code was created.
 
 The existing bot is paired. The prior check found no receiver process, only a
 successful pairing receipt, and no retained terminal error log. Existing services
@@ -130,7 +132,35 @@ The checkout's `bin/chunsu` now contains the candidate. The already-running
 legacy receiver still uses its original process image and was not interrupted.
 
 See [the integration and handoff record](../validation/CHAT_OPERATIONS_2026-09-13.md).
-The remaining live step is: after the user restores Keychain access, verify
-`telegram check`, gracefully stop the original foreground receiver, enable the
-supervisor, verify connected polling and request a short user DM. Never extract
-the live token from process memory or switch its secret store to bypass OS denial.
+
+## Resume CHAT-06
+
+| Item | Current checkpoint | Next evidence required |
+|---|---|---|
+| Implementation and packages | CHAT-00–05 complete; `chat-ops-20260913-rc1` available locally | Existing validation and package hashes are linked above |
+| Host credential access | The saved bot token read failed with `security exit 51`; the underlying OS authentication cause is unresolved | User restores Keychain access and `telegram check` succeeds |
+| Running bot | Earlier foreground receiver was still alive at the last read-only check; new supervisor was disabled | Fresh process ownership check, then a single supervised receiver with connected polling |
+| Live delivery | New behavior passed the local Bot API walkthroughs; the updated receiver has not been checked against the real bot | Paired owner receives the short acknowledgment, AI response and fixed-command results |
+
+1. The user restores Keychain access on the Mac. Do not retry the denied access
+   without a changed condition, extract the token from the live process, or
+   replace the secret store to bypass OS denial. Token values and passwords
+   remain outside chat and Git.
+2. From the checkout, run `bin/chunsu telegram check` using the existing data
+   home. This checks the saved token/bot without consuming updates. If it still
+   fails, keep the existing receiver running and retain the safe diagnostic.
+3. After the check succeeds, verify the current foreground process identity and
+   stop that receiver gracefully. Do not reuse a PID from an earlier checkpoint.
+4. Run `bin/chunsu telegram enable`, then `bin/chunsu telegram status`. Verify
+   `enabled`, `supervisor_alive` and `receiver_alive` are true and polling is
+   connected. Use the same configured data home throughout; do not create a
+   second receiver with a different home for this bot.
+5. Have the paired owner send one ordinary DM, followed by `/status` and `/errors`.
+   Verify acknowledgment before the AI reply, working fixed commands and retained
+   diagnostics. Inspect delivery metadata without publishing conversation text.
+6. Record the real handoff evidence, then complete CHAT-06 and the goal. Source
+   push or a successful credential check alone does not complete this step.
+
+The remaining live handoff does not block source/document publication. Actual
+EC2/company deployment and the other unverified environments listed in the
+validation record are separate follow-up validation scopes.
