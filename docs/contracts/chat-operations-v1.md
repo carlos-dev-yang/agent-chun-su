@@ -43,6 +43,13 @@ used. Acknowledgment means receipt only. If the reaction is rejected or its
 delivery is unconfirmed, that request does not begin AI work; no text fallback or
 automatic reaction retry is performed. Local terminal chat retains its text acknowledgment.
 
+The shared reception process classifies action-bearing AI progress and host
+processing results as internal. It records bounded host results and message
+classification/delivery evidence as described in [natural chat v1](chat-v1.md),
+then uses the actual result for the next AI step. These internal events never
+produce a Telegram message. Action-free replies/questions, fixed command results,
+and existing safe failure/required-action notices remain user-facing.
+
 Polling reconnects from the saved offset. Backoff uses the configured polling and
 retry limits and respects Telegram `retry_after`. Authentication failures reopen
 the selected secret store; restoring the original bot token can take effect on

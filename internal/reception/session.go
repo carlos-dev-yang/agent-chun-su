@@ -26,7 +26,7 @@ func Generate(ctx context.Context, root, directory string, c config.Config, prom
 }
 
 type Event struct {
-	Kind   string
+	Kind   EventKind
 	Text   string
 	Action string
 }
@@ -35,12 +35,13 @@ type Session struct {
 	Root      string
 	Config    config.Config
 	Channel   string
+	UpdateID  int64
 	History   []conversation.Event
 	KnownJobs map[string]bool
 }
 
 func New(root string, c config.Config, channel string) *Session {
-	return &Session{ID: files.ID(), Root: root, Config: c, Channel: channel, KnownJobs: map[string]bool{}}
+	return &Session{ID: files.ID(), Root: root, Config: c, Channel: channel, UpdateID: -1, KnownJobs: map[string]bool{}}
 }
 
 func Capabilities(channel string) []conversation.Capability {
@@ -82,6 +83,7 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 	if s.KnownJobs == nil {
 		s.KnownJobs = map[string]bool{}
 	}
+	requestID := files.ID()
 	s.History = append(s.History, conversation.Event{Role: "user", Content: request})
 	schema, err := conversation.SchemaFor(Capabilities(s.Channel))
 	if err != nil {
@@ -103,9 +105,6 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 			return err
 		}
 		directory := filepath.Join(s.Root, "chat", s.ID, files.ID())
-		if err = emit(Event{Kind: "thinking"}); err != nil {
-			return errors.Join(ErrUncertain, err)
-		}
 		generated, err := generate(ctx, directory, prompt, schema, skill)
 		if generated.Outcome == "orphaned" {
 			return errors.Join(ErrUncertain, err)
@@ -120,8 +119,13 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if err != nil || !allowed(s.Channel, reply.Action.Name) {
 			return errors.New("reception action is outside this channel's supported contract")
 		}
-		if err = emit(Event{Kind: "reply", Text: reply.Message}); err != nil {
-			return errors.Join(ErrUncertain, err)
+		ordinal := step + 1
+		event := Event{Kind: EventProgress, Text: reply.Message}
+		if reply.Action.Name == conversation.None {
+			event.Kind = EventReply
+		}
+		if err = s.deliver(directory, requestID, ordinal, event, emit); err != nil {
+			return err
 		}
 		encoded, _ := json.Marshal(reply)
 		s.History = append(s.History, conversation.Event{Role: "assistant", Content: string(encoded)})
@@ -134,8 +138,8 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		intent, _ := json.Marshal(map[string]any{"action": reply.Action, "state": "requested"})
-		if err = files.Write(directory, "action.json", intent, false); err != nil {
+		intent := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: reply.Action, State: "requested"}
+		if err = s.writeJSON(directory, "action.json", intent, false); err != nil {
 			return err
 		}
 		outcome, actionErr := host.Dispatch(ctx, s.Channel, reply.Action, request, s.KnownJobs)
@@ -145,15 +149,20 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if actionErr != nil {
 			outcome = HostResult{Status: "failed", Detail: "호스트 작업을 완료하지 못했습니다. 로컬 상태를 확인해 주세요. 자동 재시도하지 마세요."}
 		}
-		outcomeBytes, _ := json.Marshal(outcome)
-		audit, _ := json.Marshal(map[string]any{"action": reply.Action, "state": outcome.Status, "result_digest": files.Digest(outcomeBytes)})
-		if err = files.Write(directory, "action.json", audit, true); err != nil {
+		outcomeBytes, err := json.Marshal(outcome)
+		if err != nil {
+			return errors.Join(ErrUncertain, err)
+		}
+		stored := traceResult(reply.Action.Name, outcome)
+		storedBytes, err := json.Marshal(stored)
+		if err != nil {
+			return errors.Join(ErrUncertain, err)
+		}
+		audit := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: reply.Action, State: outcome.Status, ResultDigest: files.Digest(outcomeBytes), StoredResultDigest: files.Digest(storedBytes), Result: &stored}
+		if err = s.writeJSON(directory, "action.json", audit, true); err != nil {
 			return errors.Join(ErrUncertain, err)
 		}
 		s.History = append(s.History, conversation.Event{Role: "host", Content: string(outcomeBytes)})
-		if err = emit(Event{Kind: "action", Action: reply.Action.Name, Text: outcome.Status}); err != nil {
-			return errors.Join(ErrUncertain, err)
-		}
 		if actionErr != nil {
 			return &ActionError{Cause: actionErr}
 		}

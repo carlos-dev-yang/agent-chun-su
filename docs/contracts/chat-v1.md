@@ -79,9 +79,12 @@ additional same-user sandbox. The model process does not receive its control soc
 ## Dialogue, interruption and evidence
 
 Host results are separate history events. After each successful action, the model
-continues the user's request using its actual result. The UI labels host outcomes
-separately from AI prose; an AI assertion alone is not completion evidence. A failed
-host action is displayed locally and not automatically retried. At most the smaller
+continues the user's request using its actual result. Host-owned event classification
+keeps action-bearing AI progress and host outcomes internal. Only action-free AI
+replies (including questions) are user-facing; unknown event kinds are hidden by
+default. Local authentication/report callbacks and safe caller failure notices remain
+visible. An AI assertion alone is not completion evidence. A failed host action is
+reported through the existing safe failure path and not automatically retried. At most the smaller
 of the named chat action limit and configured tool-call limit executes per request.
 
 New terminal input cancels and reaps the pending generation before processing the
@@ -99,10 +102,23 @@ receives only display status and must not claim to have read or summarized that 
 
 `chat/<session>/<turn>/` holds the public Skill/schema, process identity, executor
 version/model/usage/outcome and arguments/prompt/schema/Skill/reply digests. `action.json` records
-intent before dispatch and status/result digest after dispatch. The app does not
-persist transcript, reply text, raw provider diagnostics or auth values. This is
-operational metadata, not semantic evaluation or a release attestation. Provider
+intent before dispatch and status/result digest after dispatch. The authorized
+[CHAT-TRACE-01 extension](../implementation/CHAT_MESSAGE_ROUTING_2026-09-13.md)
+also preserves bounded, allowlisted host results and session/request/step/provider-update
+correlation. `message.json` records message classification, text digest and whether
+the message was suppressed, attempted, sent or unconfirmed. This is transport evidence,
+not proof that the user read the message. The app does not persist transcript,
+reply text, raw provider diagnostics or auth values. Authentication/report-display
+callbacks contribute status only to the saved result. These are operational records,
+not semantic evaluation or a release attestation. Provider
 retention and the user's local terminal scrollback are outside that claim.
+
+The original `result_digest` covers the result supplied to model history;
+`stored_result_digest` covers the saved result projection. Host action records
+are marked `event_kind: action`, `audience: internal`, `delivery: suppressed`.
+Non-message thinking lifecycle signals are no longer passed to transport emitters.
+Fixed-command and safe failure notices retain their existing transport receipts
+and error reports; `message.json` covers generated replies/progress only.
 
 There is no automatic replay of an interrupted action. A crash after host execution
 but before final metadata can leave an uncertain intent; inspect the actual setup

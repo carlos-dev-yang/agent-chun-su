@@ -76,14 +76,11 @@ func (d *setupDialogue) runAI(initial string) error {
 			return result, err
 		}
 		emit := func(event reception.Event) error {
-			switch event.Kind {
-			case "thinking":
-			case "reply":
-				fmt.Fprintln(d.out, "춘수:", event.Text)
-			case "action":
-				fmt.Fprintln(d.out, "[호스트 처리 결과]", event.Action, ":", event.Text)
+			if !event.UserVisible() {
+				return nil
 			}
-			return nil
+			_, err := fmt.Fprintln(d.out, "춘수:", event.Text)
+			return err
 		}
 		err := session.Turn(d.ctx, request, d.receptionHost(), generate, emit)
 		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {

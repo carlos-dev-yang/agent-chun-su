@@ -131,15 +131,13 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 	}()
 	session := reception.New(r.Root, r.Config, reception.Telegram)
 	session.ID = "telegram-" + sessionID
+	session.UpdateID = update.ID
 	session.History = history
 	emit := func(event reception.Event) error {
-		switch event.Kind {
-		case "reply":
-			return r.send(ctx, &receipt, event.Text)
-		case "action":
-			return r.send(ctx, &receipt, "[호스트 처리 결과] "+event.Action+": "+event.Text)
+		if !event.UserVisible() {
+			return nil
 		}
-		return nil
+		return r.send(ctx, &receipt, event.Text)
 	}
 	result.err = session.Turn(ctx, update.Message.Text, reception.Host{Root: r.Root, Config: r.Config}, nil, emit)
 	result.uncertain = errors.Is(result.err, reception.ErrUncertain)

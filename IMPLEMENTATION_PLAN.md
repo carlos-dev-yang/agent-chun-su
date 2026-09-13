@@ -34,6 +34,11 @@ The user subsequently selected a system-generated 👀 reaction on the original
 Telegram message instead of a text acknowledgment (CHAT-02 follow-up). This
 changes the acknowledgment presentation; the CHAT-06 live handoff remains separate.
 
+The user also authorized [CHAT-TRACE-01 message routing and host-result
+retention](docs/implementation/CHAT_MESSAGE_ROUTING_2026-09-13.md): suppress
+internal progress/action messages, preserve bounded host results for tracing,
+and deliver user-facing replies and necessary notices through the chat process.
+
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review
 of accumulated results, separate reception and task agents, replaceable execution
