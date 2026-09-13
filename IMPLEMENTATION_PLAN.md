@@ -2,17 +2,27 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Approved modular and persistent chat implementation delivered; live chat supervisor handoff blocked on host Keychain access; human acceptance and company deployment remain separate
+**Status:** Approved modular and persistent chat implementation delivered; current Mac has paired supervised Telegram operation; reliability improvements prepared for review; human acceptance and company deployment remain separate
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
-**Current handoff (2026-09-13):** CHAT-00–05 are complete with macOS/Linux recovery
+**Current local observation (2026-09-13):** Read-only checks on the current Mac
+confirmed paired/enabled Telegram, a running launchd service, live supervisor and
+receiver, connected polling, and two completed ordinary-message receipts. The
+[chat reliability preparation](docs/implementation/CHAT_RELIABILITY_PREPARATION_2026-09-13.md)
+records this evidence and proposed observation, independent supervision and
+interrupted-request handling work. It does not activate another monitor, change
+the delivery contract, or complete the broader fault-recovery acceptance scope.
+
+**Earlier handoff checkpoint (2026-09-13):** CHAT-00–05 are complete with macOS/Linux recovery
 and installation evidence. CHAT-06 awaits restored access to the existing macOS
 Keychain token, then migration of the existing foreground receiver to the new
 supervisor and a real Telegram acknowledgment/reply check. The
 [handoff and resumption checklist](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md#resume-chat-06)
-is the current action list; [validation](docs/validation/CHAT_OPERATIONS_2026-09-13.md)
-distinguishes implemented behavior from the remaining live check.
+preserves the action list for that blocked environment;
+[validation](docs/validation/CHAT_OPERATIONS_2026-09-13.md) distinguishes
+implemented behavior from the remaining live check. Its Keychain blocker is not
+a diagnosis of the newly connected current Mac.
 
 On 2026-09-13 the user authorized the [persistent chat operations goal](docs/implementation/CHAT_OPERATIONS_GOAL_2026-09-13.md):
 short pre-AI acknowledgments, accumulated error reporting, mechanical management
