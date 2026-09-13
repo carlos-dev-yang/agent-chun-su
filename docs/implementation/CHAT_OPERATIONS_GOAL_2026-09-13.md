@@ -25,7 +25,11 @@ mechanical management commands. The controller remains the sole SQLite writer.
 Error reports and process state use separately locked private host records.
 
 An acknowledgment says only that the message was received, not that the requested
-operation completed. No Telegram native read status or reaction is requested.
+operation completed. On 2026-09-13 the user selected a host-generated 👀 reaction
+on the incoming Telegram message instead of a separate text acknowledgment
+(CHAT-02 follow-up). No Telegram native read status is requested.
+The [reaction change validation](../validation/TELEGRAM_REACTION_2026-09-13.md)
+records the source/build result separately from the pending live delivery check.
 Uncertain message delivery and interrupted host actions are never automatically
 replayed. Transient polling failures may reconnect with the saved cursor.
 

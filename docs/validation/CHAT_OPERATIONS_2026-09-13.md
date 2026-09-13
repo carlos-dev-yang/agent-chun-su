@@ -6,7 +6,9 @@ local/Linux server candidate, not an enterprise SSO or production EC2 deployment
 
 ## Implemented result
 
-- Short fixed acknowledgment before AI; no Telegram native read receipt/reaction.
+- Short fixed acknowledgment before AI in this candidate; the later
+  [CHAT-02 reaction follow-up](TELEGRAM_REACTION_2026-09-13.md) replaces the
+  Telegram text acknowledgment with 👀. The checks below describe the original candidate.
 - Reusable reception and Telegram receiver, fixed management commands during AI
   failures, bounded remote turn time, cancellation and selected-process recovery.
 - Separately locked, bounded structured errors; retained counts/correlations,

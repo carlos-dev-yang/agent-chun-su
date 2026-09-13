@@ -39,7 +39,7 @@ var catalog = map[string]Diagnostic{
 	"poll_failed":             {"telegram", "메시지 수신 연결 실패", "저장된 수신 위치에서 자동 재연결합니다. 반복되면 호스트 네트워크를 확인하세요."},
 	"authentication_failed":   {"telegram", "Telegram 인증 또는 접근 거부", "수신 재시도는 유지됩니다. 호스트에서 봇 토큰과 접근 권한을 복구하세요."},
 	"poll_conflict":           {"telegram", "다른 수신기 또는 웹훅과 충돌", "같은 봇을 사용하는 다른 수신기나 웹훅을 확인하세요. 기존 웹훅은 자동 삭제하지 않습니다."},
-	"send_unconfirmed":        {"telegram", "답장 전송 완료를 확인하지 못함", "중복 전송을 피하려고 자동 재전송하지 않습니다. /status 또는 /jobs로 처리 결과를 확인하세요."},
+	"send_unconfirmed":        {"telegram", "답장 또는 수신 반응 전송 완료를 확인하지 못함", "중복 전송을 피하려고 자동 재전송하지 않습니다. /status 또는 /jobs로 처리 결과를 확인하세요."},
 	"receipt_failed":          {"telegram", "메시지 처리 상태 저장 실패", "해당 요청 실행을 보류합니다. 호스트의 데이터 디렉터리 권한과 저장 공간을 확인하세요."},
 	"model_failed":            {"reception", "AI 답변 생성 실패", "수신과 고정 명령은 계속 동작합니다. /reset 또는 호스트의 chunsu doctor로 실행기와 인증을 확인하세요."},
 	"execution_uncertain":     {"reception", "실행 종료 또는 작업 결과 확인 필요", "해당 작업을 자동 재실행하지 않습니다. /jobs와 호스트의 복구 상태를 확인하세요."},

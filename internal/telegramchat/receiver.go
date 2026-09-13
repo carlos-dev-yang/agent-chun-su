@@ -46,32 +46,38 @@ func (r Receiver) record(ctx context.Context, code string, id int64, session str
 	errorID, _ := r.Errors.Record(ctx, code, errorreport.Correlation{UpdateID: id, SessionID: session})
 	return errorID
 }
-func (r Receiver) send(ctx context.Context, receipt *telegram.Receipt, text string, ack bool) error {
-	if ack {
-		receipt.Acknowledgment = "sending"
-	} else {
-		receipt.State = "reply_sending"
-		receipt.ReplyDigest = files.Digest([]byte(text))
-	}
+func (r Receiver) send(ctx context.Context, receipt *telegram.Receipt, text string) error {
+	receipt.State = "reply_sending"
+	receipt.ReplyDigest = files.Digest([]byte(text))
 	if err := telegram.Record(r.Root, *receipt, true); err != nil {
 		r.record(ctx, "receipt_failed", receipt.UpdateID, receipt.SessionID)
 		return err
 	}
 	ids, err := r.Client.Send(ctx, r.Binding.ChatID, text)
-	if ack {
-		receipt.AckMessageIDs = ids
-		receipt.Acknowledgment = "sent"
-		if err != nil {
-			receipt.Acknowledgment = "unconfirmed"
-		}
-	} else {
-		receipt.MessageIDs = append(receipt.MessageIDs, ids...)
-		receipt.State = "reply_sent"
-		if err != nil {
-			receipt.State = "reply_unconfirmed"
-		}
+	receipt.MessageIDs = append(receipt.MessageIDs, ids...)
+	receipt.State = "reply_sent"
+	if err != nil {
+		receipt.State = "reply_unconfirmed"
 	}
 	if err != nil {
+		receipt.ErrorID = r.record(ctx, "send_unconfirmed", receipt.UpdateID, receipt.SessionID)
+	}
+	saveErr := telegram.Record(r.Root, *receipt, true)
+	if saveErr != nil {
+		r.record(ctx, "receipt_failed", receipt.UpdateID, receipt.SessionID)
+	}
+	return errors.Join(err, saveErr)
+}
+func (r Receiver) acknowledge(ctx context.Context, receipt *telegram.Receipt, messageID int64) error {
+	receipt.Acknowledgment = "sending"
+	if err := telegram.Record(r.Root, *receipt, true); err != nil {
+		r.record(ctx, "receipt_failed", receipt.UpdateID, receipt.SessionID)
+		return err
+	}
+	err := r.Client.React(ctx, r.Binding.ChatID, messageID)
+	receipt.Acknowledgment = "sent"
+	if err != nil {
+		receipt.Acknowledgment = "unconfirmed"
 		receipt.ErrorID = r.record(ctx, "send_unconfirmed", receipt.UpdateID, receipt.SessionID)
 	}
 	saveErr := telegram.Record(r.Root, *receipt, true)
@@ -102,7 +108,7 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 			}
 			receipt.ErrorID = r.record(notifyCtx, code, update.ID, sessionID)
 			if receipt.State != "reply_unconfirmed" {
-				_ = r.send(notifyCtx, &receipt, FailureMessage(result.err)+"\n오류 ID: "+receipt.ErrorID, false)
+				_ = r.send(notifyCtx, &receipt, FailureMessage(result.err)+"\n오류 ID: "+receipt.ErrorID)
 			}
 		}
 		switch {
@@ -129,9 +135,9 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 	emit := func(event reception.Event) error {
 		switch event.Kind {
 		case "reply":
-			return r.send(ctx, &receipt, event.Text, false)
+			return r.send(ctx, &receipt, event.Text)
 		case "action":
-			return r.send(ctx, &receipt, "[호스트 처리 결과] "+event.Action+": "+event.Text, false)
+			return r.send(ctx, &receipt, "[호스트 처리 결과] "+event.Action+": "+event.Text)
 		}
 		return nil
 	}
@@ -333,7 +339,7 @@ func (r Receiver) Serve(parent context.Context) error {
 			health.LastMessageAt = time.Now().UTC()
 			text := strings.TrimSpace(u.Message.Text)
 			reply := func(text string) {
-				if e := r.send(ctx, &receipt, text, false); e == nil {
+				if e := r.send(ctx, &receipt, text); e == nil {
 					health.LastReplyAt = time.Now().UTC()
 					receipt.State = "completed"
 					if e = telegram.Record(r.Root, receipt, true); e != nil {
@@ -385,7 +391,7 @@ func (r Receiver) Serve(parent context.Context) error {
 				reply("AI 실행 복구가 필요합니다. /status와 /errors를 확인해 주세요. 고정 관리 명령은 계속 사용할 수 있습니다.")
 				continue
 			}
-			if e = r.send(ctx, &receipt, Acknowledgment, true); e != nil {
+			if e = r.acknowledge(ctx, &receipt, u.Message.ID); e != nil {
 				continue
 			}
 			workCtx, stop := context.WithTimeout(ctx, time.Duration(r.Config.Limits.TimeoutSeconds)*time.Second)

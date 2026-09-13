@@ -36,9 +36,12 @@ does not unpause the queue, activate schedules or change disclosure approvals.
 
 Only the paired human's private, non-forwarded text is admitted. A durable
 receipt is created before advancing the saved cursor. Ordinary requests receive
-the fixed text `접수했습니다.` before any LLM call. Fixed commands reply directly.
-No native read action or reaction is used. Acknowledgment means receipt only.
-If acknowledgment delivery is unconfirmed, that request does not begin AI work.
+a host-generated 👀 reaction on the original incoming message through
+`setMessageReaction` before any LLM call, without a large animation or a separate
+acknowledgment message. Fixed commands reply directly. No native read action is
+used. Acknowledgment means receipt only. If the reaction is rejected or its
+delivery is unconfirmed, that request does not begin AI work; no text fallback or
+automatic reaction retry is performed. Local terminal chat retains its text acknowledgment.
 
 Polling reconnects from the saved offset. Backoff uses the configured polling and
 retry limits and respects Telegram `retry_after`. Authentication failures reopen
@@ -58,7 +61,10 @@ available. `/reset` starts fresh context after recovery. Restarted conversation
 history is empty: no transcript is persisted or automatically replayed.
 
 Receipts record the acknowledgment separately from the final reply, with message
-IDs, hashes, update/session IDs, timestamps and an error-group ID. Interrupted
+IDs, hashes, update/session IDs, timestamps and an error-group ID. Reaction
+acknowledgments use the existing acknowledgment status and do not populate
+`ack_message_ids`, which remains reserved for historical outgoing acknowledgment
+messages. Interrupted
 claims are reported on restart. A durable claim is never proof of completion.
 
 ## Operations and installation

@@ -28,6 +28,7 @@ const UpdateLimit = 50
 const MessageUnits = 4000
 const MaxReplyUnits = MessageUnits * 3
 const MinSendInterval = time.Second
+const EyesReaction = "👀"
 
 // APIError deliberately excludes Telegram descriptions and request URLs: both
 // can contain private data. Only polling may automatically retry these errors.
@@ -205,6 +206,53 @@ func (c *Client) Updates(ctx context.Context, offset int64) ([]Update, error) {
 	e := c.call(ctx, "getUpdates", map[string]any{"offset": offset, "timeout": PollSeconds, "limit": UpdateLimit, "allowed_updates": []string{"message"}}, &r)
 	return r, e
 }
+func (c *Client) waitRateLimit(ctx context.Context) error {
+	if delay := time.Until(c.nextSend); delay > 0 {
+		if delay > time.Duration(HTTPGraceSeconds)*time.Second {
+			return &APIError{Status: http.StatusTooManyRequests, Code: http.StatusTooManyRequests, RetryAfter: delay}
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return nil
+}
+func (c *Client) recordRateLimit(err error) {
+	c.nextSend = time.Now().Add(MinSendInterval)
+	var api *APIError
+	if errors.As(err, &api) && api.RetryAfter > MinSendInterval {
+		c.nextSend = time.Now().Add(api.RetryAfter)
+	}
+}
+func (c *Client) React(ctx context.Context, chatID, messageID int64) error {
+	c.sendMu.Lock()
+	defer c.sendMu.Unlock()
+	if chatID <= 0 || messageID <= 0 {
+		return errors.New("a paired private message is required")
+	}
+	if err := c.waitRateLimit(ctx); err != nil {
+		return err
+	}
+	var confirmed bool
+	err := c.call(ctx, "setMessageReaction", map[string]any{
+		"chat_id":    chatID,
+		"message_id": messageID,
+		"reaction":   []map[string]string{{"type": "emoji", "emoji": EyesReaction}},
+		"is_big":     false,
+	}, &confirmed)
+	c.recordRateLimit(err)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return errors.New("Telegram reaction was not confirmed")
+	}
+	return nil
+}
 func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, error) {
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
@@ -222,17 +270,8 @@ func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, 
 	}
 	var ids []int64
 	for len(units) > 0 {
-		if delay := time.Until(c.nextSend); delay > 0 {
-			if delay > time.Duration(HTTPGraceSeconds)*time.Second {
-				return ids, &APIError{Status: http.StatusTooManyRequests, Code: http.StatusTooManyRequests, RetryAfter: delay}
-			}
-			timer := time.NewTimer(delay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return ids, ctx.Err()
-			case <-timer.C:
-			}
+		if err := c.waitRateLimit(ctx); err != nil {
+			return ids, err
 		}
 		n := min(MessageUnits, len(units))
 		if n < len(units) && units[n-1] >= 0xD800 && units[n-1] <= 0xDBFF {
@@ -240,12 +279,8 @@ func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, 
 		}
 		var result Message
 		e := c.call(ctx, "sendMessage", map[string]any{"chat_id": chatID, "text": string(utf16.Decode(units[:n])), "link_preview_options": map[string]bool{"is_disabled": true}}, &result)
-		c.nextSend = time.Now().Add(MinSendInterval)
+		c.recordRateLimit(e)
 		if e != nil {
-			var api *APIError
-			if errors.As(e, &api) && api.RetryAfter > MinSendInterval {
-				c.nextSend = time.Now().Add(api.RetryAfter)
-			}
 			return ids, e
 		}
 		if result.ID <= 0 || result.Chat.ID != chatID {
