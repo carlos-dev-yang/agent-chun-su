@@ -59,11 +59,24 @@ clear command discovery, human-readable status and state-specific error/cancella
 guidance. CHAT-UX-00 is complete. The user subsequently excluded delay notices,
 selected clearer error/cancellation outcomes, and requested a language-setting
 design for natural status presentation. The [language preparation](docs/implementation/CHAT_LANGUAGE_PREPARATION_2026-09-13.md)
-proposes shared service-language settings; multilingual output and Telegram menu
-synchronization have not been applied.
+proposed shared service-language settings; the later decision below supersedes
+its system-message translation catalog. Telegram menu synchronization remains separate.
 The selected [CHAT-UX-03 error/cancellation changes](docs/validation/CHAT_ERROR_GUIDANCE_2026-09-13.md)
-have focused compilation/static-check and isolated CLI evidence. Live Telegram
-delivery and rollout are separate from this source checkpoint.
+have focused compilation/static-check and isolated CLI evidence. The later language
+rollout includes these changes; live Telegram cancellation races remain unverified.
+
+The user then explicitly made [CHAT-UX-05/02 language selection](docs/implementation/CHAT_LANGUAGE_GOAL_2026-09-13.md)
+an active implementation goal. AI replies use a persisted language tag or `auto`
+while core deterministic system notices and readable chat status use English.
+This supersedes the proposed per-language system-message catalog. No delay
+notices, new permissions, database migrations or Telegram menu registration are
+part of this goal.
+The selected scope is [implemented and validated](docs/validation/CHAT_LANGUAGE_2026-09-13.md):
+AI-independent preference commands, restart persistence, real multilingual replies,
+auto-language precedence and readable status. The existing local Telegram receiver
+was updated on 2026-09-14 KST and its new polling and independent monitor observation
+were confirmed. This does not claim Telegram menu registration or a new external
+notification integration.
 
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review

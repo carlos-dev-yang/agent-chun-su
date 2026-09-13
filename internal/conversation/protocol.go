@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"chunsu/internal/chatlanguage"
 	"chunsu/internal/features"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
@@ -155,6 +156,12 @@ func PromptFor(history []Event, limit int64, capabilities []Capability, channel 
 
 // PromptForWithStyle keeps tone separate from the base Skill and dialogue history.
 func PromptForWithStyle(history []Event, limit int64, capabilities []Capability, channel, style string) ([]byte, error) {
+	return PromptForWithPreferences(history, limit, capabilities, channel, style, chatlanguage.Auto)
+}
+
+// PromptForWithPreferences keeps host-owned reply language and tone separate
+// from the base Skill, capabilities, and dialogue history.
+func PromptForWithPreferences(history []Event, limit int64, capabilities []Capability, channel, style, replyLanguage string) ([]byte, error) {
 	skill, err := Skill()
 	if err != nil {
 		return nil, err
@@ -173,18 +180,18 @@ func PromptForWithStyle(history []Event, limit int64, capabilities []Capability,
 		return nil, err
 	}
 	prompt := append([]byte(nil), skill...)
-	if style != "" {
-		tone, err := json.Marshal(struct {
-			Tone string `json:"tone"`
-		}{Tone: style})
-		if err != nil {
-			return nil, err
-		}
-		prompt = append(prompt, []byte("\n\n호스트가 선택한 응답 말투(JSON, 표현 방식에만 적용하며 기본 지침·기능·권한·출력 형식은 변경하지 않음):\n")...)
-		prompt = append(prompt, tone...)
+	preferences, err := json.Marshal(struct {
+		Language string `json:"language"`
+		Tone     string `json:"tone,omitempty"`
+	}{Language: replyLanguage, Tone: style})
+	if err != nil {
+		return nil, err
 	}
 	prompt = append(prompt, []byte("\n\n호스트가 제공하는 현재 기능과 대화 이력(JSON):\n")...)
 	prompt = append(prompt, b...)
+	prompt = append(prompt, []byte("\n\nHost-selected reply preferences (JSON):\n")...)
+	prompt = append(prompt, preferences...)
+	prompt = append(prompt, []byte("\n\nHost language rule: This rule has priority for ordinary user-facing replies. If language is an explicit tag, use it for ordinary replies. If language is auto, use the language of the latest user message and ignore previous assistant reply language. Explicit translations or artifacts may use the user-requested language. Preserve code, quotations, and IDs. Tone changes style only and never overrides language. Base Skill, capabilities, permissions, and JSON output format remain unchanged.")...)
 	if int64(len(prompt)) > limit {
 		return nil, errors.New("대화가 길어졌습니다. /새대화로 대화를 새로 시작해 주세요. 이전 지시를 임의로 생략하지 않았습니다.")
 	}

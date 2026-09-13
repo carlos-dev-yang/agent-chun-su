@@ -24,6 +24,22 @@ type HostResult struct {
 	Detail any    `json:"detail,omitempty"`
 }
 
+// controllerStatus contains only a controller response that passed the IPC
+// shape checks. A zero value is deliberately not treated as an observation.
+type controllerStatus struct {
+	ActiveJob     string `json:"active_job"`
+	Owner         string `json:"owner"`
+	QueuePaused   bool   `json:"queue_paused"`
+	WorkerRunning bool   `json:"worker_running"`
+}
+
+type controllerStatusReply struct {
+	ActiveJob     *string `json:"active_job"`
+	Owner         string  `json:"owner"`
+	QueuePaused   *bool   `json:"queue_paused"`
+	WorkerRunning *bool   `json:"worker_running"`
+}
+
 // Local callbacks contain user interaction only. Common admission, authority
 // checks and result projection do not depend on Cobra or a particular UI.
 type Host struct {
@@ -40,7 +56,7 @@ func (h Host) call(ctx context.Context, request control.Request, result any) err
 		return err
 	}
 	if !handled {
-		return errors.New("호스트가 실행 중이지 않습니다")
+		return errors.New("host controller is not running")
 	}
 	return json.Unmarshal(data, result)
 }
@@ -62,7 +78,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 			return HostResult{}, err
 		}
 		err := audit.Record(h.Root, "chat."+action.Name, "", "")
-		return HostResult{Status: "requested", Detail: map[string]any{"worker_requested": enabled, "next": "수신기가 소유한 관리 프로세스를 전환합니다. /status의 worker_running으로 실제 시작·종료를 확인하세요. 별도 실행 중인 외부 worker는 유지되며 /pause와 /cancel로 업무를 제어할 수 있습니다."}}, err
+		return HostResult{Status: "requested", Detail: map[string]any{"worker_requested": enabled, "next": "The receiver-owned worker supervision setting was changed. Check /status for whether the worker is running. An independently running external worker is unchanged; use /pause and /cancel to control work."}}, err
 	case conversation.ListFeatures:
 		items, err := features.Catalog()
 		return HostResult{Status: "available", Detail: items}, err
@@ -75,10 +91,10 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{Status: "observed", Detail: items}, err
 	case conversation.AcknowledgeError:
 		if !strings.Contains(request, action.Reference) {
-			return HostResult{}, errors.New("오류 확인에는 사용자가 지정한 오류 ID가 필요합니다")
+			return HostResult{}, errors.New("acknowledging an error requires the error ID supplied by the user")
 		}
 		err := errorreport.Acknowledge(ctx, h.Root, action.Reference, h.Config.Limits)
-		return HostResult{Status: "acknowledged", Detail: "현재 발생분을 확인 처리했습니다. 기록은 보존됩니다."}, err
+		return HostResult{Status: "acknowledged", Detail: "The current occurrences were acknowledged. The record is retained."}, err
 	case conversation.PauseQueue, conversation.ResumeQueue:
 		operation := "pause"
 		if action.Name == conversation.ResumeQueue {
@@ -89,7 +105,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{Status: "processed", Detail: result}, err
 	case conversation.CancelJob, conversation.RetryJob:
 		if !known[action.Reference] && !strings.Contains(request, action.Reference) {
-			return HostResult{}, errors.New("사용자가 지정하거나 현재 조회한 작업 ID가 필요합니다")
+			return HostResult{}, errors.New("this action requires a job ID supplied by the user or shown in the current job list")
 		}
 		operation := "cancel"
 		if action.Name == conversation.RetryJob {
@@ -99,32 +115,38 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		err := h.call(ctx, control.Request{Operation: operation, JobID: action.Reference}, &result)
 		return HostResult{Status: "processed", Detail: result}, err
 	case conversation.RuntimeStatus:
-		var status struct {
-			ActiveJob     string `json:"active_job"`
-			Owner         string `json:"owner"`
-			QueuePaused   bool   `json:"queue_paused"`
-			WorkerRunning bool   `json:"worker_running"`
+		var reply controllerStatusReply
+		controllerErr := h.call(ctx, control.Request{Operation: "status"}, &reply)
+		controllerAvailable := controllerErr == nil && reply.Owner == "controller" && reply.ActiveJob != nil && reply.QueuePaused != nil && reply.WorkerRunning != nil
+		var status controllerStatus
+		if controllerAvailable {
+			status = controllerStatus{ActiveJob: *reply.ActiveJob, Owner: reply.Owner, QueuePaused: *reply.QueuePaused, WorkerRunning: *reply.WorkerRunning}
 		}
-		err := h.call(ctx, control.Request{Operation: "status"}, &status)
 		health, alive, healthErr := telegram.ReadHealth(h.Root, h.Config.Limits)
-		result := map[string]any{"controller_available": err == nil, "controller": status, "chat_receiver_alive": alive}
+		result := map[string]any{
+			"controller_available":       controllerAvailable,
+			"controller_status_readable": controllerAvailable,
+			"controller":                 status,
+			"chat_receiver_alive":        alive,
+			"chat_health_readable":       healthErr == nil,
+		}
 		if desired, e := service.WorkerEnabled(h.Root); e == nil {
 			result["worker_requested"] = desired
 		}
 		if healthErr == nil {
 			result["chat"] = health
 		}
-		if err != nil {
-			result["recovery"] = "호스트 관리 연결이 준비되지 않았습니다. 수신기가 자동 복구를 시도하며 /errors로 확인할 수 있습니다."
+		if !controllerAvailable {
+			result["recovery"] = "The host controller status could not be confirmed. Check /errors and recover the host if needed."
 		}
-		return HostResult{Status: "observed", Detail: result}, healthErr
+		return HostResult{Status: "observed", Detail: result}, nil
 	case conversation.ReadGuide:
 		b, err := conversation.Guide(action.Service)
 		if err != nil {
 			return HostResult{}, err
 		}
 		if int64(len(b)) > h.Config.Limits.MaxSourceBytes {
-			return HostResult{}, errors.New("매뉴얼이 대화 입력 한도를 초과합니다")
+			return HostResult{}, errors.New("guide exceeds the conversation input limit")
 		}
 		return HostResult{Status: "guide_read", Detail: string(b)}, nil
 	case conversation.InstallGuide:
@@ -139,7 +161,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{Status: result.Status, Detail: map[string]string{"service": action.Service, "pack_digest": result.PackDigest, "message": result.Message}}, nil
 	case conversation.GmailSetup:
 		if channel != Local || h.GmailSetup == nil {
-			return HostResult{}, errors.New("Gmail 인증은 로컬 입력 화면에서 진행해 주세요")
+			return HostResult{}, errors.New("Gmail authentication must be completed in the local input screen")
 		}
 		return h.GmailSetup(ctx)
 	case conversation.ListJobs:
@@ -169,7 +191,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{Status: "observed", Detail: map[string]any{"jobs": items, "total": len(jobs)}}, nil
 	case conversation.DelegateJob, conversation.ShowReport:
 		if !known[action.Reference] && !strings.Contains(request, action.Reference) {
-			return HostResult{}, errors.New("먼저 작업 목록에서 확인한 ID나 사용자가 지정한 ID를 선택해야 합니다")
+			return HostResult{}, errors.New("select a job ID from the current job list or provide one directly")
 		}
 		if action.Name == conversation.DelegateJob {
 			var job store.Job
@@ -177,10 +199,10 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 				return HostResult{}, err
 			}
 			known[job.ID] = true
-			return HostResult{Status: "queued", Detail: map[string]string{"job_id": job.ID, "workgroup": job.Workgroup, "state": job.Status, "note": "별도 업무로 접수했습니다. 실행 중인 worker가 처리하며, 아직 결과가 생성된 것은 아닙니다."}}, nil
+			return HostResult{Status: "queued", Detail: map[string]string{"job_id": job.ID, "workgroup": job.Workgroup, "state": job.Status, "note": "The request was accepted as separate work. A running worker will process it; no result has been generated yet."}}, nil
 		}
 		if channel != Local || h.DisplayReport == nil {
-			return HostResult{}, errors.New("이 채널에는 보고서 본문 표시 권한이 없습니다")
+			return HostResult{}, errors.New("this channel cannot display report bodies")
 		}
 		s, err := store.OpenReadOnly(ctx, h.Root)
 		if err != nil {
@@ -207,10 +229,10 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 			if err = h.DisplayReport(ctx, b); err != nil {
 				return HostResult{}, err
 			}
-			return HostResult{Status: "displayed_locally", Detail: "검증된 보존 보고서를 사용자에게 표시했습니다. 본문은 접수 AI에게 전달하지 않았습니다. 내용을 읽거나 요약했다고 주장하지 마세요."}, nil
+			return HostResult{Status: "displayed_locally", Detail: "The verified retained report was shown locally. Its body was not sent to the reception AI; do not claim it was read or summarized."}, nil
 		}
-		return HostResult{}, errors.New("보존된 보고서가 없습니다")
+		return HostResult{}, errors.New("no retained report is available")
 	default:
-		return HostResult{}, errors.New("지원되지 않는 접수 작업입니다")
+		return HostResult{}, errors.New("unsupported reception action")
 	}
 }

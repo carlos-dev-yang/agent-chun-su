@@ -261,7 +261,7 @@ func (c *Client) Send(ctx context.Context, chatID int64, text string) ([]int64, 
 	}
 	units := utf16.Encode([]rune(text))
 	if len(units) > MaxReplyUnits {
-		suffix := utf16.Encode([]rune("\n[답변 길이 한도에 도달했습니다. 이어서 요청해 주세요.]"))
+		suffix := utf16.Encode([]rune("\n[Reply limit reached. Send a follow-up to continue.]"))
 		end := MaxReplyUnits - len(suffix)
 		if units[end-1] >= 0xD800 && units[end-1] <= 0xDBFF {
 			end--

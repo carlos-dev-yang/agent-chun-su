@@ -9,6 +9,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
@@ -105,7 +106,11 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if err != nil {
 			return err
 		}
-		prompt, err := conversation.PromptForWithStyle(s.History, s.Config.Limits.MaxSourceBytes, Capabilities(s.Channel), s.Channel, style)
+		replyLanguage, err := chatlanguage.Load(s.Root, s.Config.Limits)
+		if err != nil {
+			return err
+		}
+		prompt, err := conversation.PromptForWithPreferences(s.History, s.Config.Limits.MaxSourceBytes, Capabilities(s.Channel), s.Channel, style, replyLanguage)
 		if err != nil {
 			return err
 		}

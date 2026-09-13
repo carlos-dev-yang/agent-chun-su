@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
@@ -23,8 +24,8 @@ func (d *setupDialogue) runAI(initial string) error {
 	tone := &chatstyle.Dialogue{}
 	reports := errorreport.New(d.root, d.config.Limits)
 	aiBlocked := false
-	fmt.Fprintln(d.out, "춘수와 대화합니다. 할 일을 편하게 말씀해 주세요. 실행은 지원되는 작업으로 제한됩니다.")
-	fmt.Fprintln(d.out, "대화는 설정된 Codex로 전달됩니다. 비밀값은 입력하지 마세요. 취소: 현재 답변 중단, /새대화: 맥락 초기화, 종료: 끝내기.")
+	fmt.Fprintln(d.out, "Chat with Chun-su naturally. Execution remains limited to supported work.")
+	fmt.Fprintln(d.out, "Conversation is sent to the configured Codex. Do not enter secrets. cancel stops the current reply, /reset clears context, and exit leaves chat.")
 	for {
 		request := initial
 		initial = ""
@@ -42,10 +43,20 @@ func (d *setupDialogue) runAI(initial string) error {
 			d.config = current
 			session.Config = current
 		}
+		if response, handled, err := chatlanguage.Handle(d.root, d.config.Limits, request); handled {
+			tone = &chatstyle.Dialogue{}
+			if err != nil {
+				id, _ := reports.Record(d.ctx, reception.ErrorCode(err, d.config), errorreport.Correlation{SessionID: session.ID})
+				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
+			} else {
+				fmt.Fprintln(d.out, response)
+			}
+			continue
+		}
 		if response, handled, err := tone.Handle(d.root, d.config.Limits, request); handled {
 			if err != nil {
 				id, _ := reports.Record(d.ctx, reception.ErrorCode(err, d.config), errorreport.Correlation{SessionID: session.ID})
-				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
+				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
 			} else {
 				fmt.Fprintln(d.out, response)
 			}
@@ -53,16 +64,16 @@ func (d *setupDialogue) runAI(initial string) error {
 		}
 		if request == "/새대화" || request == "/reset" {
 			if err := session.Recover(d.ctx); err != nil {
-				fmt.Fprintln(d.out, "이전 실행 정리를 확인하지 못했습니다. /errors와 호스트 복구 상태를 확인해 주세요.")
+				fmt.Fprintln(d.out, "The previous execution cleanup could not be confirmed. Check /errors and host recovery state.")
 				continue
 			}
 			aiBlocked = false
 			session = reception.New(d.root, d.config, reception.Local)
-			fmt.Fprintln(d.out, "새 대화를 시작했습니다.")
+			fmt.Fprintln(d.out, "A new chat has started.")
 			continue
 		}
 		if strings.TrimSpace(request) == "/cancel" {
-			fmt.Fprintln(d.out, "현재 진행 중인 답변이 없습니다.")
+			fmt.Fprintln(d.out, "There is no reply in progress.")
 			continue
 		}
 		if strings.TrimSpace(request) == "" {
@@ -71,19 +82,32 @@ func (d *setupDialogue) runAI(initial string) error {
 		if response, handled, err := d.receptionHost().Command(d.ctx, reception.Local, request); handled {
 			if err != nil {
 				id, _ := reports.Record(d.ctx, "host_failed", errorreport.Correlation{SessionID: session.ID})
-				fmt.Fprintln(d.out, "내부 작업을 완료하지 못했습니다. /errors로 확인해 주세요. 오류 ID:", id)
+				fmt.Fprintln(d.out, "An internal action could not be completed. Check /errors. Error ID:", id)
 			} else {
 				fmt.Fprintln(d.out, response)
 			}
 			continue
 		}
 		if aiBlocked {
-			fmt.Fprintln(d.out, "AI 실행 정리가 필요합니다. /reset과 /errors로 복구 상태를 확인하세요. 고정 명령은 계속 사용할 수 있습니다.")
+			fmt.Fprintln(d.out, "AI execution cleanup is required. Check /reset and /errors for recovery state. Fixed management commands remain available.")
 			continue
 		}
 		fmt.Fprintln(d.out, telegramchat.Acknowledgment)
 		generate := func(ctx context.Context, directory string, prompt, schema, skill []byte) (reception.Generation, error) {
-			result, steering, err := d.generate(directory, prompt, schema, skill)
+			result, steering, err := d.generate(directory, prompt, schema, skill, func(text string) bool {
+				response, handled, languageErr := chatlanguage.Handle(d.root, d.config.Limits, text)
+				if !handled {
+					return false
+				}
+				tone = &chatstyle.Dialogue{}
+				if languageErr != nil {
+					id, _ := reports.Record(d.ctx, reception.ErrorCode(languageErr, d.config), errorreport.Correlation{SessionID: session.ID})
+					fmt.Fprintln(d.out, telegramchat.FailureMessage(languageErr), "Error ID:", id)
+				} else {
+					fmt.Fprintln(d.out, response)
+				}
+				return true
+			})
 			if steering != "" {
 				initial = steering
 				return result, errReceptionSteered
@@ -94,7 +118,7 @@ func (d *setupDialogue) runAI(initial string) error {
 			if !event.UserVisible() {
 				return nil
 			}
-			_, err := fmt.Fprintln(d.out, "춘수:", event.Text)
+			_, err := fmt.Fprintln(d.out, "Chun-su:", event.Text)
 			return err
 		}
 		err := session.Turn(d.ctx, request, d.receptionHost(), generate, emit)
@@ -102,10 +126,10 @@ func (d *setupDialogue) runAI(initial string) error {
 			aiBlocked = session.Recover(d.ctx) != nil
 			session.History = append(session.History, conversation.Event{
 				Role:    "host",
-				Content: "이전 요청의 완료를 확인하지 못했습니다. 기존 작업을 자동 재실행하지 말고 사용자의 다음 요청을 기다리세요.",
+				Content: "The previous request could not be confirmed. Do not automatically rerun existing work; wait for the user's next request.",
 			})
 			id, _ := reports.Record(d.ctx, "execution_uncertain", errorreport.Correlation{SessionID: session.ID})
-			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
+			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
 			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -114,8 +138,8 @@ func (d *setupDialogue) runAI(initial string) error {
 		} else if errors.Is(err, errReceptionSteered) {
 			continue
 		} else if errors.Is(err, errSetupBack) {
-			session.History = append(session.History, conversation.Event{Role: "host", Content: "사용자가 답변을 취소했습니다. 미완료 작업을 자동 재실행하지 마세요."})
-			fmt.Fprintln(d.out, "답변을 중단했습니다.")
+			session.History = append(session.History, conversation.Event{Role: "host", Content: "The user stopped the reply. Do not automatically rerun incomplete work."})
+			fmt.Fprintln(d.out, "The reply was stopped.")
 		} else if err != nil {
 			code := reception.ErrorCode(err, d.config)
 			if errors.Is(err, reception.ErrUncertain) {
@@ -123,7 +147,7 @@ func (d *setupDialogue) runAI(initial string) error {
 				aiBlocked = session.Recover(d.ctx) != nil
 			}
 			id, _ := reports.Record(d.ctx, code, errorreport.Correlation{SessionID: session.ID})
-			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "오류 ID:", id)
+			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
 		}
 	}
 }
@@ -132,10 +156,10 @@ func (d *setupDialogue) receptionHost() reception.Host {
 	return reception.Host{
 		Root: d.root, Config: d.config,
 		GuideInstalled: func(result onboarding.Result) {
-			fmt.Fprintln(d.out, "[로컬 설치]", result.Message, "\n", result.ManualPath)
+			fmt.Fprintln(d.out, "[Local installation]", result.Message, "\n", result.ManualPath)
 		},
 		DisplayReport: func(ctx context.Context, b []byte) error {
-			fmt.Fprintln(d.out, "[사용자에게만 표시하는 보존 보고서]")
+			fmt.Fprintln(d.out, "[Preserved report shown only to the user]")
 			_, err := d.out.Write(b)
 			return err
 		},
@@ -145,25 +169,26 @@ func (d *setupDialogue) receptionHost() reception.Host {
 			if err != nil {
 				return reception.HostResult{}, err
 			}
-			fmt.Fprintln(d.out, "[로컬 Gmail 매뉴얼]", prepared.ManualPath)
-			fmt.Fprintln(d.out, "[로컬 인증 단계] 여기서 입력한 계정·파일 경로와 인증 결과의 비밀값은 AI에게 보내지 않습니다.")
+			fmt.Fprintln(d.out, "[Local Gmail manual]", prepared.ManualPath)
+			fmt.Fprintln(d.out, "[Local authorization step] Account details, file paths, and secrets from authorization results entered here are not sent to the AI.")
 			err = d.gmail()
 			if errors.Is(err, errSetupBack) {
-				return reception.HostResult{Status: "cancelled", Detail: "사용자가 로컬 설정을 취소했습니다."}, nil
+				return reception.HostResult{Status: "cancelled", Detail: "The user cancelled local setup."}, nil
 			}
 			if err != nil {
 				return reception.HostResult{}, err
 			}
 			if d.lastSetup == nil {
-				return reception.HostResult{Status: "not_started", Detail: "로컬 설정 단계에서 인증 실행을 선택하지 않았습니다."}, nil
+				return reception.HostResult{Status: "not_started", Detail: "Authorization was not started in local setup."}, nil
 			}
-			return reception.HostResult{Status: d.lastSetup.Status, Detail: "호스트의 Gmail 설정 결과입니다. 계정·비밀·인증 URL은 전달하지 않았습니다."}, nil
+			return reception.HostResult{Status: d.lastSetup.Status, Detail: "This is the host's Gmail setup result. Account data, secrets, and authorization URLs were not shared."}, nil
 		},
 	}
 }
 
 // New input cancels the old generation before any proposal from it is dispatched.
-func (d *setupDialogue) generate(directory string, prompt, schema, skill []byte) (reception.Generation, string, error) {
+// A recognized control may instead be handled while the generation retains its snapshot.
+func (d *setupDialogue) generate(directory string, prompt, schema, skill []byte, control func(string) bool) (reception.Generation, string, error) {
 	ctx, cancel := context.WithCancel(d.ctx)
 	defer cancel()
 	type completed struct {
@@ -175,31 +200,40 @@ func (d *setupDialogue) generate(directory string, prompt, schema, skill []byte)
 		r, e := reception.Generate(ctx, d.root, directory, d.config, prompt, schema, skill)
 		done <- completed{r, e}
 	}()
-	select {
-	case result := <-done:
-		return result.result, "", result.err
-	case <-d.ctx.Done():
-		cancel()
-		result := <-done
-		return result.result, "", d.ctx.Err()
-	case line, ok := <-d.lines:
-		cancel()
-		result := <-done
-		if !ok {
-			return result.result, "", io.EOF
+	for {
+		select {
+		case result := <-done:
+			return result.result, "", result.err
+		case <-d.ctx.Done():
+			cancel()
+			result := <-done
+			return result.result, "", d.ctx.Err()
+		case line, ok := <-d.lines:
+			if !ok {
+				cancel()
+				result := <-done
+				return result.result, "", io.EOF
+			}
+			if line.err != nil {
+				cancel()
+				result := <-done
+				return result.result, "", line.err
+			}
+			if control != nil && control(line.text) {
+				continue
+			}
+			cancel()
+			result := <-done
+			switch strings.ToLower(line.text) {
+			case "종료", "그만", "quit", "exit":
+				return result.result, "", io.EOF
+			case "취소", "뒤로", "cancel", "/cancel", "back":
+				return result.result, "", errSetupBack
+			}
+			if line.text == "" {
+				return result.result, "", errSetupBack
+			}
+			return result.result, line.text, nil
 		}
-		if line.err != nil {
-			return result.result, "", line.err
-		}
-		switch strings.ToLower(line.text) {
-		case "종료", "그만", "quit", "exit":
-			return result.result, "", io.EOF
-		case "취소", "뒤로", "cancel", "/cancel", "back":
-			return result.result, "", errSetupBack
-		}
-		if line.text == "" {
-			return result.result, "", errSetupBack
-		}
-		return result.result, line.text, nil
 	}
 }

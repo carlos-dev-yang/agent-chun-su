@@ -124,7 +124,7 @@ func traceResult(action string, result HostResult) HostResult {
 			trace.Detail = detail
 		}
 	case conversation.RuntimeStatus:
-		trace.Detail = traceMap(result.Detail, "controller_available", "controller", "chat_receiver_alive", "chat", "worker_requested", "recovery")
+		trace.Detail = traceMap(result.Detail, "controller_available", "controller_status_readable", "controller", "chat_receiver_alive", "chat_health_readable", "chat", "worker_requested", "recovery")
 	case conversation.ListJobs:
 		trace.Detail = traceMap(result.Detail, "jobs", "total")
 	case conversation.InstallFeature:

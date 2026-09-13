@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
@@ -21,7 +22,7 @@ import (
 	"chunsu/internal/telegram"
 )
 
-const Acknowledgment = "접수했습니다."
+const Acknowledgment = "Received."
 
 type Receiver struct {
 	Root    string
@@ -41,25 +42,29 @@ type controlNotice struct {
 }
 
 func FailureMessage(err error) string {
+	var replyLanguage *chatlanguage.Error
+	if errors.As(err, &replyLanguage) {
+		return "Saved reply-language settings are unavailable. Use /language reset to restore automatic reply language."
+	}
 	var style *chatstyle.Error
 	if errors.As(err, &style) {
-		return "저장된 말투 설정을 사용할 수 없습니다. /말투 초기화로 기본 말투를 복구해 주세요."
+		return "Saved tone settings are unavailable. Use /tone reset to restore the default tone."
 	}
 	if errors.Is(err, reception.ErrUncertain) {
-		return "이전 요청의 실행 또는 작업 결과를 확인하지 못했습니다. 자동으로 다시 실행하지 않았습니다. /jobs와 /errors로 확인해 주세요."
+		return "The previous request or action result could not be confirmed. It was not retried automatically. Check /jobs and /errors."
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return "응답 제한 시간에 도달해 이번 답변을 완료하지 못했습니다. 이미 시작된 작업은 /jobs에서 확인해 주세요."
+		return "The reply reached its time limit and was not completed. Check /jobs for work that may already have started."
 	}
 	var action *reception.ActionError
 	if errors.As(err, &action) {
-		return "내부 작업을 완료하지 못했습니다. 자동으로 다시 실행하지 않았습니다. /errors와 /status로 확인해 주세요."
+		return "An internal action could not be completed. It was not retried automatically. Check /errors and /status."
 	}
 	var compatibility *executor.CompatibilityError
 	if errors.As(err, &compatibility) {
-		return "AI 실행기 호환성 문제로 답변을 생성하지 못했습니다. " + compatibility.Error() + " 호스트의 chunsu doctor로 확인해 주세요."
+		return "The reply could not be generated because of an AI executor compatibility problem. " + compatibility.Error() + " Run chunsu doctor on the host."
 	}
-	return "요청을 완료하지 못했습니다. /errors로 원인과 복구 안내를 확인할 수 있습니다. /status와 /help는 계속 사용할 수 있습니다."
+	return "The request could not be completed. Check /errors for the cause and recovery guidance. /status and /help remain available."
 }
 func (r Receiver) record(ctx context.Context, code string, id int64, session string) string {
 	errorID, _ := r.Errors.Record(ctx, code, errorreport.Correlation{UpdateID: id, SessionID: session})
@@ -132,7 +137,7 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 				if result.uncertain {
 					failure = errors.Join(reception.ErrUncertain, failure)
 				}
-				_ = r.send(notifyCtx, &receipt, FailureMessage(failure)+"\n오류 ID: "+receipt.ErrorID)
+				_ = r.send(notifyCtx, &receipt, FailureMessage(failure)+"\nError ID: "+receipt.ErrorID)
 			}
 		}
 		switch {
@@ -319,7 +324,7 @@ func (r Receiver) Serve(parent context.Context) error {
 		if result.uncertain {
 			history = append(history, conversation.Event{
 				Role:    "host",
-				Content: "이전 요청의 완료를 확인하지 못했습니다. 기존 작업을 자동 재실행하지 말고 사용자의 다음 요청을 기다리세요.",
+				Content: "The previous request could not be confirmed. Do not automatically rerun existing work; wait for the user's next request.",
 			})
 		}
 		if pendingControl != nil {
@@ -327,41 +332,41 @@ func (r Receiver) Serve(parent context.Context) error {
 			pendingControl = nil
 			switch {
 			case recoveryErr != nil:
-				text := "이전 실행 정리를 확인하지 못해 새 AI 요청을 시작할 수 없습니다. /status와 /errors는 계속 사용할 수 있습니다."
+				text := "The previous execution cleanup could not be confirmed, so a new AI request cannot start. /status and /errors remain available."
 				if recoveryID != "" {
-					text += "\n오류 ID: " + recoveryID
+					text += "\nError ID: " + recoveryID
 				}
 				reply(&control.receipt, text)
 			case result.uncertain:
-				text := "이전 요청의 실행 또는 작업 결과를 확인하지 못했습니다. 자동으로 다시 실행하지 않았습니다. /jobs와 /errors로 확인해 주세요."
+				text := "The previous request or action result could not be confirmed. It was not retried automatically. Check /jobs and /errors."
 				if control.reset {
 					history = nil
 					health.SessionID = files.ID()
-					text += "\n새 대화를 시작했습니다."
+					text += "\nA new chat has started."
 				}
 				reply(&control.receipt, text)
 			case result.cancelled:
 				if control.reset {
 					history = nil
 					health.SessionID = files.ID()
-					reply(&control.receipt, "이전 실행 정리를 마치고 새 대화를 시작했습니다.")
+					reply(&control.receipt, "The previous execution cleanup finished and a new chat has started.")
 				} else {
-					reply(&control.receipt, "현재 답변을 중단했습니다. 이미 시작한 작업은 /jobs에서 확인할 수 있습니다.")
+					reply(&control.receipt, "The current reply was stopped. Check /jobs for work that may already have started.")
 				}
 			case result.err == nil:
 				if control.reset {
 					history = nil
 					health.SessionID = files.ID()
-					reply(&control.receipt, "앞선 답변은 이미 완료되었고, 새 대화를 시작했습니다.")
+					reply(&control.receipt, "The earlier reply had already finished, and a new chat has started.")
 				} else {
-					reply(&control.receipt, "앞선 답변은 이미 완료되어 중단하지 않았습니다.")
+					reply(&control.receipt, "The earlier reply had already finished, so it was not stopped.")
 				}
 			default:
-				text := "앞선 답변은 이미 종료되었습니다. /errors에서 원인과 복구 안내를 확인해 주세요."
+				text := "The earlier reply had already ended. Check /errors for the cause and recovery guidance."
 				if control.reset {
 					history = nil
 					health.SessionID = files.ID()
-					text += "\n새 대화를 시작했습니다."
+					text += "\nA new chat has started."
 				}
 				reply(&control.receipt, text)
 			}
@@ -426,10 +431,19 @@ func (r Receiver) Serve(parent context.Context) error {
 			if configErr == nil {
 				r.Config = current
 			}
+			if response, handled, languageErr := chatlanguage.Handle(r.Root, r.Config.Limits, text); handled {
+				tone = &chatstyle.Dialogue{}
+				if languageErr != nil {
+					receipt.ErrorID = r.record(ctx, reception.ErrorCode(languageErr, r.Config), u.ID, health.SessionID)
+					response = FailureMessage(languageErr) + "\nError ID: " + receipt.ErrorID
+				}
+				reply(&receipt, response)
+				continue
+			}
 			if response, handled, toneErr := tone.Handle(r.Root, r.Config.Limits, text); handled {
 				if toneErr != nil {
 					receipt.ErrorID = r.record(ctx, reception.ErrorCode(toneErr, r.Config), u.ID, health.SessionID)
-					response = FailureMessage(toneErr) + "\n오류 ID: " + receipt.ErrorID
+					response = FailureMessage(toneErr) + "\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
 				continue
@@ -449,21 +463,21 @@ func (r Receiver) Serve(parent context.Context) error {
 						activeCancel()
 					} else {
 						pendingControl.reset = pendingControl.reset || reset
-						reply(&receipt, "현재 답변 중단을 이미 요청했습니다.")
+						reply(&receipt, "Stopping the current reply has already been requested.")
 					}
 				} else if reset {
 					if e := Reconcile(ctx, r.Root, r.Config.Limits); e != nil {
 						health.AIBlocked = true
 						receipt.ErrorID = r.record(ctx, "recovery_blocked", u.ID, health.SessionID)
-						reply(&receipt, "이전 실행 정리를 확인하지 못해 새 대화를 시작하지 않았습니다. /status와 /errors는 계속 사용할 수 있습니다.\n오류 ID: "+receipt.ErrorID)
+						reply(&receipt, "The previous execution cleanup could not be confirmed, so a new chat did not start. /status and /errors remain available.\nError ID: "+receipt.ErrorID)
 					} else {
 						health.AIBlocked = false
 						history = nil
 						health.SessionID = files.ID()
-						reply(&receipt, "새 대화를 시작했습니다.")
+						reply(&receipt, "A new chat has started.")
 					}
 				} else {
-					reply(&receipt, "현재 진행 중인 답변이 없습니다.")
+					reply(&receipt, "There is no reply in progress.")
 				}
 				writeHealth()
 				continue
@@ -473,21 +487,21 @@ func (r Receiver) Serve(parent context.Context) error {
 			if handled {
 				if commandErr != nil {
 					receipt.ErrorID = r.record(ctx, "host_failed", u.ID, health.SessionID)
-					response = "내부 작업을 완료하지 못했습니다. /errors로 확인해 주세요.\n오류 ID: " + receipt.ErrorID
+					response = "An internal action could not be completed. Check /errors.\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
 				continue
 			}
 			if int64(len(text)) > r.Config.Limits.MaxSourceBytes {
-				reply(&receipt, "입력이 너무 깁니다. 내용을 나누어 보내 주세요.")
+				reply(&receipt, "The input is too long. Send it in smaller parts.")
 				continue
 			}
 			if activeCancel != nil {
-				reply(&receipt, "앞선 요청을 처리 중입니다. 답변을 기다리거나 /cancel 후 새 요청을 보내 주세요. 고정 관리 명령은 사용할 수 있습니다.")
+				reply(&receipt, "An earlier request is still being processed. Wait for its reply or use /cancel before sending a new request. Fixed management commands remain available.")
 				continue
 			}
 			if health.AIBlocked || configErr != nil {
-				reply(&receipt, "AI 실행 복구가 필요합니다. /status와 /errors를 확인해 주세요. 고정 관리 명령은 계속 사용할 수 있습니다.")
+				reply(&receipt, "AI execution recovery is required. Check /status and /errors. Fixed management commands remain available.")
 				continue
 			}
 			if e = r.acknowledge(ctx, &receipt, u.Message.ID); e != nil {

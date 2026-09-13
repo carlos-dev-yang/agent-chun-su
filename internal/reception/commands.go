@@ -3,13 +3,15 @@ package reception
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
+	"chunsu/internal/telegram"
 )
 
-const Help = "할 일을 자연스럽게 말씀해 주세요. AI가 응답하지 않아도 아래 명령은 동작합니다.\n/status 상태 · /errors 오류 보고 · /ack 오류ID 확인 · /jobs 작업 목록\n/pause 업무 큐 중지 · /resume 큐 재개 · /cancel 작업ID 취소 · /retry 작업ID 재시도\n/worker start 업무 실행기 시작 · /worker stop 실행기 중지\n/features 설치 가능 기능 · /install 기능ID 설치 · /guide 서비스ID 안내\n/말투 옵션 · /말투 현재 · /말투 초기화\n/cancel 현재 답변 중단 · /reset 새 대화 · /help 사용법\n계정 인증과 비밀 입력은 호스트의 로컬/SSH 설정에서 진행합니다."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/worker start start the work runner · /worker stop stop the work runner\n/features available features · /install featureID install a feature · /guide serviceID setup guide\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -21,7 +23,7 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	name := strings.ToLower(parts[0])
 	if name == "/worker" {
 		if len(parts) != 2 || (parts[1] != "start" && parts[1] != "stop") {
-			return "사용법: /worker start 또는 /worker stop. 실제 상태는 /status로 확인하세요.", true, nil
+			return "Usage: /worker start or /worker stop. Check /status for the observed state.", true, nil
 		}
 		action := conversation.StartWorker
 		if parts[1] == "stop" {
@@ -68,10 +70,10 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 		action.Name = conversation.ReadGuide
 		argc = 2
 	default:
-		return "알 수 없는 명령입니다. /help로 사용법을 확인하세요.", true, nil
+		return "Unknown command. Use /help to see available commands.", true, nil
 	}
 	if len(parts) != argc {
-		return "명령 인자를 확인해 주세요. /help로 사용법을 확인할 수 있습니다.", true, nil
+		return "Check the command arguments. Use /help for usage.", true, nil
 	}
 	if argc == 2 {
 		if name == "/install" || name == "/guide" {
@@ -87,18 +89,107 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	if action.Name == conversation.ListErrors {
 		reports := result.Detail.([]errorreport.Report)
 		if len(reports) == 0 {
-			return "누적된 운영 오류가 없습니다.", true, nil
+			return "No retained operational errors.", true, nil
 		}
 		var text strings.Builder
 		for _, report := range reports {
 			// Compact summaries fit the channel budget; CLI show retains details.
 			text.WriteString(report.Summary + "\nID: " + report.ID + "\n")
-			counts, _ := json.Marshal(map[string]uint64{"전체": report.Count, "미확인": report.Count - report.Acknowledged})
-			text.Write(counts)
+			fmt.Fprintf(&text, "Count: %d · Unacknowledged: %d", report.Count, report.Count-report.Acknowledged)
 			text.WriteString("\n" + report.Recovery + "\n\n")
 		}
 		return text.String(), true, nil
 	}
+	if action.Name == conversation.RuntimeStatus {
+		return readableStatus(result), true, nil
+	}
 	raw, err := json.MarshalIndent(result, "", "  ")
 	return string(raw), true, err
+}
+
+func readableStatus(result HostResult) string {
+	detail, ok := result.Detail.(map[string]any)
+	if !ok {
+		return "Status could not be read. Check /errors."
+	}
+	controllerAvailable, _ := detail["controller_available"].(bool)
+	chatAlive, _ := detail["chat_receiver_alive"].(bool)
+	chatReadable, _ := detail["chat_health_readable"].(bool)
+	status, statusKnown := detail["controller"].(controllerStatus)
+
+	lines := []string{"Status"}
+	if controllerAvailable && statusKnown {
+		lines = append(lines, "Controller: available.")
+		if status.QueuePaused {
+			lines = append(lines, "Queue: paused.")
+		} else {
+			lines = append(lines, "Queue: accepting work.")
+		}
+		if status.ActiveJob == "" {
+			lines = append(lines, "Active job: none.")
+		} else {
+			lines = append(lines, "Active job: "+status.ActiveJob+".")
+		}
+		if status.WorkerRunning {
+			lines = append(lines, "Worker: running.")
+		} else {
+			lines = append(lines, "Worker: not running.")
+		}
+	} else {
+		lines = append(lines, "Controller: unavailable or its status response could not be confirmed.", "Queue, active job, and worker state: unknown.")
+	}
+	if requested, known := detail["worker_requested"].(bool); known {
+		if requested {
+			lines = append(lines, "Worker supervision: requested.")
+		} else {
+			lines = append(lines, "Worker supervision: not requested.")
+		}
+	} else {
+		lines = append(lines, "Worker supervision: unknown.")
+	}
+
+	health, healthKnown := detail["chat"].(telegram.Health)
+	switch {
+	case !chatReadable:
+		lines = append(lines, "Chat receiver: health record could not be read.", "Polling and AI reply state: unknown.", "Recovery state: unknown.")
+	case !healthKnown || health.Version == 0:
+		lines = append(lines, "Chat receiver: no health record is present.", "Polling and AI reply state: unknown.", "Recovery state: unknown.")
+	case !chatAlive:
+		lines = append(lines, "Chat receiver: health is stale or the receiver has stopped.", "Polling and AI reply state: unknown.")
+		if health.AIBlocked {
+			lines = append(lines, "Recovery: blocked in the last recorded receiver state.")
+		} else {
+			lines = append(lines, "Recovery state: not current because receiver health is stale.")
+		}
+	default:
+		lines = append(lines, "Chat receiver: alive.", "Polling: "+readablePoll(health.Poll)+".")
+		if health.ActiveUpdate > 0 {
+			lines = append(lines, "AI reply: active.")
+		} else {
+			lines = append(lines, "AI reply: no active request.")
+		}
+		if health.AIBlocked {
+			lines = append(lines, "Recovery: blocked; fixed commands remain available.")
+		} else {
+			lines = append(lines, "Recovery: not blocked in the current receiver health record.")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func readablePoll(poll string) string {
+	switch poll {
+	case "connected":
+		return "connected"
+	case "connecting":
+		return "connecting"
+	case "poll_failed":
+		return "failed"
+	case "authentication_failed":
+		return "authentication failed"
+	case "poll_conflict":
+		return "conflicted"
+	default:
+		return "unknown"
+	}
 }

@@ -54,6 +54,21 @@ The user's follow-up excludes delay notices. Waiting alone does not trigger
 additional messages or a typing timer. User commands and actual failure or
 cancellation outcomes still receive their appropriate responses.
 
+The later CHAT-UX-05/02 selection separates AI reply language from system copy.
+`/language` and `/언어` mechanically store `auto` or a canonical language tag in
+private `preferences/chat.json`, independently of tone and executor settings.
+Absent preferences mean `auto`, following the user's language. Every new model
+generation reads the current language and tone; changing the setting does not
+interrupt a generation already in progress. Resetting conversation context does
+not reset these preferences. Invalid saved preferences produce a fixed English
+recovery notice, and language reset remains available without AI.
+
+Core help, settings, status, error and cancellation notices use English. The
+chat `/status` presentation renders confirmed facts as readable English while
+host results, traces and CLI diagnostic JSON stay structured. Unreadable or
+partial observations remain unknown. There is no system-message translation
+catalog, automatic platform-language overwrite or Telegram menu registration.
+
 Polling reconnects from the saved offset. Backoff uses the configured polling and
 retry limits and respects Telegram `retry_after`. Authentication failures reopen
 the selected secret store; restoring the original bot token can take effect on

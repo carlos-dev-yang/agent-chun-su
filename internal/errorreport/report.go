@@ -30,28 +30,29 @@ type Diagnostic struct {
 }
 
 var catalog = map[string]Diagnostic{
-	"supervisor_recovered":    {"supervisor", "중단된 채팅 감독 프로세스 복구", "OS 서비스 관리자가 감독 프로세스를 다시 시작했습니다. 이전 수신기와 작업을 확인하고 재연결합니다."},
-	"supervisor_interrupted":  {"supervisor", "실행 의도가 켜진 상태에서 감독 프로세스 종료 신호 수신", "OS 서비스 관리자가 복구합니다. 지속 중지는 chunsu telegram stop을 사용하세요."},
-	"model_timeout":           {"reception", "AI 응답 제한 시간 초과", "현재 요청을 중단했습니다. /reset으로 맥락을 정리하거나 요청을 작게 나누어 보내세요."},
-	"model_not_configured":    {"reception", "대화 AI 실행기 설정 누락", "호스트에서 chunsu config route reception과 chunsu doctor를 확인하세요. 고정 명령은 계속 사용할 수 있습니다."},
-	"model_compatibility":     {"reception", "대화 AI 버전 또는 모델 호환성 불일치", "호스트의 chunsu doctor에서 대화 경로의 지원 버전을 확인하고 실행기를 설정하세요."},
-	"chat_style_unavailable":  {"reception", "저장된 말투 지침을 읽거나 저장할 수 없음", "/말투 초기화로 기본 말투를 다시 저장하고 호스트의 데이터 디렉터리 권한·저장 공간을 확인하세요."},
-	"secret_unavailable":      {"chat", "채팅 비밀 저장소 또는 봇 토큰 이용 불가", "호스트의 Keychain 또는 CHUNSU_SECRET_HELPER 설정과 저장된 봇 토큰을 복구하세요. 토큰을 채팅에 보내지 마세요."},
-	"poll_failed":             {"telegram", "메시지 수신 연결 실패", "저장된 수신 위치에서 자동 재연결합니다. 반복되면 호스트 네트워크를 확인하세요."},
-	"authentication_failed":   {"telegram", "Telegram 인증 또는 접근 거부", "수신 재시도는 유지됩니다. 호스트에서 봇 토큰과 접근 권한을 복구하세요."},
-	"poll_conflict":           {"telegram", "다른 수신기 또는 웹훅과 충돌", "같은 봇을 사용하는 다른 수신기나 웹훅을 확인하세요. 기존 웹훅은 자동 삭제하지 않습니다."},
-	"send_unconfirmed":        {"telegram", "답장 또는 수신 반응 전송 완료를 확인하지 못함", "중복 전송을 피하려고 자동 재전송하지 않습니다. /status 또는 /jobs로 처리 결과를 확인하세요."},
-	"receipt_failed":          {"telegram", "메시지 처리 상태 저장 실패", "해당 요청 실행을 보류합니다. 호스트의 데이터 디렉터리 권한과 저장 공간을 확인하세요."},
-	"model_failed":            {"reception", "AI 답변 생성 실패", "수신과 고정 명령은 계속 동작합니다. /reset 또는 호스트의 chunsu doctor로 실행기와 인증을 확인하세요."},
-	"execution_uncertain":     {"reception", "실행 종료 또는 작업 결과 확인 필요", "해당 작업을 자동 재실행하지 않습니다. /jobs와 호스트의 복구 상태를 확인하세요."},
-	"host_failed":             {"controller", "내부 관리 작업 실패", "수신은 유지됩니다. /status와 /errors로 상태를 확인하고 필요하면 호스트에서 복구하세요."},
-	"turn_panicked":           {"reception", "대화 처리 중 내부 오류", "해당 대화를 중단했습니다. 오류 ID와 설치 버전을 사용해 점검하세요."},
-	"startup_failed":          {"chat", "채팅 수신기 시작 실패", "감독 프로세스가 재시도합니다. 설정·비밀 저장소·다른 수신기 실행 여부를 확인하세요."},
-	"receiver_exited":         {"supervisor", "채팅 수신기 비정상 종료", "감독 프로세스가 수신기를 다시 시작합니다. 중단된 요청은 자동 재실행하지 않습니다."},
-	"receiver_stalled":        {"supervisor", "채팅 수신기 응답 확인 시간 초과", "감독 프로세스가 소유한 수신기만 정리하고 다시 시작합니다."},
-	"recovery_blocked":        {"supervisor", "이전 실행의 안전한 종료를 확인하지 못함", "중복 실행을 보류합니다. 호스트에서 남은 프로세스와 실행 기록을 확인하세요."},
-	"supervisor_state_failed": {"supervisor", "감독 상태 저장 실패", "호스트 데이터 디렉터리 권한과 저장 공간을 복구하세요."},
-	"interrupted_request":     {"reception", "재시작 전에 완료되지 않은 요청 발견", "작업 결과가 불명확할 수 있어 자동 재실행하지 않습니다. /jobs로 확인한 후 필요한 요청만 다시 보내세요."},
+	"supervisor_recovered":      {"supervisor", "Interrupted chat supervisor recovered", "The OS service manager restarted the supervisor. It will inspect the prior receiver and work before reconnecting."},
+	"supervisor_interrupted":    {"supervisor", "Chat supervisor received a stop signal while enabled", "The OS service manager will recover it. Use chunsu telegram stop for a persistent stop."},
+	"model_timeout":             {"reception", "AI reply timed out", "The current request was stopped. Use /reset to clear context or send a smaller request."},
+	"model_not_configured":      {"reception", "Conversation AI executor is not configured", "Check chunsu config route reception and chunsu doctor on the host. Fixed commands remain available."},
+	"model_compatibility":       {"reception", "Conversation AI version or model is incompatible", "Use chunsu doctor on the host to check supported versions for the conversation route and configure an executor."},
+	"chat_style_unavailable":    {"reception", "Saved tone instruction is unavailable", "Run /tone reset, then check the data directory permissions and available storage on the host."},
+	"chat_language_unavailable": {"reception", "Saved chat language preference is unavailable", "Run /language reset, then check the private preference storage permissions and available space."},
+	"secret_unavailable":        {"chat", "Chat secret store or bot token is unavailable", "Restore the host Keychain or CHUNSU_SECRET_HELPER configuration and the saved bot token. Do not send tokens in chat."},
+	"poll_failed":               {"telegram", "Message polling connection failed", "The receiver reconnects from its saved position. If this repeats, check the host network."},
+	"authentication_failed":     {"telegram", "Telegram authentication or access was denied", "Polling retries continue. Restore the bot token and access permissions on the host."},
+	"poll_conflict":             {"telegram", "Another receiver or webhook conflicts with polling", "Check other receivers or webhooks using this bot. Existing webhooks are not removed automatically."},
+	"send_unconfirmed":          {"telegram", "Reply or acknowledgement delivery was not confirmed", "It will not be resent automatically to avoid duplicates. Check /status or /jobs for the result."},
+	"receipt_failed":            {"telegram", "Message processing state could not be saved", "This request is held. Check the host data directory permissions and available storage."},
+	"model_failed":              {"reception", "AI reply generation failed", "The receiver and fixed commands remain available. Use /reset or chunsu doctor on the host to check the executor and authentication."},
+	"execution_uncertain":       {"reception", "Execution completion or job result needs inspection", "It will not be run again automatically. Check /jobs and the host recovery state."},
+	"host_failed":               {"controller", "Internal management action failed", "The receiver remains available. Check /status and /errors, then recover the host if needed."},
+	"turn_panicked":             {"reception", "Internal failure while processing the conversation", "That conversation was stopped. Use the error ID and installed version when inspecting it."},
+	"startup_failed":            {"chat", "Chat receiver failed to start", "The supervisor will retry. Check configuration, the secret store, and whether another receiver is running."},
+	"receiver_exited":           {"supervisor", "Chat receiver exited unexpectedly", "The supervisor will restart the receiver. Interrupted requests are not run again automatically."},
+	"receiver_stalled":          {"supervisor", "Chat receiver response check timed out", "Only the supervisor-owned receiver will be cleaned up and restarted."},
+	"recovery_blocked":          {"supervisor", "Safe termination of a prior run could not be confirmed", "Duplicate execution is held. Inspect remaining processes and execution records on the host."},
+	"supervisor_state_failed":   {"supervisor", "Supervisor state could not be saved", "Restore the host data directory permissions and available storage."},
+	"interrupted_request":       {"reception", "A request unfinished before restart was found", "Its result may be uncertain, so it will not run again automatically. Check /jobs and resend only the request you need."},
 }
 
 type Correlation struct {
@@ -238,7 +239,7 @@ func List(root string, limits config.Limits) ([]Report, error) {
 		}
 		if err != nil {
 			// Preserve a damaged group while keeping other reports inspectable.
-			p = Report{Version: Version, ID: ID(code), Code: code, Storage: "unreadable", Diagnostic: Diagnostic{Component: "error_store", Summary: "오류 기록을 읽을 수 없습니다: " + code, Recovery: "호스트의 오류 기록 파일·권한·저장 공간을 확인하세요. 해당 파일은 덮어쓰지 않았습니다."}}
+			p = Report{Version: Version, ID: ID(code), Code: code, Storage: "unreadable", Diagnostic: Diagnostic{Component: "error_store", Summary: "Error report could not be read: " + code, Recovery: "Check the host error-report file, permissions, and available storage. The unreadable file was not overwritten."}}
 		}
 		reports = append(reports, p)
 	}

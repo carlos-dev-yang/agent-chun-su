@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/executor"
@@ -40,6 +41,10 @@ func (e *ActionError) Error() string { return "reception host action failed" }
 func (e *ActionError) Unwrap() error { return e.Cause }
 
 func ErrorCode(err error, c config.Config) string {
+	var replyLanguage *chatlanguage.Error
+	if errors.As(err, &replyLanguage) {
+		return "chat_language_unavailable"
+	}
 	var style *chatstyle.Error
 	if errors.As(err, &style) {
 		return "chat_style_unavailable"

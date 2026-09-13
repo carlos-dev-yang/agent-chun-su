@@ -36,6 +36,13 @@ other four still install local guidance only. See the
 [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
 [chat contract](docs/contracts/chat-v1.md).
 
+Choose the AI reply language with `/language ko`, `/language en`, `/language ja`,
+or another valid language tag such as `pt-BR`. `/언어` is an alias; `/language`
+shows the current setting and `/language auto` follows the current message's
+language. The selection is shared by Telegram and local chat, survives `/reset`
+and restarts, and applies to the next AI generation. Tone stays separate. Core
+system, error, and `/status` messages use English without a translation catalog.
+
 Use `bin/chunsu telegram enable` to pair locally and keep chat running under the OS
 user service manager. `telegram status` distinguishes pairing from a live receiver.
 A short acknowledgment precedes AI; `/errors`, `/status`, `/features`, `/install`,

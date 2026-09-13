@@ -36,10 +36,10 @@ var presetFiles embed.FS
 type preset struct{ Choice, Name, File string }
 
 var presets = []preset{
-	{"1", "정중한 존댓말", "presets/polite.md"},
-	{"2", "편한 존댓말", "presets/casual-honorific.md"},
-	{"3", "친근한 반말", "presets/friendly-informal.md"},
-	{"4", "간결한 업무형", "presets/concise-work.md"},
+	{"1", "Polite formal", "presets/polite.md"},
+	{"2", "Relaxed polite", "presets/casual-honorific.md"},
+	{"3", "Friendly informal", "presets/friendly-informal.md"},
+	{"4", "Concise work style", "presets/concise-work.md"},
 }
 
 type pending uint8
@@ -128,11 +128,11 @@ func customChoice() string { return strconv.Itoa(len(presets) + 1) }
 
 func menu() string {
 	var text strings.Builder
-	fmt.Fprintf(&text, "말투를 선택해 주세요.\n%s. 기본 말투\n", defaultChoice)
+	fmt.Fprintf(&text, "Choose a tone.\n%s. Default tone\n", defaultChoice)
 	for _, item := range presets {
 		fmt.Fprintf(&text, "%s. %s\n", item.Choice, item.Name)
 	}
-	fmt.Fprintf(&text, "%s. 커스텀 말투\n번호를 보내거나 /말투 현재 · /말투 초기화 · /말투 취소를 사용하세요.", customChoice())
+	fmt.Fprintf(&text, "%s. Custom tone\nSend a number, or use /tone current · /tone reset · /tone cancel. Korean aliases remain available: /말투 현재 · /말투 초기화 · /말투 취소.", customChoice())
 	return text.String()
 }
 
@@ -164,17 +164,17 @@ func (d *Dialogue) save(root string, limits config.Limits, text, label string) (
 	if err := Save(root, limits, text); err != nil {
 		switch {
 		case errors.Is(err, ErrEmpty):
-			return "말투 내용이 비어 있습니다. 다시 입력하거나 /말투 취소를 사용하세요.", true, nil
+			return "Tone text is empty. Enter it again or use /tone cancel.", true, nil
 		case errors.Is(err, ErrInvalid):
-			return "말투는 UTF-8 텍스트로 입력해 주세요.", true, nil
+			return "Enter tone text as UTF-8.", true, nil
 		case errors.Is(err, ErrTooLong):
-			return "말투 내용이 너무 깁니다. 더 짧게 입력해 주세요.", true, nil
+			return "Tone text is too long. Enter a shorter version.", true, nil
 		default:
 			return "", true, err
 		}
 	}
 	d.pending = pendingNone
-	return label + " 설정을 저장했습니다. 다음 답변 생성부터 적용됩니다.", true, nil
+	return label + " tone saved. It will apply to the next generated reply.", true, nil
 }
 
 func (d *Dialogue) selectStyle(root string, limits config.Limits, choice string) (string, bool, error) {
@@ -183,7 +183,7 @@ func (d *Dialogue) selectStyle(root string, limits config.Limits, choice string)
 			return "", true, err
 		}
 		d.pending = pendingNone
-		return "기본 말투로 초기화했습니다.", true, nil
+		return "Tone reset to the default.", true, nil
 	}
 	if item, ok := presetFor(choice); ok {
 		text, err := presetText(item)
@@ -194,7 +194,7 @@ func (d *Dialogue) selectStyle(root string, limits config.Limits, choice string)
 	}
 	if choice == customChoice() || customWord(choice) {
 		d.pending = pendingCustom
-		return "원하는 말투를 그대로 입력해 주세요. 내용은 AI가 고치지 않고 저장합니다. 취소하려면 ‘취소’ 또는 /말투 취소를 입력하세요.", true, nil
+		return "Enter the tone you want. It is saved without AI rewriting. Use cancel or /tone cancel to stop.", true, nil
 	}
 	d.pending = pendingSelection
 	return menu(), true, nil
@@ -206,7 +206,7 @@ func (d *Dialogue) current(root string, limits config.Limits) (string, bool, err
 		return "", true, err
 	}
 	if style == "" {
-		return "현재 기본 말투를 사용합니다.", true, nil
+		return "Current tone: Default tone.", true, nil
 	}
 	for _, item := range presets {
 		text, err := presetText(item)
@@ -214,10 +214,10 @@ func (d *Dialogue) current(root string, limits config.Limits) (string, bool, err
 			return "", true, err
 		}
 		if style == strings.TrimSpace(text) {
-			return "현재 말투: " + item.Name + "\n" + style, true, nil
+			return "Current tone: " + item.Name + "\n" + style, true, nil
 		}
 	}
-	return "현재 커스텀 말투:\n" + style, true, nil
+	return "Current tone: Custom tone\n" + style, true, nil
 }
 
 // Handle never sends menu inputs to AI. Slash commands retain their normal handlers.
@@ -229,7 +229,7 @@ func (d *Dialogue) Handle(root string, limits config.Limits, text string) (strin
 	}
 	if d.pending != pendingNone && cancelWord(text) {
 		d.pending = pendingNone
-		return "말투 설정을 취소했습니다.", true, nil
+		return "Tone selection cancelled.", true, nil
 	}
 	parts := strings.Fields(text)
 	if len(parts) > 0 && (parts[0] == "/말투" || strings.EqualFold(parts[0], "/tone")) {
@@ -249,7 +249,7 @@ func (d *Dialogue) Handle(root string, limits config.Limits, text string) (strin
 		}
 		if cancelWord(parts[1]) {
 			d.pending = pendingNone
-			return "말투 설정을 취소했습니다.", true, nil
+			return "Tone selection cancelled.", true, nil
 		}
 		return d.selectStyle(root, limits, parts[1])
 	}
@@ -259,5 +259,5 @@ func (d *Dialogue) Handle(root string, limits config.Limits, text string) (strin
 	if d.pending == pendingSelection {
 		return d.selectStyle(root, limits, text)
 	}
-	return d.save(root, limits, text, "커스텀")
+	return d.save(root, limits, text, "Custom")
 }
