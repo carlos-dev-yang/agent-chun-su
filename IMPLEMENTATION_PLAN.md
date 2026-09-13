@@ -53,6 +53,12 @@ instructions](docs/implementation/CHAT_TONE_2026-09-13.md): a mechanical `/ÎßêÌà
 menu with presets and custom input, Markdown-only persistence and fresh style
 injection at every chat generation, separate from base instructions and task agents.
 
+The next [chat entrypoint audit](docs/implementation/CHAT_ENTRYPOINT_AUDIT_2026-09-13.md)
+records live process observations and isolated fixed-command checks, then proposes
+clear command discovery, human-readable status and state-specific delay/error
+guidance. CHAT-UX-00 is complete; the proposed message-delivery policies and
+Telegram menu synchronization have not been applied.
+
 On 2026-09-11 the user authorized the [modular agent implementation goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md):
 human-owned criteria for execution/review/analysis/optimization, on-demand review
 of accumulated results, separate reception and task agents, replaceable execution
