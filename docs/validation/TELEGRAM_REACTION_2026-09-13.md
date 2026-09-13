@@ -29,3 +29,21 @@ access was not rechecked in this work; historical CHAT-06 handoff evidence is
 separate from validation of the new reaction behavior.
 
 Provider contract: [Telegram setMessageReaction](https://core.telegram.org/bots/api#setmessagereaction).
+
+## Authorized receiver restart
+
+On 2026-09-13 the user explicitly requested the restart. Before restarting,
+`telegram status` showed the paired supervisor and receiver alive, connected
+polling and no active AI update. The service used this checkout's `bin/chunsu`.
+
+`telegram restart` returned success, but subsequent status showed both previous
+processes stopped and launchd no longer had the service loaded. A subsequent
+`telegram start` restored the service. Fresh process identities confirmed a new
+supervisor and receiver running the updated checkout binary. At 09:57 UTC,
+`telegram status` showed enabled intent, both processes alive, `poll: connected`,
+`ai_blocked: false` and no unpersisted errors. No credential workaround was needed.
+
+This supersedes the earlier statement that receiver restart was not checked.
+No new user DM was sent during this check, so actual 👀 reaction delivery remains
+unverified. The restart command's transient stop/start behavior was recovered
+operationally; its implementation was not changed in this task.
