@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"strings"
 
+	"chunsu/internal/backend"
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
+	"chunsu/internal/files"
 	"chunsu/internal/telegram"
 )
 
-const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/worker start start the work runner · /worker stop stop the work runner\n/features available features · /install featureID install a feature · /guide serviceID setup guide\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner\n/features available features · /install featureID install a feature · /guide serviceID setup guide\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -21,20 +23,28 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 		return "", false, nil
 	}
 	name := strings.ToLower(parts[0])
-	if name == "/worker" {
-		if len(parts) != 2 || (parts[1] != "start" && parts[1] != "stop") {
-			return "Usage: /worker start or /worker stop. Check /status for the observed state.", true, nil
+	if name == "/controller" || name == "/worker" {
+		if channel != Local && channel != Telegram {
+			return "This runtime command is unavailable in this reception channel.", true, nil
 		}
-		action := conversation.StartWorker
-		if parts[1] == "stop" {
-			action = conversation.StopWorker
+		if len(parts) != 2 || !runtimeOperation(parts[1]) {
+			return "Usage: " + name + " start, stop, restart, or status. Check /status for the observed state.", true, nil
 		}
-		result, err := h.Dispatch(ctx, channel, conversation.Action{Name: action}, request, map[string]bool{})
+		component := strings.TrimPrefix(name, "/")
+		result, err := h.runtime(ctx, component, parts[1])
 		if err != nil {
-			return "", true, err
+			if strings.TrimSpace(result.Message) != "" {
+				return result.Message, true, err
+			}
+			return runtimeFailure(component, parts[1]), true, err
 		}
-		raw, err := json.MarshalIndent(result, "", "  ")
-		return string(raw), true, err
+		if strings.TrimSpace(result.Message) == "" {
+			return runtimeFailure(component, parts[1]), true, nil
+		}
+		if component == "worker" && parts[1] == "status" {
+			return workerStatusMessage(result), true, nil
+		}
+		return result.Message, true, nil
 	}
 	if name == "/help" || name == "/start" {
 		return Help, true, nil
@@ -84,6 +94,9 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	result, err := h.Dispatch(ctx, channel, action, request, map[string]bool{})
 	if err != nil {
+		if action.Name == conversation.RuntimeStatus {
+			return readableStatus(result), true, err
+		}
 		return "", true, err
 	}
 	if action.Name == conversation.ListErrors {
@@ -107,6 +120,46 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	return string(raw), true, err
 }
 
+func workerStatusMessage(result backend.Result) string {
+	status := result.Status
+	if status.WorkerError != "" || !status.ControllerRunning {
+		return result.Message
+	}
+	message := "Worker dispatch is stopped."
+	if status.WorkerRequested {
+		message = "Worker dispatch is enabled."
+		if !status.WorkerRunning {
+			message = "Worker dispatch is enabled, but not currently accepting work."
+		}
+	}
+	if files.ValidID(status.ActiveJob) {
+		message += " Active job: " + status.ActiveJob + "."
+	}
+	return message
+}
+
+// RequiresRuntimeWait identifies commands whose backend observation or service
+// operation can take the lifecycle budget. Other fixed commands stay on the
+// intake loop and do not wait behind a runtime mutation.
+func RequiresRuntimeWait(request string) bool {
+	parts := strings.Fields(request)
+	if len(parts) == 0 {
+		return false
+	}
+	return strings.EqualFold(parts[0], "/status") || strings.EqualFold(parts[0], "/controller") || strings.EqualFold(parts[0], "/worker")
+}
+
+func runtimeOperation(operation string) bool {
+	return operation == "start" || operation == "stop" || operation == "restart" || operation == "status"
+}
+
+func runtimeFailure(component, operation string) string {
+	if component == "controller" {
+		return "The controller could not " + operation + ". Use /controller status, then /controller start if it is stopped."
+	}
+	return "The worker could not " + operation + ". It may be stopped or missing its task configuration. Use /worker status, then /worker start after completing local setup."
+}
+
 func readableStatus(result HostResult) string {
 	detail, ok := result.Detail.(map[string]any)
 	if !ok {
@@ -116,6 +169,8 @@ func readableStatus(result HostResult) string {
 	chatAlive, _ := detail["chat_receiver_alive"].(bool)
 	chatReadable, _ := detail["chat_health_readable"].(bool)
 	status, statusKnown := detail["controller"].(controllerStatus)
+	runtime, runtimeKnown := detail["runtime"].(backend.RuntimeStatus)
+	runtimeAvailable, _ := detail["runtime_available"].(bool)
 
 	lines := []string{"Status"}
 	if controllerAvailable && statusKnown {
@@ -135,17 +190,36 @@ func readableStatus(result HostResult) string {
 		} else {
 			lines = append(lines, "Worker: not running.")
 		}
+	} else if runtimeKnown && runtimeAvailable && runtime.ControllerRunning {
+		lines = append(lines, "Controller: running, but its status response could not be confirmed.", "Queue, active job, and worker state: unknown.")
 	} else {
-		lines = append(lines, "Controller: unavailable or its status response could not be confirmed.", "Queue, active job, and worker state: unknown.")
+		if runtimeKnown && runtimeAvailable && runtime.ControllerServiceLoaded {
+			lines = append(lines, "Controller: service is loaded but not running. Use /controller start.")
+		} else {
+			lines = append(lines, "Controller: not running or unavailable. Use /controller start.")
+		}
+		lines = append(lines, "Queue, active job, and worker state: unknown.")
 	}
-	if requested, known := detail["worker_requested"].(bool); known {
-		if requested {
+	if runtimeKnown && runtimeAvailable && runtime.ControllerRunning {
+		if runtime.WorkerRequested {
 			lines = append(lines, "Worker supervision: requested.")
 		} else {
 			lines = append(lines, "Worker supervision: not requested.")
 		}
+		if runtime.WorkerError != "" {
+			lines = append(lines, "Worker readiness: requires attention ("+runtime.WorkerError+").")
+		} else if runtime.WorkerRunning {
+			lines = append(lines, "Worker readiness: accepting dispatch.")
+		} else if runtime.ControllerRunning {
+			lines = append(lines, "Worker readiness: not accepting dispatch.")
+		} else {
+			lines = append(lines, "Worker readiness: unknown because the controller is not running.")
+		}
 	} else {
-		lines = append(lines, "Worker supervision: unknown.")
+		lines = append(lines, "Worker supervision: unknown. Use /worker status.")
+		if message, ok := detail["runtime_message"].(string); ok && strings.TrimSpace(message) != "" {
+			lines = append(lines, "Runtime management: "+message)
+		}
 	}
 
 	health, healthKnown := detail["chat"].(telegram.Health)

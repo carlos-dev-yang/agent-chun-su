@@ -14,7 +14,6 @@ import (
 	"chunsu/internal/errorreport"
 	"chunsu/internal/onboarding"
 	"chunsu/internal/reception"
-	"chunsu/internal/telegramchat"
 )
 
 var errReceptionSteered = errors.New("reception input changed")
@@ -47,7 +46,7 @@ func (d *setupDialogue) runAI(initial string) error {
 			tone = &chatstyle.Dialogue{}
 			if err != nil {
 				id, _ := reports.Record(d.ctx, reception.ErrorCode(err, d.config), errorreport.Correlation{SessionID: session.ID})
-				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
+				fmt.Fprintln(d.out, reception.FailureMessage(err), "Error ID:", id)
 			} else {
 				fmt.Fprintln(d.out, response)
 			}
@@ -56,7 +55,7 @@ func (d *setupDialogue) runAI(initial string) error {
 		if response, handled, err := tone.Handle(d.root, d.config.Limits, request); handled {
 			if err != nil {
 				id, _ := reports.Record(d.ctx, reception.ErrorCode(err, d.config), errorreport.Correlation{SessionID: session.ID})
-				fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
+				fmt.Fprintln(d.out, reception.FailureMessage(err), "Error ID:", id)
 			} else {
 				fmt.Fprintln(d.out, response)
 			}
@@ -82,7 +81,10 @@ func (d *setupDialogue) runAI(initial string) error {
 		if response, handled, err := d.receptionHost().Command(d.ctx, reception.Local, request); handled {
 			if err != nil {
 				id, _ := reports.Record(d.ctx, "host_failed", errorreport.Correlation{SessionID: session.ID})
-				fmt.Fprintln(d.out, "An internal action could not be completed. Check /errors. Error ID:", id)
+				if strings.TrimSpace(response) == "" {
+					response = "An internal action could not be completed. Check /errors."
+				}
+				fmt.Fprintln(d.out, response, "Error ID:", id)
 			} else {
 				fmt.Fprintln(d.out, response)
 			}
@@ -92,17 +94,37 @@ func (d *setupDialogue) runAI(initial string) error {
 			fmt.Fprintln(d.out, "AI execution cleanup is required. Check /reset and /errors for recovery state. Fixed management commands remain available.")
 			continue
 		}
-		fmt.Fprintln(d.out, telegramchat.Acknowledgment)
+		fmt.Fprintln(d.out, reception.Acknowledgment)
 		generate := func(ctx context.Context, directory string, prompt, schema, skill []byte) (reception.Generation, error) {
 			result, steering, err := d.generate(directory, prompt, schema, skill, func(text string) bool {
 				response, handled, languageErr := chatlanguage.Handle(d.root, d.config.Limits, text)
+				if handled {
+					tone = &chatstyle.Dialogue{}
+					if languageErr != nil {
+						id, _ := reports.Record(d.ctx, reception.ErrorCode(languageErr, d.config), errorreport.Correlation{SessionID: session.ID})
+						fmt.Fprintln(d.out, reception.FailureMessage(languageErr), "Error ID:", id)
+					} else {
+						fmt.Fprintln(d.out, response)
+					}
+					return true
+				}
+				reserved := strings.TrimSpace(text)
+				if reserved == "/cancel" || reserved == "/reset" || reserved == "/새대화" {
+					return false
+				}
+				if !strings.HasPrefix(reserved, "/") {
+					return false
+				}
+				response, handled, commandErr := d.receptionHost().Command(d.ctx, reception.Local, text)
 				if !handled {
 					return false
 				}
-				tone = &chatstyle.Dialogue{}
-				if languageErr != nil {
-					id, _ := reports.Record(d.ctx, reception.ErrorCode(languageErr, d.config), errorreport.Correlation{SessionID: session.ID})
-					fmt.Fprintln(d.out, telegramchat.FailureMessage(languageErr), "Error ID:", id)
+				if commandErr != nil {
+					id, _ := reports.Record(d.ctx, "host_failed", errorreport.Correlation{SessionID: session.ID})
+					if strings.TrimSpace(response) == "" {
+						response = "An internal action could not be completed. Check /errors."
+					}
+					fmt.Fprintln(d.out, response, "Error ID:", id)
 				} else {
 					fmt.Fprintln(d.out, response)
 				}
@@ -129,7 +151,7 @@ func (d *setupDialogue) runAI(initial string) error {
 				Content: "The previous request could not be confirmed. Do not automatically rerun existing work; wait for the user's next request.",
 			})
 			id, _ := reports.Record(d.ctx, "execution_uncertain", errorreport.Correlation{SessionID: session.ID})
-			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
+			fmt.Fprintln(d.out, reception.FailureMessage(err), "Error ID:", id)
 			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 				return err
 			}
@@ -147,7 +169,7 @@ func (d *setupDialogue) runAI(initial string) error {
 				aiBlocked = session.Recover(d.ctx) != nil
 			}
 			id, _ := reports.Record(d.ctx, code, errorreport.Correlation{SessionID: session.ID})
-			fmt.Fprintln(d.out, telegramchat.FailureMessage(err), "Error ID:", id)
+			fmt.Fprintln(d.out, reception.FailureMessage(err), "Error ID:", id)
 		}
 	}
 }

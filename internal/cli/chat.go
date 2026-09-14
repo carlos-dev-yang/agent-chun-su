@@ -148,14 +148,12 @@ func (o *options) chat() *cobra.Command {
 		}
 		ctx, cancel := context.WithCancel(cmd.Context())
 		defer cancel()
-		stopHost, err := startSetupHost(ctx, cmd, root, c)
-		if err != nil {
-			_, _ = errorreport.New(root, c.Limits).Record(ctx, "host_failed", errorreport.Correlation{})
-			if guided {
+		if guided {
+			stopHost, err := startSetupHost(ctx, cmd, root, c)
+			if err != nil {
+				_, _ = errorreport.New(root, c.Limits).Record(ctx, "host_failed", errorreport.Correlation{})
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "호스트 관리 연결이 준비되지 않았습니다. /status, /errors, /features는 사용할 수 있습니다.")
-		} else {
 			defer stopHost()
 		}
 		d := &setupDialogue{ctx: ctx, root: root, config: c, out: cmd.OutOrStdout(), noBrowser: noBrowser}
@@ -181,7 +179,7 @@ func (o *options) chat() *cobra.Command {
 }
 
 func startSetupHost(ctx context.Context, cmd *cobra.Command, root string, c config.Config) (func(), error) {
-	return startOwnedSetupHost(ctx, cmd, root, c, "")
+	return startOwnedSetupHost(ctx, cmd, root, c)
 }
 
 type setupLine struct {

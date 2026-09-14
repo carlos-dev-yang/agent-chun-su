@@ -44,11 +44,11 @@ func renderLinux(root, kind string, atLogin bool) (Definition, error) {
 	}
 	var body strings.Builder
 	body.WriteString("[Unit]\nDescription=Chun-su agent service\nAfter=network-online.target\n")
-	if kind == Chat || kind == Monitor {
+	if kind == Chat || kind == Monitor || kind == Controller {
 		body.WriteString("StartLimitIntervalSec=0\n")
 	}
 	body.WriteString("\n[Service]\nType=simple\nUMask=0077\nNoNewPrivileges=true\nKillMode=mixed\n")
-	if kind == Chat || kind == Monitor {
+	if kind == Chat || kind == Monitor || kind == Controller {
 		// The wrapper exits successfully when explicit stop intent is present.
 		// on-failure restores crashes without looping after a stopped reboot.
 		fmt.Fprintf(&body, "Restart=on-failure\nRestartSec=%d\n", c.Limits.RetryDelaySeconds)

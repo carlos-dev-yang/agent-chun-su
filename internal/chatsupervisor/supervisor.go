@@ -22,7 +22,6 @@ import (
 )
 
 const ProcessPath = service.ChatDirectory + "/receiver.json"
-const ControllerPath = service.ChatDirectory + "/controller.json"
 const StatusPath = service.ChatDirectory + "/supervisor.json"
 
 type Status struct {
@@ -66,16 +65,13 @@ func cleanup(ctx context.Context, root string, limits config.Limits) error {
 	if err := executor.Reconcile(ctx, root, ProcessPath, limits); err != nil {
 		return err
 	}
-	// Another foreground receiver may own this home. Reconcile conversation
-	// and controller children only after proving exclusive transport ownership.
+	// Keep exclusive transport ownership before reconciling receiver-side
+	// conversations. Backend lifecycle records are intentionally untouched.
 	lock, err := telegram.Lock(ctx, root, limits)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
-	if err := executor.Reconcile(ctx, root, ControllerPath, limits); err != nil {
-		return err
-	}
 	return telegramchat.Reconcile(ctx, root, limits)
 }
 

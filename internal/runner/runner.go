@@ -24,25 +24,136 @@ import (
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/onboarding"
+	"chunsu/internal/service"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 )
 
 type Runner struct {
-	WorkerMode bool
-	Store      *store.Store
-	Config     config.Config
-	mu         sync.Mutex
-	active     string
-	cancel     context.CancelFunc
-	setupOnce  sync.Once
-	setupHost  *onboarding.Host
+	WorkerMode      bool
+	Store           *store.Store
+	Config          config.Config
+	mu              sync.Mutex
+	admission       sync.Mutex
+	active          string
+	cancel          context.CancelFunc
+	setupOnce       sync.Once
+	setupHost       *onboarding.Host
+	managed         bool
+	controller      bool
+	dispatch        bool
+	workerRequested bool
+	stopping        bool
+	stopDispatch    bool
+	recoveryBlocked bool
+	workerErr       string
 }
 
 func (r *Runner) CloseSetup() {
 	if r.setupHost != nil {
 		r.setupHost.Close()
 	}
+}
+
+func (r *Runner) controllerStatus(ctx context.Context) (map[string]any, error) {
+	r.mu.Lock()
+	active, dispatch, requested, stopping, workerErr := r.active, r.dispatch, r.workerRequested, r.stopping, r.workerErr
+	r.mu.Unlock()
+	paused, err := r.Store.Paused(ctx)
+	return map[string]any{"active_job": active, "owner": "controller", "queue_paused": paused, "worker_running": dispatch && workerErr == "", "controller_ready": r.controller && !stopping, "controller_managed": r.managed, "controller_running": r.controller, "worker_requested": requested, "worker_error": workerErr}, err
+}
+
+func (r *Runner) setWorker(ctx context.Context, enabled bool, restart bool) error {
+	r.mu.Lock()
+	if !enabled {
+		if err := service.SetControllerWorkerIntent(r.Store.Root, false); err != nil {
+			r.mu.Unlock()
+			return err
+		}
+		r.workerRequested = false
+		r.dispatch = false
+		r.workerErr = ""
+		r.mu.Unlock()
+		return nil
+	}
+	if r.stopping {
+		r.mu.Unlock()
+		return errors.New("controller_stopping")
+	}
+	if r.active != "" || (r.setupHost != nil && r.setupHost.Busy()) {
+		r.mu.Unlock()
+		return errors.New("worker_busy")
+	}
+	if r.recoveryBlocked {
+		r.mu.Unlock()
+		return errors.New("recovery_blocked")
+	}
+	r.mu.Unlock()
+	c, err := config.Load(r.Store.Root)
+	if err != nil {
+		r.mu.Lock()
+		r.dispatch = false
+		r.workerErr = "config_unavailable"
+		r.mu.Unlock()
+		return errors.New("config_unavailable")
+	}
+	if c.Executor.Kind == "" || c.Executor.Path == "" {
+		r.mu.Lock()
+		r.dispatch = false
+		r.workerErr = "worker_not_configured"
+		r.mu.Unlock()
+		return errors.New(r.workerErr)
+	}
+	if executor.Inspect(ctx, config.RoleTask, r.Store.Root, c.Executor, c.Limits).Status != "prerequisites_match" {
+		r.mu.Lock()
+		r.dispatch = false
+		r.workerErr = "worker_prerequisites_unavailable"
+		r.mu.Unlock()
+		return errors.New(r.workerErr)
+	}
+	if err := service.SetControllerWorkerIntent(r.Store.Root, true); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stopping {
+		return errors.New("controller_stopping")
+	}
+	if r.active != "" || (r.setupHost != nil && r.setupHost.Busy()) {
+		return errors.New("worker_busy")
+	}
+	r.workerRequested = true
+	r.Config = c
+	r.dispatch = true
+	r.workerErr = ""
+	return nil
+}
+
+func (r *Runner) beginStop() error {
+	r.admission.Lock()
+	defer r.admission.Unlock()
+	return r.beginStopLocked()
+}
+
+func (r *Runner) beginStopLocked() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.active != "" {
+		return errors.New("controller stop waits for the active job to finish or be cancelled")
+	}
+	if r.setupHost != nil && r.setupHost.Busy() {
+		return errors.New("controller stop waits for the active setup operation to finish or be cancelled")
+	}
+	r.stopping = true
+	r.stopDispatch = r.dispatch
+	r.dispatch = false
+	return nil
+}
+
+func (r *Runner) admissionBlocked() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.controller && r.stopping
 }
 
 type Outcome struct {
@@ -54,6 +165,37 @@ type Outcome struct {
 }
 
 func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
+	if req.Operation != "status" {
+		r.admission.Lock()
+		defer r.admission.Unlock()
+	}
+	if (req.Operation == "controller_stop" || req.Operation == "controller_abort_stop" || strings.HasPrefix(req.Operation, "worker_")) && !r.controller {
+		return nil, errors.New("controller lifecycle is unavailable")
+	}
+	if req.Operation == "controller_abort_stop" {
+		r.mu.Lock()
+		r.stopping = false
+		if r.workerRequested && r.stopDispatch && !r.recoveryBlocked {
+			r.dispatch = true
+		}
+		r.stopDispatch = false
+		r.mu.Unlock()
+		return r.controllerStatus(ctx)
+	}
+	if req.Operation == "controller_stop" {
+		err := r.beginStopLocked()
+		status, statusErr := r.controllerStatus(ctx)
+		return status, errors.Join(err, statusErr)
+	}
+	if req.Operation == "worker_start" || req.Operation == "worker_restart" || req.Operation == "worker_stop" {
+		enabled := req.Operation != "worker_stop"
+		err := r.setWorker(ctx, enabled, req.Operation == "worker_restart")
+		status, statusErr := r.controllerStatus(ctx)
+		return status, errors.Join(err, statusErr)
+	}
+	if r.admissionBlocked() && (strings.HasPrefix(req.Operation, onboarding.Prefix) || req.Operation == "queue" || req.Operation == "delegate" || req.Operation == "install_feature" || req.Operation == "retry" || req.Operation == "resolve") {
+		return nil, errors.New("controller is stopping and is not admitting new work")
+	}
 	if strings.HasPrefix(req.Operation, onboarding.Prefix) {
 		r.setupOnce.Do(func() { r.setupHost = &onboarding.Host{Root: r.Store.Root, Config: r.Config} })
 		return r.setupHost.Handle(ctx, req)
@@ -152,6 +294,9 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		}
 		return map[string]string{"job_id": req.JobID, "status": store.Queued}, nil
 	case "status":
+		if r.controller {
+			return r.controllerStatus(ctx)
+		}
 		r.mu.Lock()
 		id := r.active
 		r.mu.Unlock()
@@ -172,13 +317,22 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 
 func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome, runErr error) {
 	out.JobID = jobID
+	r.admission.Lock()
+	r.mu.Lock()
 	if r.Config.Executor.Kind == "" || r.Config.Executor.Path == "" {
+		r.mu.Unlock()
+		r.admission.Unlock()
 		return out, errors.New("executor is not configured; use config set after selecting your executor account")
 	}
-	r.mu.Lock()
+	if r.controller && (!r.dispatch || r.stopping) {
+		r.mu.Unlock()
+		r.admission.Unlock()
+		return out, errors.New("worker dispatch is disabled")
+	}
 	paused, err := r.Store.Paused(ctx)
 	if err != nil || paused {
 		r.mu.Unlock()
+		r.admission.Unlock()
 		if err != nil {
 			return out, err
 		}
@@ -187,12 +341,14 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 	}
 	if r.active != "" {
 		r.mu.Unlock()
+		r.admission.Unlock()
 		return out, errors.New("another job is already running")
 	}
 	attemptCtx, cancel := context.WithTimeout(ctx, time.Duration(r.Config.Limits.TimeoutSeconds)*time.Second)
 	r.active = jobID
 	r.cancel = cancel
 	r.mu.Unlock()
+	r.admission.Unlock()
 	defer func() { cancel(); r.mu.Lock(); r.active = ""; r.cancel = nil; r.mu.Unlock() }()
 	// Finalization must still be possible after a timeout or user cancellation.
 	finishCtx := context.WithoutCancel(ctx)
@@ -269,8 +425,6 @@ func (r *Runner) Run(ctx context.Context, jobID, candidate string) (out Outcome,
 		}
 	}
 	generated, execErr := executor.Run(attemptCtx, r.Store.Root, p)
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	metadata, _ := json.Marshal(generated)
 	if _, err = r.Store.SaveArtifact(finishCtx, jobID, a.ID, "executor_result", metadata, r.Config.Limits.MaxArtifactBytes); err != nil {
 		return out, err

@@ -170,5 +170,8 @@ func (o *options) worker() *cobra.Command {
 		}
 	}}
 	cmd.Flags().BoolVar(&once, "once", false, "Process at most one eligible attempt or scheduled collection and exit")
+	for _, operation := range []string{"start", "stop", "restart", "status"} {
+		cmd.AddCommand(o.runtimeCommand("worker", operation))
+	}
 	return cmd
 }

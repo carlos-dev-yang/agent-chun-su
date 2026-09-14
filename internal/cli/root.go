@@ -36,7 +36,7 @@ func New(version string) *cobra.Command {
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "Print structured JSON")
 	root.AddCommand(o.setup(), o.doctor(), o.configuration(), o.queue(), o.jobs(), o.show(), o.logs(), o.cancel(), o.recover())
 	root.AddCommand(o.mailCommands(), o.tools())
-	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker())
+	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker(), o.controller())
 	root.AddCommand(o.feedback(), o.workgroup(), o.experiment(), o.review())
 	root.AddCommand(o.gmail(), o.jira())
 	root.AddCommand(o.code())

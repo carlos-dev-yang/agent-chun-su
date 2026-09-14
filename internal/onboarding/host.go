@@ -74,6 +74,14 @@ type Host struct {
 	closed bool
 }
 
+// Busy is used by the durable controller before it releases ownership to an OS
+// service stop.  It does not cancel or reinterpret an in-progress OAuth flow.
+func (h *Host) Busy() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.active != nil && h.cancel != nil
+}
+
 func (h *Host) Close() {
 	h.mu.Lock()
 	h.closed = true

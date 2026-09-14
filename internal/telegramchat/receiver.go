@@ -22,8 +22,6 @@ import (
 	"chunsu/internal/telegram"
 )
 
-const Acknowledgment = "Received."
-
 type Receiver struct {
 	Root    string
 	Config  config.Config
@@ -40,32 +38,17 @@ type controlNotice struct {
 	receipt telegram.Receipt
 	reset   bool
 }
-
-func FailureMessage(err error) string {
-	var replyLanguage *chatlanguage.Error
-	if errors.As(err, &replyLanguage) {
-		return "Saved reply-language settings are unavailable. Use /language reset to restore automatic reply language."
-	}
-	var style *chatstyle.Error
-	if errors.As(err, &style) {
-		return "Saved tone settings are unavailable. Use /tone reset to restore the default tone."
-	}
-	if errors.Is(err, reception.ErrUncertain) {
-		return "The previous request or action result could not be confirmed. It was not retried automatically. Check /jobs and /errors."
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "The reply reached its time limit and was not completed. Check /jobs for work that may already have started."
-	}
-	var action *reception.ActionError
-	if errors.As(err, &action) {
-		return "An internal action could not be completed. It was not retried automatically. Check /errors and /status."
-	}
-	var compatibility *executor.CompatibilityError
-	if errors.As(err, &compatibility) {
-		return "The reply could not be generated because of an AI executor compatibility problem. " + compatibility.Error() + " Run chunsu doctor on the host."
-	}
-	return "The request could not be completed. Check /errors for the cause and recovery guidance. /status and /help remain available."
+type commandRequest struct {
+	receipt telegram.Receipt
+	text    string
+	config  config.Config
 }
+type commandResult struct {
+	receipt  telegram.Receipt
+	response string
+	err      error
+}
+
 func (r Receiver) record(ctx context.Context, code string, id int64, session string) string {
 	errorID, _ := r.Errors.Record(ctx, code, errorreport.Correlation{UpdateID: id, SessionID: session})
 	return errorID
@@ -137,7 +120,7 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 				if result.uncertain {
 					failure = errors.Join(reception.ErrUncertain, failure)
 				}
-				_ = r.send(notifyCtx, &receipt, FailureMessage(failure)+"\nError ID: "+receipt.ErrorID)
+				_ = r.send(notifyCtx, &receipt, reception.FailureMessage(failure)+"\nError ID: "+receipt.ErrorID)
 			}
 		}
 		switch {
@@ -263,6 +246,37 @@ func (r Receiver) Serve(parent context.Context) error {
 		r.record(ctx, "receipt_failed", 0, "")
 	}
 	events := make(chan incoming)
+	commandCtx, cancelCommands := context.WithCancel(ctx)
+	queueSize := r.Config.Limits.MaxMessages
+	if queueSize < 1 {
+		queueSize = 1
+	}
+	commands := make(chan commandRequest, queueSize)
+	commandResults := make(chan commandResult, queueSize)
+	commandsDone := make(chan struct{})
+	go func() {
+		defer close(commandsDone)
+		for {
+			select {
+			case <-commandCtx.Done():
+				return
+			case request := <-commands:
+				if commandCtx.Err() != nil {
+					return
+				}
+				// Service control is bounded independently from the reception
+				// loop so a stuck OS manager cannot stall polling or cancellation.
+				operationCtx, stop := context.WithTimeout(commandCtx, telegram.StallTimeout(request.config.Limits))
+				response, _, err := (reception.Host{Root: r.Root, Config: request.config}).Command(operationCtx, reception.Telegram, request.text)
+				stop()
+				select {
+				case commandResults <- commandResult{receipt: request.receipt, response: response, err: err}:
+				case <-commandCtx.Done():
+					return
+				}
+			}
+		}
+	}()
 	pollDone := make(chan struct{})
 	go func(receiver Receiver) { defer close(pollDone); receiver.poll(ctx, offset, events) }(r)
 	ticker := time.NewTicker(telegram.HealthInterval(r.Config.Limits))
@@ -274,6 +288,7 @@ func (r Receiver) Serve(parent context.Context) error {
 	tone := &chatstyle.Dialogue{}
 	defer func() {
 		cancel()
+		cancelCommands()
 		if activeCancel != nil {
 			activeCancel()
 			timer := time.NewTimer(time.Duration(r.Config.Limits.LockWaitSeconds+telegram.HTTPGraceSeconds) * time.Second)
@@ -285,6 +300,7 @@ func (r Receiver) Serve(parent context.Context) error {
 			timer.Stop()
 		}
 		<-pollDone
+		<-commandsDone
 		health.State = "stopped"
 		_ = telegram.WriteHealth(r.Root, health)
 	}()
@@ -382,6 +398,18 @@ func (r Receiver) Serve(parent context.Context) error {
 			writeHealth()
 		case result := <-done:
 			finishTurn(result)
+		case result := <-commandResults:
+			if ctx.Err() != nil {
+				continue
+			}
+			if result.err != nil {
+				result.receipt.ErrorID = r.record(ctx, "host_failed", result.receipt.UpdateID, result.receipt.SessionID)
+				if strings.TrimSpace(result.response) == "" {
+					result.response = "An internal action could not be completed. Check /errors."
+				}
+				result.response += "\nError ID: " + result.receipt.ErrorID
+			}
+			reply(&result.receipt, result.response)
 		case event := <-events:
 			if event.update == nil {
 				if event.err != nil {
@@ -435,7 +463,7 @@ func (r Receiver) Serve(parent context.Context) error {
 				tone = &chatstyle.Dialogue{}
 				if languageErr != nil {
 					receipt.ErrorID = r.record(ctx, reception.ErrorCode(languageErr, r.Config), u.ID, health.SessionID)
-					response = FailureMessage(languageErr) + "\nError ID: " + receipt.ErrorID
+					response = reception.FailureMessage(languageErr) + "\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
 				continue
@@ -443,7 +471,7 @@ func (r Receiver) Serve(parent context.Context) error {
 			if response, handled, toneErr := tone.Handle(r.Root, r.Config.Limits, text); handled {
 				if toneErr != nil {
 					receipt.ErrorID = r.record(ctx, reception.ErrorCode(toneErr, r.Config), u.ID, health.SessionID)
-					response = FailureMessage(toneErr) + "\nError ID: " + receipt.ErrorID
+					response = reception.FailureMessage(toneErr) + "\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
 				continue
@@ -482,12 +510,25 @@ func (r Receiver) Serve(parent context.Context) error {
 				writeHealth()
 				continue
 			}
+			if reception.RequiresRuntimeWait(text) {
+				select {
+				case commands <- commandRequest{receipt: receipt, text: text, config: r.Config}:
+				case <-ctx.Done():
+					return nil
+				default:
+					reply(&receipt, "Management commands are temporarily at capacity. Check /status and resend the command after the current command completes.")
+				}
+				continue
+			}
 			host := reception.Host{Root: r.Root, Config: r.Config}
 			response, handled, commandErr := host.Command(ctx, reception.Telegram, text)
 			if handled {
 				if commandErr != nil {
 					receipt.ErrorID = r.record(ctx, "host_failed", u.ID, health.SessionID)
-					response = "An internal action could not be completed. Check /errors.\nError ID: " + receipt.ErrorID
+					if strings.TrimSpace(response) == "" {
+						response = "An internal action could not be completed. Check /errors."
+					}
+					response += "\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
 				continue

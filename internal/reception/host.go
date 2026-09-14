@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"chunsu/internal/audit"
+	"chunsu/internal/backend"
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
 	"chunsu/internal/features"
 	"chunsu/internal/onboarding"
-	"chunsu/internal/service"
 	"chunsu/internal/store"
 	"chunsu/internal/telegram"
 )
@@ -61,6 +60,10 @@ func (h Host) call(ctx context.Context, request control.Request, result any) err
 	return json.Unmarshal(data, result)
 }
 
+func (h Host) runtime(ctx context.Context, component, operation string) (backend.Result, error) {
+	return backend.Command(ctx, h.Root, h.Config, component, operation)
+}
+
 func (h Host) Dispatch(ctx context.Context, channel string, action conversation.Action, request string, known map[string]bool) (HostResult, error) {
 	if err := conversation.Validate(conversation.Reply{Message: "dispatch", Action: action}); err != nil {
 		return HostResult{}, err
@@ -70,15 +73,12 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 	}
 	switch action.Name {
 	case conversation.StartWorker, conversation.StopWorker:
-		if channel != Telegram {
-			return HostResult{}, errors.New("worker supervision belongs to the Telegram receiver; use local service commands here")
+		operation := "start"
+		if action.Name == conversation.StopWorker {
+			operation = "stop"
 		}
-		enabled := action.Name == conversation.StartWorker
-		if err := service.SetWorkerEnabled(h.Root, enabled); err != nil {
-			return HostResult{}, err
-		}
-		err := audit.Record(h.Root, "chat."+action.Name, "", "")
-		return HostResult{Status: "requested", Detail: map[string]any{"worker_requested": enabled, "next": "The receiver-owned worker supervision setting was changed. Check /status for whether the worker is running. An independently running external worker is unchanged; use /pause and /cancel to control work."}}, err
+		result, err := h.runtime(ctx, "worker", operation)
+		return HostResult{Status: "processed", Detail: map[string]string{"message": result.Message}}, err
 	case conversation.ListFeatures:
 		items, err := features.Catalog()
 		return HostResult{Status: "available", Detail: items}, err
@@ -130,16 +130,20 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 			"chat_receiver_alive":        alive,
 			"chat_health_readable":       healthErr == nil,
 		}
-		if desired, e := service.WorkerEnabled(h.Root); e == nil {
-			result["worker_requested"] = desired
+		managed, runtimeErr := h.runtime(ctx, "controller", "status")
+		result["runtime"] = managed.Status
+		result["runtime_available"] = runtimeErr == nil
+		result["runtime_message"] = managed.Message
+		if strings.TrimSpace(managed.Message) == "" && runtimeErr != nil {
+			result["runtime_message"] = "Runtime management is unavailable. /controller start can recover a configured controller."
 		}
 		if healthErr == nil {
 			result["chat"] = health
 		}
 		if !controllerAvailable {
-			result["recovery"] = "The host controller status could not be confirmed. Check /errors and recover the host if needed."
+			result["recovery"] = "The controller did not answer its status request. Use /controller start to recover it when its task configuration is present."
 		}
-		return HostResult{Status: "observed", Detail: result}, nil
+		return HostResult{Status: "observed", Detail: result}, runtimeErr
 	case conversation.ReadGuide:
 		b, err := conversation.Guide(action.Service)
 		if err != nil {

@@ -23,14 +23,30 @@ restarts an exited/stalled receiver with bounded backoff, retaining process
 identities and error records. Cleanup verifies process start identity; an
 unidentified surviving group blocks unsafe replay and remains reported.
 
-The controller remains the only SQLite writer. Reception reuses an existing
-controller, or maintains its own separately identified setup controller. The
-setup controller reconciles interrupted task processes but executes no queue or
-schedule. `/worker start` requests a switch of that owned process to a queue
-worker; `/worker stop` switches back to setup management. Worker intent survives
-receiver restart. A separately launched worker is never terminated by this
-switch; `/pause` and `/cancel ID` still reach its controller. Starting a worker
-does not unpause the queue, activate schedules or change disclosure approvals.
+The PROC boundary revision separates reception from backend ownership. The OS
+chat supervisor protects the receiver and shared conversation/command front end.
+It reconciles front-end conversation children only. Reception does not start,
+stop, or reconcile a backend merely because a receiver starts or restarts.
+
+A separately registered controller remains the only SQLite writer and control
+endpoint. It starts without a configured task executor. Worker start/stop controls
+queue dispatch inside that controller; actual task executors remain child
+processes. Dispatch failure is reported while the controller remains available.
+Starting dispatch does not unpause the queue, activate schedules, or change
+existing disclosure approvals.
+
+`/controller start|stop|restart|status` uses the existing same-user, validated OS
+service path, so recovery does not depend on a live controller socket. Stop and
+restart refuse active jobs or setup flows; unknown status is not treated as idle.
+`/worker start|stop|restart|status` reaches the controller's explicit dispatch
+interface. Stop prevents new dispatch without cancelling an admitted attempt.
+Legacy standalone workers and setup hosts are not automatically terminated or
+converted. Their ownership must be resolved locally before managed startup.
+
+Controller intent and dispatch intent are independent of chat intent. The old
+chat-owned worker marker is imported only when the new explicit dispatch intent
+is absent; a later explicit stop is not overwritten by that old marker. See the
+[boundary goal](../implementation/FRONT_BACKEND_BOUNDARY_GOAL_2026-09-14.md).
 
 ## Messages and failures
 
@@ -110,7 +126,7 @@ claims are reported on restart. A durable claim is never proof of completion.
 
 Both deterministic commands and AI-proposed actions use the same host validation.
 The contract adds error list/acknowledgment, feature list/install, queue pause and
-resume, selected job cancel/retry and Telegram-owned worker start/stop. Job and
+resume, selected job cancel/retry, controller lifecycle and worker dispatch controls. Job and
 error IDs are validated; operations do not gain arbitrary filesystem paths,
 shell commands, destinations, credentials or evaluator-adoption authority.
 

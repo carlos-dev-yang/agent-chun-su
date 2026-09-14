@@ -43,8 +43,8 @@ type Capability struct {
 
 func Capabilities() []Capability {
 	return []Capability{
-		{StartWorker, "사용자가 요청하면 채팅이 소유한 내부 worker의 지속 실행을 요청한다. 큐 중지와 자료 접근 권한은 보존한다. 외부 worker는 그대로 둔다.", false, false},
-		{StopWorker, "사용자가 요청하면 채팅이 소유한 내부 worker를 중지한다. 진행 중 실행은 중단될 수 있으며 대화와 관리 명령은 유지한다.", false, false},
+		{StartWorker, "사용자가 요청하면 controller의 새 worker dispatch를 시작한다. 결과는 관찰된 상태와 구분하며, 큐 중지와 자료 접근 권한은 보존한다.", false, false},
+		{StopWorker, "사용자가 요청하면 controller의 새 worker dispatch를 중지한다. 이미 시작한 작업은 마무리될 수 있으며 대화와 관리 명령은 유지한다.", false, false},
 		{ListErrors, "누적 운영 오류와 복구 안내를 조회한다. 원문과 비밀값은 포함하지 않는다.", false, false},
 		{AcknowledgeError, "사용자가 검토한 오류 ID의 현재 발생분을 확인 처리한다. 기록을 삭제하거나 해결됐다고 주장하지 않는다.", false, true},
 		{PauseQueue, "사용자 요청에 따라 새 업무 실행을 일시 중지한다. 진행 중 업무와 채팅은 유지한다.", false, false},

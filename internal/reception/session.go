@@ -50,16 +50,12 @@ func Capabilities(channel string) []conversation.Capability {
 	allowed := []conversation.Capability{}
 	for _, capability := range conversation.Capabilities() {
 		if channel == Local {
-			if capability.Name == conversation.StartWorker || capability.Name == conversation.StopWorker {
-				continue
-			}
 			allowed = append(allowed, capability)
 		} else if channel == Telegram {
 			switch capability.Name {
 			case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs, conversation.DelegateJob,
-				conversation.ListErrors, conversation.AcknowledgeError, conversation.PauseQueue, conversation.ResumeQueue, conversation.CancelJob, conversation.RetryJob, conversation.ListFeatures, conversation.InstallFeature:
-				allowed = append(allowed, capability)
-			case conversation.StartWorker, conversation.StopWorker:
+				conversation.ListErrors, conversation.AcknowledgeError, conversation.PauseQueue, conversation.ResumeQueue, conversation.CancelJob, conversation.RetryJob, conversation.ListFeatures, conversation.InstallFeature,
+				conversation.StartWorker, conversation.StopWorker:
 				allowed = append(allowed, capability)
 			}
 		}

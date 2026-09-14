@@ -63,17 +63,24 @@ macOS는 로그인한 사용자 세션의 LaunchAgent다. 사용자가 명시적
 | `/install guide-gmail` | Gmail 설정 안내 설치; 커넥터 인증 완료와는 구별 |
 | `/guide gmail` | Gmail 설정 안내 읽기 |
 | `/jobs` | 보존 작업의 ID·상태 |
-| `/worker start`, `/worker stop` | 수신기가 소유한 업무 실행기 시작·중지 |
+| `/controller start`, `/controller stop`, `/controller restart`, `/controller status` | 독립 관리 서비스 시작·중지·재시작·확인 |
+| `/worker start`, `/worker stop`, `/worker restart`, `/worker status` | 컨트롤러 내부 업무 배정 시작·중지·재준비·확인 |
 | `/pause`, `/resume` | 업무 큐 일시 중지·재개 |
 | `/cancel 작업ID`, `/retry 작업ID` | 지정 작업 취소·기존 규칙에 따른 재시도 |
 | `/cancel` | 진행 중 AI 답변의 중단 요청 |
 | `/reset` | 실행 정리 후 새 대화 |
 
-업무 실행기는 기본적으로 꺼져 있다. `/worker start` 후 `/status`의 `worker_running`
-으로 실제 실행을 확인한다. 기존에 별도로 띄운 worker는 그대로 재사용한다. 수신기가
-소유하지 않은 worker는 `/worker stop`으로 종료하지 않으며 `/pause`와 `/cancel`로 업무를
-제어할 수 있다. worker 시작은 큐 중지 상태, 자료 반출 승인, 스케줄 활성화를 바꾸지 않는다.
+먼저 `/controller start`로 관리 서비스를 시작하고, task 실행기 설정을 준비한 뒤
+`/worker start`로 업무 배정을 켠다. task 실행기가 없어도 컨트롤러는 유지되며
+시작 실패 원인을 답한다. `/worker stop`은 새 배정을 멈추고 진행 중 업무는 마칠 수
+있게 둔다. `/controller stop`과 `restart`는 진행 중 업무·설정 작업이 있으면 거부한다.
+기존에 별도로 띄운 worker나 setup host를 이 명령으로 강제 교체하지 않는다.
+worker 시작은 큐 중지 상태, 자료 반출 승인, 스케줄 활성화를 바꾸지 않는다.
 접수한 작업이 `queued`라고 해서 결과가 완성된 것은 아니다.
+
+수신기와 공통 대화 명령은 컨트롤러와 별도로 유지된다. 컨트롤러를 내린 뒤에도
+고정 명령으로 다시 시작할 수 있다. 채팅 자체가 닿지 않을 때는 로컬/SSH 경로를
+사용한다. 자세한 순서는 [프로세스 복구 안내](PROCESS_RECOVERY.md)를 참고한다.
 
 자연어로도 지원되는 상태 조회·설치·작업 조작을 요청할 수 있다. 기능 ID 밖의 임의
 프로그램 다운로드나 shell 실행을 허용하지 않는다. 새 커넥터는 구현과 검증이 필요하다.
@@ -131,7 +138,9 @@ chunsu telegram start      # 다시 켜기
 chunsu telegram remove     # 서비스 등록 제거; 데이터와 오류 기록은 보존
 ```
 
-업데이트는 같은 위치에 새 바이너리를 설치한 뒤 `chunsu telegram restart`로 적용한다.
+업데이트는 같은 위치에 새 바이너리를 설치하고 변경된 구성요소를 재시작한다.
+채팅은 `chunsu telegram restart`, 유휴 백엔드는 `chunsu controller restart`,
+감시기는 `chunsu monitor restart`를 사용한다.
 실행 파일 경로나 서비스의 저장 환경 경로가 바뀌면 `remove` 후 `enable`로 다시 등록한다.
 채팅 오류·수신 메타데이터는 현재 보고서 백업 대상에 포함되지 않으므로 필요한 오류 JSON은
 별도로 보관한다. 토큰, 원문, 데이터베이스를 배포 패키지에 넣지 않는다.

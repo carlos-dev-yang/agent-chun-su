@@ -124,7 +124,7 @@ func traceResult(action string, result HostResult) HostResult {
 			trace.Detail = detail
 		}
 	case conversation.RuntimeStatus:
-		trace.Detail = traceMap(result.Detail, "controller_available", "controller_status_readable", "controller", "chat_receiver_alive", "chat_health_readable", "chat", "worker_requested", "recovery")
+		trace.Detail = traceMap(result.Detail, "controller_available", "controller_status_readable", "controller", "runtime", "runtime_available", "runtime_message", "chat_receiver_alive", "chat_health_readable", "chat", "recovery")
 	case conversation.ListJobs:
 		trace.Detail = traceMap(result.Detail, "jobs", "total")
 	case conversation.InstallFeature:
@@ -132,7 +132,7 @@ func traceResult(action string, result HostResult) HostResult {
 	case conversation.InstallGuide:
 		trace.Detail = traceMap(result.Detail, "service", "pack_digest", "message")
 	case conversation.StartWorker, conversation.StopWorker:
-		trace.Detail = traceMap(result.Detail, "worker_requested", "next")
+		trace.Detail = traceMap(result.Detail, "message")
 	case conversation.PauseQueue, conversation.ResumeQueue:
 		trace.Detail = traceMap(result.Detail, "queue_paused", "active_job", "active_work")
 	case conversation.CancelJob, conversation.RetryJob:

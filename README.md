@@ -30,8 +30,8 @@ can draft text and propose actions; the host only dispatches its declared capabi
 status, saved-job/report lookup, bounded task delegation, setup manuals, and local
 Gmail setup/verification. CLI and Telegram reuse the reception layer; admitted
 work runs in a separate task process. Unsupported actions receive extension guidance.
-Use `chat --guided` for setup questions without an AI account. A separate setup
-host starts when needed; an existing worker is reused. Of the six services, the
+Use `chat --guided` for setup questions without an AI account. Guided setup alone
+can start its setup host; ordinary chat stays independent of backend availability. Of the six services, the
 other four still install local guidance only. See the
 [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
 [chat contract](docs/contracts/chat-v1.md).
@@ -46,7 +46,11 @@ system, error, and `/status` messages use English without a translation catalog.
 Use `bin/chunsu telegram enable` to pair locally and keep chat running under the OS
 user service manager. `telegram status` distinguishes pairing from a live receiver.
 A short acknowledgment precedes AI; `/errors`, `/status`, `/features`, `/install`,
-queue controls and `/worker start` remain available without a working LLM.
+queue controls and `/controller start` remain available without a working LLM.
+Start the independent backend with `/controller start`, then enable task dispatch
+with `/worker start` after configuring its task route. `/worker stop` stops new
+dispatch; `/controller stop` stops an idle backend. Chat stays available in both
+cases. See the [process recovery guide](docs/setup/PROCESS_RECOVERY.md).
 Use `bin/chunsu telegram` for foreground operation. No public webhook server is required. Other users,
 groups and local-only auth/report actions are excluded. See
 [Telegram setup](docs/setup/TELEGRAM.md) and the
