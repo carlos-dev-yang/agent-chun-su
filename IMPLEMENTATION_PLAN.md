@@ -6,6 +6,14 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+On 2026-09-14 the user authorized the [front/backend boundary goal](docs/implementation/FRONT_BACKEND_BOUNDARY_GOAL_2026-09-14.md).
+External reception and shared conversation/recovery commands must remain reachable
+without an internal controller or working task executor. The selected direction
+uses an independent persistent single-writer controller, switchable work dispatch,
+existing OS service controls for explicit chat recovery, and separate front/backend
+monitor observations. This supersedes Telegram-owned setup/worker process swapping
+within the selected scope; it does not add Slack integration or autonomous managers.
+
 The user subsequently authorized implementing operational monitoring and its
 process integration. The [operations monitor contract](docs/contracts/operations-monitor-v1.md)
 bounds this work to major-flow observations, local incident records and an
