@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	Version   = 1
-	Directory = service.MonitorDirectory
-	StatePath = Directory + "/state.json"
+	Version             = 1
+	Directory           = service.MonitorDirectory
+	StatePath           = Directory + "/state.json"
+	maxStatusTokenBytes = 64
 )
 
 type ServiceFact struct {
@@ -52,11 +53,17 @@ type PollFact struct {
 }
 
 type ControllerFact struct {
-	Available     bool   `json:"available"`
-	Probe         string `json:"probe,omitempty"`
-	ActiveJob     string `json:"active_job,omitempty"`
-	QueuePaused   bool   `json:"queue_paused,omitempty"`
-	WorkerRunning bool   `json:"worker_running,omitempty"`
+	Enabled         bool   `json:"enabled"`
+	IntentReadable  bool   `json:"intent_readable"`
+	Available       bool   `json:"available"`
+	Probe           string `json:"probe,omitempty"`
+	ActiveJob       string `json:"active_job,omitempty"`
+	QueuePaused     bool   `json:"queue_paused,omitempty"`
+	WorkerRunning   bool   `json:"worker_running,omitempty"`
+	ControllerReady bool   `json:"controller_ready"`
+	WorkerRequested bool   `json:"worker_requested"`
+	WorkerError     string `json:"worker_error,omitempty"`
+	DispatchKnown   bool   `json:"dispatch_known"`
 }
 
 type RequestFact struct {
@@ -88,19 +95,23 @@ type ReceiptFact struct {
 // Snapshot is limited to flow facts. It contains no message text, token,
 // digest, raw provider error, or worker-internal execution detail.
 type Snapshot struct {
-	Version             int            `json:"version"`
-	ObservedAt          time.Time      `json:"observed_at"`
-	ChatService         ServiceFact    `json:"chat_service"`
-	MonitorService      ServiceFact    `json:"monitor_service"`
-	Supervisor          ProcessFact    `json:"supervisor"`
-	Receiver            ProcessFact    `json:"receiver"`
-	Poll                PollFact       `json:"poll"`
-	Controller          ControllerFact `json:"controller"`
-	Request             RequestFact    `json:"request"`
-	Receipts            ReceiptFact    `json:"receipts"`
-	Diagnostics         []string       `json:"diagnostics,omitempty"`
-	ObservationComplete bool           `json:"observation_complete"`
-	Recovery            string         `json:"recovery"`
+	Version        int            `json:"version"`
+	ObservedAt     time.Time      `json:"observed_at"`
+	ChatService    ServiceFact    `json:"chat_service"`
+	MonitorService ServiceFact    `json:"monitor_service"`
+	Supervisor     ProcessFact    `json:"supervisor"`
+	Receiver       ProcessFact    `json:"receiver"`
+	Poll           PollFact       `json:"poll"`
+	Controller     ControllerFact `json:"controller"`
+	// FrontendHealth reports reachability and readiness only. It does not prove
+	// an AI result or remote message delivery.
+	FrontendHealth      string      `json:"frontend_health"`
+	BackendHealth       string      `json:"backend_health"`
+	Request             RequestFact `json:"request"`
+	Receipts            ReceiptFact `json:"receipts"`
+	Diagnostics         []string    `json:"diagnostics,omitempty"`
+	ObservationComplete bool        `json:"observation_complete"`
+	Recovery            string      `json:"recovery"`
 	// outcomes are used only while this observation is persisted. They are
 	// deliberately not written into the public, bounded snapshot.
 	outcomes map[string]diagnosticOutcome
@@ -165,24 +176,56 @@ func observeService(ctx context.Context, root string, c config.Config, kind stri
 	return out
 }
 
-func observeController(ctx context.Context, root string, c config.Config) ControllerFact {
+func safeStatusToken(value string) bool {
+	if value == "" || len(value) > maxStatusTokenBytes {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+func observeController(ctx context.Context, root string, c config.Config, enabled bool, intentErr error) ControllerFact {
+	out := ControllerFact{Enabled: enabled, IntentReadable: intentErr == nil}
 	var reply struct {
-		Owner         string `json:"owner"`
-		ActiveJob     string `json:"active_job"`
-		QueuePaused   *bool  `json:"queue_paused"`
-		WorkerRunning *bool  `json:"worker_running"`
+		Owner           string  `json:"owner"`
+		ActiveJob       *string `json:"active_job"`
+		QueuePaused     *bool   `json:"queue_paused"`
+		WorkerRunning   *bool   `json:"worker_running"`
+		ControllerReady *bool   `json:"controller_ready"`
+		WorkerRequested *bool   `json:"worker_requested"`
+		WorkerError     *string `json:"worker_error"`
 	}
 	data, handled, err := control.Call(ctx, root, time.Duration(c.Limits.LockWaitSeconds)*time.Second, c.Limits.MaxArtifactBytes, control.Request{Operation: "status"})
 	if err != nil {
-		return ControllerFact{Probe: "failed"}
+		out.Probe = "failed"
+		return out
 	}
 	if !handled {
-		return ControllerFact{Probe: "no_endpoint"}
+		out.Probe = "no_endpoint"
+		return out
 	}
-	if json.Unmarshal(data, &reply) != nil || reply.Owner != "controller" || reply.QueuePaused == nil || reply.WorkerRunning == nil {
-		return ControllerFact{Probe: "failed"}
+	if json.Unmarshal(data, &reply) != nil || reply.Owner != "controller" || reply.ActiveJob == nil || reply.QueuePaused == nil || reply.WorkerRunning == nil {
+		out.Probe = "failed"
+		return out
 	}
-	return ControllerFact{Available: true, Probe: "responsive", ActiveJob: reply.ActiveJob, QueuePaused: *reply.QueuePaused, WorkerRunning: *reply.WorkerRunning}
+	out.Available, out.Probe, out.ActiveJob, out.QueuePaused, out.WorkerRunning = true, "responsive", *reply.ActiveJob, *reply.QueuePaused, *reply.WorkerRunning
+	// The legacy status facts establish controller availability. Dispatch facts
+	// are additive and are used only when the complete, bounded shape is present.
+	workerError := ""
+	if reply.WorkerError != nil {
+		workerError = *reply.WorkerError
+	}
+	if reply.ControllerReady == nil || reply.WorkerRequested == nil ||
+		(workerError != "" && !safeStatusToken(workerError)) {
+		return out
+	}
+	out.DispatchKnown = true
+	out.ControllerReady, out.WorkerRequested, out.WorkerError = *reply.ControllerReady, *reply.WorkerRequested, workerError
+	return out
 }
 
 func observeReceipts(root string, c config.Config, activeID int64) (out ReceiptFact) {
@@ -290,20 +333,49 @@ func problemDiagnostics(outcomes map[string]diagnosticOutcome) []string {
 	return sorted(values)
 }
 
+func classify(outcomes map[string]diagnosticOutcome, codes, unavailable []string, disabled bool) string {
+	if disabled {
+		return "disabled"
+	}
+	unknown := false
+	for _, code := range codes {
+		if outcomes[code] == diagnosticUnknown {
+			unknown = true
+		}
+	}
+	for _, code := range unavailable {
+		if outcomes[code] == diagnosticProblem {
+			return "unavailable"
+		}
+	}
+	for _, code := range codes {
+		if outcomes[code] == diagnosticProblem {
+			return "degraded"
+		}
+	}
+	if unknown {
+		return "unknown"
+	}
+	return "ready"
+}
+
 // Check is read-only. Poll backoff remains visible as Waiting and does not
 // itself create an incident or recovery action.
 func Check(ctx context.Context, root string, c config.Config) Snapshot {
 	now := time.Now().UTC()
 	chatEnabled, chatIntentErr := service.Enabled(root)
 	monitorEnabled, monitorIntentErr := service.MonitorEnabled(root)
+	controllerEnabled, controllerIntentErr := service.ControllerEnabled(root)
 	out := Snapshot{
 		Version: Version, ObservedAt: now,
 		ChatService:    observeService(ctx, root, c, service.Chat, chatEnabled, chatIntentErr),
 		MonitorService: observeService(ctx, root, c, service.Monitor, monitorEnabled, monitorIntentErr),
-		Controller:     observeController(ctx, root, c),
-		Recovery:       "Inspect chunsu telegram status and chunsu errors; manually start or restart only the component you choose.",
+		Controller:     observeController(ctx, root, c, controllerEnabled, controllerIntentErr),
+		Recovery:       "Inspect chunsu telegram status, chunsu controller status, and chunsu errors; manually start only the component you choose.",
 		outcomes:       make(map[string]diagnosticOutcome),
 	}
+	frontendCodes := []string{"chat_service_state_unreadable", "chat_service_unregistered", "chat_service_status_unreadable", "supervisor_state_unreadable", "supervisor_unavailable", "receiver_state_unreadable", "receiver_unavailable", "ai_recovery_required", "poll_progress_stalled", "active_request_stalled"}
+	backendCodes := []string{"controller_intent_unreadable", "controller_unavailable", "controller_probe_failed", "backend_dispatch_status_unreadable", "backend_dispatch_unavailable", "backend_dispatch_error"}
 	supervisor, supervisorAlive, supervisorErr := chatsupervisor.Read(root, c.Limits)
 	out.Supervisor = ProcessFact{Alive: supervisorAlive, State: supervisor.State, At: supervisor.At, Restarts: supervisor.Restarts}
 	health, receiverAlive, receiverErr := telegram.ReadHealth(root, c.Limits)
@@ -322,13 +394,13 @@ func Check(ctx context.Context, root string, c config.Config) Snapshot {
 	outcomes := out.outcomes
 	if chatIntentErr != nil {
 		outcomes["chat_intent_unreadable"] = diagnosticProblem
-		for _, code := range []string{"chat_service_state_unreadable", "chat_service_unregistered", "chat_service_status_unreadable", "supervisor_state_unreadable", "supervisor_unavailable", "receiver_state_unreadable", "receiver_unavailable", "ai_recovery_required", "controller_unavailable", "controller_probe_failed", "poll_progress_stalled", "active_request_stalled"} {
+		for _, code := range frontendCodes {
 			outcomes[code] = diagnosticUnknown
 		}
 	} else {
 		outcomes["chat_intent_unreadable"] = diagnosticHealthy
 		if !chatEnabled {
-			for _, code := range []string{"chat_service_state_unreadable", "chat_service_unregistered", "chat_service_status_unreadable", "supervisor_state_unreadable", "supervisor_unavailable", "receiver_state_unreadable", "receiver_unavailable", "ai_recovery_required", "controller_unavailable", "controller_probe_failed", "poll_progress_stalled", "active_request_stalled"} {
+			for _, code := range frontendCodes {
 				outcomes[code] = diagnosticDisabled
 			}
 		} else {
@@ -364,16 +436,6 @@ func Check(ctx context.Context, root string, c config.Config) Snapshot {
 					outcomes["receiver_unavailable"] = diagnosticProblem
 				}
 			}
-			switch out.Controller.Probe {
-			case "responsive":
-				outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticHealthy, diagnosticHealthy
-			case "no_endpoint":
-				outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticProblem, diagnosticHealthy
-			case "failed":
-				outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticUnknown, diagnosticProblem
-			default:
-				outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticUnknown, diagnosticUnknown
-			}
 			if receiverErr != nil || !receiverAlive {
 				outcomes["ai_recovery_required"], outcomes["poll_progress_stalled"], outcomes["active_request_stalled"] = diagnosticUnknown, diagnosticUnknown, diagnosticUnknown
 			} else {
@@ -403,6 +465,50 @@ func Check(ctx context.Context, root string, c config.Config) Snapshot {
 			}
 		}
 	}
+	if controllerIntentErr != nil {
+		outcomes["controller_intent_unreadable"] = diagnosticProblem
+		for _, code := range backendCodes[1:] {
+			outcomes[code] = diagnosticUnknown
+		}
+	} else if !controllerEnabled {
+		outcomes["controller_intent_unreadable"] = diagnosticHealthy
+		for _, code := range backendCodes[1:] {
+			outcomes[code] = diagnosticDisabled
+		}
+	} else {
+		outcomes["controller_intent_unreadable"] = diagnosticHealthy
+		switch out.Controller.Probe {
+		case "responsive":
+			outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticHealthy, diagnosticHealthy
+			if !out.Controller.DispatchKnown {
+				outcomes["backend_dispatch_status_unreadable"], outcomes["backend_dispatch_unavailable"], outcomes["backend_dispatch_error"] = diagnosticUnknown, diagnosticUnknown, diagnosticUnknown
+			} else {
+				outcomes["backend_dispatch_status_unreadable"] = diagnosticHealthy
+				if !out.Controller.ControllerReady || out.Controller.WorkerRequested && !out.Controller.WorkerRunning && out.Controller.WorkerError == "" {
+					outcomes["backend_dispatch_unavailable"] = diagnosticProblem
+				} else {
+					outcomes["backend_dispatch_unavailable"] = diagnosticHealthy
+				}
+				if out.Controller.WorkerError != "" {
+					outcomes["backend_dispatch_error"] = diagnosticProblem
+				} else {
+					outcomes["backend_dispatch_error"] = diagnosticHealthy
+				}
+			}
+		case "no_endpoint":
+			outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticProblem, diagnosticHealthy
+			outcomes["backend_dispatch_status_unreadable"], outcomes["backend_dispatch_unavailable"], outcomes["backend_dispatch_error"] = diagnosticUnknown, diagnosticUnknown, diagnosticUnknown
+		case "failed":
+			outcomes["controller_unavailable"], outcomes["controller_probe_failed"] = diagnosticUnknown, diagnosticProblem
+			outcomes["backend_dispatch_status_unreadable"], outcomes["backend_dispatch_unavailable"], outcomes["backend_dispatch_error"] = diagnosticUnknown, diagnosticUnknown, diagnosticUnknown
+		default:
+			for _, code := range backendCodes[1:] {
+				outcomes[code] = diagnosticUnknown
+			}
+		}
+	}
+	out.FrontendHealth = classify(outcomes, frontendCodes, []string{"chat_service_unregistered", "supervisor_unavailable", "receiver_unavailable"}, chatIntentErr == nil && !chatEnabled)
+	out.BackendHealth = classify(outcomes, backendCodes, []string{"controller_unavailable", "backend_dispatch_unavailable"}, controllerIntentErr == nil && !controllerEnabled)
 	out.Diagnostics = problemDiagnostics(outcomes)
 	out.ObservationComplete = true
 	for _, outcome := range outcomes {

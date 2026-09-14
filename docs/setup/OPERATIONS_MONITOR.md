@@ -19,7 +19,10 @@ chunsu monitor status
 결과만 보고 현재 정상이라고 판단하지 않는다.
 
 프로세스 생존, Telegram 수신, AI 처리 가능 여부, 컨트롤러 응답과 요청 결과는
-각각 다른 사실이다. 오래된 마지막 답변 시각만으로 조용한 채팅을 장애로 보지 않는다.
+각각 다른 사실이다. `frontend_health`는 수신·공통 대화 앞단을,
+`backend_health`는 독립 컨트롤러와 업무 배정을 구분해 표시한다. task 실행기
+미설정으로 뒷단이 degraded여도 앞단은 ready일 수 있다. 의도적 컨트롤러 중지는
+disabled로 구별하며 실제 응답 관측은 `controller.available`에 따로 남긴다. 오래된 마지막 답변 시각만으로 조용한 채팅을 장애로 보지 않는다.
 과거 기록에 없는 단계별 시각은 미관측 상태로 남는다. 시각이 없는 기존 기록은
 현재 JSON에서 0 시각으로 표시될 수 있다. receipt 집계는 디렉터리의 제한된 표본이며
 최신순 전체 이력 집계가 아니다. 현재 처리 중인 요청은 ID로 별도 조회한다.
@@ -84,13 +87,16 @@ chunsu monitor remove
 
 ```sh
 chunsu telegram status
+chunsu controller status
+chunsu worker status
 chunsu errors
 ```
 
 설정·권한·네트워크 문제를 확인한 뒤 수신기 재시작이 필요하면
 `chunsu telegram restart`를 실행한다. 감시기는 이 명령을 대신 실행하거나
 중단된 업무를 다시 접수하지 않는다. AI만 사용 불가한 경우에는 Telegram 고정
-관리 명령이 계속 동작할 수 있다.
+관리 명령이 계속 동작할 수 있다. 컨트롤러만 불가한 경우 `/controller start`로
+뒷단을 복구할 수 있다. 감시기는 컨트롤러 중지를 수신기 장애로 취급하지 않는다.
 
 외부 알림 수신처와 발신 권한은 별도로 설정해야 한다. 호스트 전원이나 전체
 네트워크 장애를 외부에 알려야 한다면 다른 호스트의 감시가 필요하다.

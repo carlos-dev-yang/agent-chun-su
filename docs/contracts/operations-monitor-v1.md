@@ -19,7 +19,8 @@ flowchart LR
     os --> monitor[Operations monitor]
     supervisor -. identity and heartbeat .-> monitor
     receiver -. health and receipt metadata .-> monitor
-    controller[Single SQLite controller] -. read-only status IPC .-> monitor
+    os --> controller[Independent single SQLite controller]
+    controller -. read-only status IPC .-> monitor
     monitor --> local[Local snapshot and incident ledger]
     local --> operator[CLI inspection and manual repair]
 ```
@@ -28,6 +29,12 @@ Process identity and loop heartbeat establish liveness. Poll progress, controlle
 availability, AI recovery state and request outcomes establish different aspects
 of readiness. A running process is not sufficient evidence of successful delivery.
 An idle chat does not become unhealthy merely because it has no recent reply.
+The PROC revision reports `frontend_health` separately from `backend_health`.
+Controller and worker dispatch failures do not become receiver failures. Explicit
+controller stop disables backend incident judgment independently of chat intent;
+its current IPC availability is still observed. A legacy or incomplete status
+shape can establish only the facts it actually contains, not dispatch readiness.
+Worker errors exposed to the monitor are bounded machine codes, not provider text.
 
 Telegram receipt and health adapters expose only bounded operational metadata.
 No token, message text, source content or raw exception is included. Earlier
