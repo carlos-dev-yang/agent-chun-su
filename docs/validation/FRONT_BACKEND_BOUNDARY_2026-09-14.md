@@ -1,6 +1,6 @@
 # PROC — 앞단/뒷단 분리 검증
 
-상태: 분리 홈 검증 완료, 운영 반영 진행 중. 이 문서는 실제 수행한 확인과
+상태: 승인 범위 검증·로컬 반영 완료. 이 문서는 실제 수행한 확인과
 미수행 범위를 구분한다. [승인 목표](../implementation/FRONT_BACKEND_BOUNDARY_GOAL_2026-09-14.md)의
 PROC-02~05 증거이며 외부 계정·업무 승인 범위를 확대하지 않는다.
 
@@ -49,9 +49,23 @@ route는 해당 호스트의 검증된 Codex 경로로 설정했고 합성 입�
 ## 로컬 운영 반영
 
 반영 직전 기존 운영 수신기는 connected/유휴, 감독·감시 프로세스는 살아 있었고
-컨트롤러는 부재 상태였다. 아직 운영 바이너리 교체와 서비스 전환 결과는 기록하지
-않았다. 기존 수신기 소유의 백엔드 교체 경로를 먼저 중지한 뒤 새 서비스로 전환한다.
-운영 task route는 사용자가 설정하지 않은 상태로 유지한다.
+컨트롤러는 부재 상태였다. 실행 파일 경로와 유휴 상태를 다시 확인하고 이전
+바이너리를 비공개 검증 경로에 보관했다. 기존 감시기·수신기 감독 경로를 중지한 뒤
+검증한 바이너리로 교체하고 컨트롤러→채팅→감시기 순서로 시작했다.
+
+2026-09-14 03:12:36 UTC 관측:
+
+- 앞단 `frontend_health=ready`, Telegram receiver·supervisor 생존, 연결 정상.
+- 컨트롤러 `available=true`, `controller_ready=true`, OS 관리 서비스로 독립 실행.
+- 기존 legacy worker enabled 의도 이관. 운영 task route는 미설정으로 보존하며
+  `worker_requested=true`, `worker_running=false`, `worker_error=worker_not_configured`.
+- 감시 `backend_health=degraded`, 현재 진단은 `backend_dispatch_error`만 남음.
+  이전 `controller_unavailable`은 응답 관측으로 해소되고 관측은 complete.
+- 검증용 LaunchAgent는 중지·등록 파일 제거를 마쳤다. 검증 데이터와 이전 바이너리는
+  비공개 경로에 남겼고 Git에 포함하지 않았다.
+
+따라서 완료는 앞단 독립과 내부 복구 구조의 구현·반영을 뜻한다. 사용자가 선택하지
+않은 운영 task 실행기 설정이나 실제 업무 실행 완료를 뜻하지 않는다.
 
 ## 수행하지 않은 확인
 
