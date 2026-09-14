@@ -55,7 +55,7 @@ func Capabilities(channel string) []conversation.Capability {
 			switch capability.Name {
 			case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs, conversation.DelegateJob,
 				conversation.ListErrors, conversation.AcknowledgeError, conversation.PauseQueue, conversation.ResumeQueue, conversation.CancelJob, conversation.RetryJob, conversation.ListFeatures, conversation.InstallFeature,
-				conversation.StartWorker, conversation.StopWorker:
+				conversation.StartWorker, conversation.StopWorker, conversation.RestartWorker, conversation.ReadWorkerConfig, conversation.ConfigureWorker:
 				allowed = append(allowed, capability)
 			}
 		}

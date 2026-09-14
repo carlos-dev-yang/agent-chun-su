@@ -193,6 +193,9 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		status, statusErr := r.controllerStatus(ctx)
 		return status, errors.Join(err, statusErr)
 	}
+	if req.Operation == "worker_config" {
+		return r.workerConfig(ctx, req.Input)
+	}
 	if r.admissionBlocked() && (strings.HasPrefix(req.Operation, onboarding.Prefix) || req.Operation == "queue" || req.Operation == "delegate" || req.Operation == "install_feature" || req.Operation == "retry" || req.Operation == "resolve") {
 		return nil, errors.New("controller is stopping and is not admitting new work")
 	}

@@ -16,6 +16,7 @@ import (
 	"chunsu/internal/onboarding"
 	"chunsu/internal/store"
 	"chunsu/internal/telegram"
+	"chunsu/internal/workerconfig"
 )
 
 type HostResult struct {
@@ -49,9 +50,9 @@ type Host struct {
 	GuideInstalled func(onboarding.Result)
 }
 
-// workerRuntimeError carries only the backend's fixed worker-operation copy.
-// Its cause stays available for classification and diagnostics, but is never
-// projected into conversation history or a user-facing failure.
+// workerRuntimeError carries only the backend's fixed worker message. Its cause
+// stays available for classification and diagnostics, but is never projected
+// into conversation history or a user-facing failure.
 type workerRuntimeError struct {
 	message string
 	cause   error
@@ -75,6 +76,10 @@ func (h Host) runtime(ctx context.Context, component, operation string) (backend
 	return backend.Command(ctx, h.Root, h.Config, component, operation)
 }
 
+func (h Host) workerConfig(ctx context.Context, operation, value string) (workerconfig.Result, error) {
+	return backend.WorkerConfig(ctx, h.Root, h.Config, operation, value)
+}
+
 func (h Host) Dispatch(ctx context.Context, channel string, action conversation.Action, request string, known map[string]bool) (HostResult, error) {
 	if err := conversation.Validate(conversation.Reply{Message: "dispatch", Action: action}); err != nil {
 		return HostResult{}, err
@@ -83,13 +88,33 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{}, errors.New("reception channel does not permit this action")
 	}
 	switch action.Name {
-	case conversation.StartWorker, conversation.StopWorker:
+	case conversation.StartWorker, conversation.StopWorker, conversation.RestartWorker:
 		operation := "start"
 		if action.Name == conversation.StopWorker {
 			operation = "stop"
+		} else if action.Name == conversation.RestartWorker {
+			operation = "restart"
 		}
 		result, err := h.runtime(ctx, "worker", operation)
 		outcome := HostResult{Status: "processed", Detail: map[string]string{"message": result.Message}}
+		if err != nil {
+			outcome.Status = "failed"
+			return outcome, &workerRuntimeError{message: result.Message, cause: err}
+		}
+		return outcome, nil
+	case conversation.ReadWorkerConfig, conversation.ConfigureWorker:
+		operation, value := "status", ""
+		if action.Name == conversation.ConfigureWorker {
+			if action.Service == "model" && !strings.Contains(request, action.Reference) {
+				return HostResult{}, errors.New("changing the worker model requires the model stated by the user")
+			}
+			operation, value = action.Service, action.Reference
+		}
+		result, err := h.workerConfig(ctx, operation, value)
+		outcome := HostResult{Status: "observed", Detail: result}
+		if action.Name == conversation.ConfigureWorker {
+			outcome.Status = "processed"
+		}
 		if err != nil {
 			outcome.Status = "failed"
 			return outcome, &workerRuntimeError{message: result.Message, cause: err}

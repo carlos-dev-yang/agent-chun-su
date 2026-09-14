@@ -4,11 +4,13 @@ import (
 	"errors"
 	"time"
 
+	"chunsu/internal/backend"
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/runner"
 	"chunsu/internal/schedule"
 	"chunsu/internal/store"
+	"chunsu/internal/workerconfig"
 	"github.com/spf13/cobra"
 )
 
@@ -173,5 +175,51 @@ func (o *options) worker() *cobra.Command {
 	for _, operation := range []string{"start", "stop", "restart", "status"} {
 		cmd.AddCommand(o.runtimeCommand("worker", operation))
 	}
+	cmd.AddCommand(o.workerConfig())
 	return cmd
+}
+
+func (o *options) workerConfig() *cobra.Command {
+	return &cobra.Command{Use: "config [use reception|use review|model MODEL]", Short: "Inspect or save the task worker AI configuration", Args: cobra.RangeArgs(0, 3), RunE: func(cmd *cobra.Command, args []string) error {
+		operation, value := "status", ""
+		switch len(args) {
+		case 0:
+		case 2:
+			switch args[0] {
+			case "use":
+				if args[1] != config.RoleReception && args[1] != config.RoleReview {
+					return errors.New("worker config source must be reception or review")
+				}
+				operation, value = "source", args[1]
+			case "model":
+				if err := workerconfig.ValidateModel(args[1]); err != nil {
+					return err
+				}
+				operation, value = "model", args[1]
+			default:
+				return errors.New("usage: chunsu worker config [use reception|use review|model MODEL]")
+			}
+		default:
+			return errors.New("usage: chunsu worker config [use reception|use review|model MODEL]")
+		}
+		root, err := o.path()
+		if err != nil {
+			return err
+		}
+		c, err := config.Load(root)
+		if err != nil {
+			return err
+		}
+		result, runErr := backend.WorkerConfig(cmd.Context(), root, c, operation, value)
+		if runErr != nil {
+			if err = output(cmd, map[string]string{"message": result.Message}); err != nil {
+				return err
+			}
+			return runErr
+		}
+		if err = output(cmd, result); err != nil {
+			return err
+		}
+		return nil
+	}}
 }

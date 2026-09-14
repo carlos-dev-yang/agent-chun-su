@@ -7,10 +7,12 @@ import (
 	"strings"
 
 	"chunsu/internal/chatlanguage"
+	"chunsu/internal/config"
 	"chunsu/internal/features"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
 	"chunsu/internal/onboarding"
+	"chunsu/internal/workerconfig"
 	setupskills "chunsu/setup-skills"
 )
 
@@ -34,6 +36,9 @@ const ListFeatures = "list_features"
 const InstallFeature = "install_feature"
 const StartWorker = "start_worker"
 const StopWorker = "stop_worker"
+const RestartWorker = "restart_worker"
+const ReadWorkerConfig = "read_worker_config"
+const ConfigureWorker = "configure_worker"
 
 type Capability struct {
 	Name        string `json:"name"`
@@ -44,6 +49,9 @@ type Capability struct {
 
 func Capabilities() []Capability {
 	return []Capability{
+		{ReadWorkerConfig, "현재 저장된 업무용 AI 설정과 선택 가능한 로컬 source를 조회한다. 경로, 비밀값, 자료 공개 승인은 포함하지 않는다.", false, false},
+		{ConfigureWorker, "사용자가 명시한 source(reception 또는 review)를 복사하거나, 사용자가 직접 말한 model로 업무용 AI 설정을 저장한다. 저장만 하며 worker를 시작하지 않는다.", true, true},
+		{RestartWorker, "사용자가 명시적으로 요청하면 기존 worker 재시작 절차를 한 번 요청한다. 중지와 시작을 별도로 연속 요청하지 않는다.", false, false},
 		{StartWorker, "사용자가 요청하면 controller의 새 worker dispatch를 시작한다. 결과는 관찰된 상태와 구분하며, 큐 중지와 자료 접근 권한은 보존한다.", false, false},
 		{StopWorker, "사용자가 요청하면 controller의 새 worker dispatch를 중지한다. 이미 시작한 작업은 마무리될 수 있으며 대화와 관리 명령은 유지한다.", false, false},
 		{ListErrors, "누적 운영 오류와 복구 안내를 조회한다. 원문과 비밀값은 포함하지 않는다.", false, false},
@@ -96,6 +104,21 @@ func Validate(reply Reply) error {
 	for _, capability := range Capabilities() {
 		if capability.Name != reply.Action.Name {
 			continue
+		}
+		if capability.Name == ConfigureWorker {
+			switch reply.Action.Service {
+			case "source":
+				if reply.Action.Reference != config.RoleReception && reply.Action.Reference != config.RoleReview {
+					return errors.New("worker configuration source must be reception or review")
+				}
+			case "model":
+				if err := workerconfig.ValidateModel(reply.Action.Reference); err != nil {
+					return err
+				}
+			default:
+				return errors.New("unsupported worker configuration change")
+			}
+			return nil
 		}
 		if capability.Reference {
 			if !files.ValidID(reply.Action.Reference) {

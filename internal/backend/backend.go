@@ -16,6 +16,7 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/runner"
 	"chunsu/internal/service"
+	"chunsu/internal/workerconfig"
 )
 
 const (
@@ -258,7 +259,7 @@ func workerMessage(code string, status Status) string {
 	case "config_unavailable":
 		return "The controller is ready, but local task route configuration could not be read. Chat and controller controls remain available."
 	case "worker_not_configured":
-		return "The controller is ready, but the task AI executor is not configured. Chat and controller controls remain available. Complete local task route configuration."
+		return "The controller is ready, but the task AI executor is not configured. Chat and controller controls remain available. Use /worker config to inspect or select a saved task route."
 	case "worker_intent_unavailable":
 		return "The controller is ready, but the saved worker setting needs attention."
 	case "worker_prerequisites_unavailable":
@@ -267,6 +268,71 @@ func workerMessage(code string, status Status) string {
 		return "The controller is ready, but worker dispatch is blocked for review."
 	}
 	return "The worker request failed. Check controller status."
+}
+
+// WorkerConfig exposes only a safe projection of the persisted task route.
+// Mutations are owned by the controller and are never retried after IPC fails.
+func WorkerConfig(ctx context.Context, root string, c config.Config, operation, value string) (workerconfig.Result, error) {
+	if operation == "status" {
+		loaded, err := config.Load(root)
+		if err != nil {
+			return workerconfig.Result{Message: "The task worker configuration could not be read. Check local configuration."}, err
+		}
+		return workerConfigResult(loaded, "The saved task worker configuration is ready to inspect."), nil
+	}
+	if operation != "source" && operation != "model" {
+		return workerconfig.Result{Message: "That worker configuration operation is unavailable."}, errors.New("unsupported worker configuration operation")
+	}
+	lock, err := acquireLifecycle(ctx, root, lifecycleTimeout(c))
+	if err != nil {
+		return workerconfig.Result{Message: "Another runtime change is still in progress."}, err
+	}
+	defer lock.Close()
+	input, err := json.Marshal(struct {
+		Operation string `json:"operation"`
+		Value     string `json:"value"`
+	}{Operation: operation, Value: value})
+	if err != nil {
+		return workerconfig.Result{Message: "The worker configuration request could not be prepared."}, err
+	}
+	callCtx, cancel := bounded(ctx, lifecycleTimeout(c))
+	defer cancel()
+	data, handled, err := control.Call(callCtx, root, lifecycleTimeout(c), c.Limits.MaxArtifactBytes, control.Request{Operation: "worker_config", Input: input})
+	if !handled {
+		return workerconfig.Result{Message: "The controller is unavailable. Start it with /controller start, then try again."}, errors.New("controller unavailable")
+	}
+	if err != nil {
+		return workerconfig.Result{Message: workerConfigErrorMessage(err), Settings: workerconfig.View{}}, err
+	}
+	var result workerconfig.Result
+	if err = json.Unmarshal(data, &result); err != nil || result.Message == "" {
+		return workerconfig.Result{Message: "The worker configuration could not be confirmed. Check /worker config and controller status before trying again."}, errors.New("invalid worker configuration response")
+	}
+	return result, nil
+}
+
+func workerConfigResult(c config.Config, message string) workerconfig.Result {
+	return workerconfig.Result{Message: message, Settings: workerconfig.Project(c)}
+}
+
+func workerConfigErrorMessage(err error) string {
+	switch err.Error() {
+	case "controller_stopping":
+		return "The controller is stopping. Wait for it to settle, then inspect /worker config."
+	case "recovery_blocked":
+		return "The controller needs recovery review before changing the task worker configuration."
+	case "worker_busy":
+		return "Wait for the active task or setup operation to finish before changing the task worker configuration."
+	case "worker_stop_required":
+		return "Stop worker dispatch with /worker stop before changing the task worker configuration."
+	case "requested worker configuration source is unavailable":
+		return "That saved reception or review route is unavailable. Inspect /worker config."
+	case "model identifier is missing or too long", "model identifier cannot start with an option", "model identifier contains unsupported characters":
+		return "The model name must be a short printable identifier and cannot begin with an option."
+	case "task route configuration is unavailable", "task worker execution identity is incomplete", "task worker execution identity is unsupported":
+		return "The selected task route is incomplete or unavailable. Inspect /worker config."
+	}
+	return "The worker configuration could not be confirmed. Check /worker config and controller status before trying again."
 }
 
 func observe(ctx context.Context, root string, c config.Config) (Result, error) {

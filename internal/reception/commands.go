@@ -12,9 +12,10 @@ import (
 	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
 	"chunsu/internal/telegram"
+	"chunsu/internal/workerconfig"
 )
 
-const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -24,6 +25,9 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 		return "", false, nil
 	}
 	name := strings.ToLower(parts[0])
+	if name == "/worker" && len(parts) >= 2 && parts[1] == "config" {
+		return h.workerConfigCommand(ctx, channel, request, parts)
+	}
 	if name == "/controller" || name == "/worker" {
 		if channel != Local && channel != Telegram {
 			return "This runtime command is unavailable in this reception channel.", true, nil
@@ -130,6 +134,68 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	raw, err := json.MarshalIndent(result, "", "  ")
 	return string(raw), true, err
+}
+
+func (h Host) workerConfigCommand(ctx context.Context, channel, request string, parts []string) (string, bool, error) {
+	if channel != Local && channel != Telegram {
+		return "This worker configuration command is unavailable in this reception channel.", true, nil
+	}
+	action := conversation.Action{Name: conversation.ReadWorkerConfig}
+	switch len(parts) {
+	case 2:
+	case 4:
+		switch parts[2] {
+		case "use":
+			action.Name, action.Service, action.Reference = conversation.ConfigureWorker, "source", parts[3]
+		case "model":
+			action.Name, action.Service, action.Reference = conversation.ConfigureWorker, "model", parts[3]
+		default:
+			return "Usage: /worker config [use reception|use review|model MODEL].", true, nil
+		}
+	default:
+		return "Usage: /worker config [use reception|use review|model MODEL].", true, nil
+	}
+	result, err := h.Dispatch(ctx, channel, action, request, map[string]bool{})
+	if err != nil {
+		if configured, ok := result.Detail.(workerconfig.Result); ok && strings.TrimSpace(configured.Message) != "" {
+			return configured.Message, true, err
+		}
+		if conversation.Validate(conversation.Reply{Message: "command", Action: action}) != nil {
+			return "Usage: /worker config [use reception|use review|model MODEL].", true, nil
+		}
+		return "Worker configuration could not be completed. Check /errors.", true, err
+	}
+	configured, ok := result.Detail.(workerconfig.Result)
+	if !ok {
+		return "Worker configuration could not be read. Check /errors.", true, err
+	}
+	return workerConfigMessage(configured), true, err
+}
+
+func workerConfigMessage(result workerconfig.Result) string {
+	settings := result.Settings
+	lines := []string{"Worker configuration"}
+	if settings.Configured {
+		lines = append(lines, "Configured: yes.")
+	} else {
+		lines = append(lines, "Configured: no.")
+	}
+	if settings.Driver != "" {
+		lines = append(lines, "Driver: "+settings.Driver+".")
+	}
+	if settings.Model != "" {
+		lines = append(lines, "Model: "+settings.Model+".")
+	}
+	if settings.Environment != "" {
+		lines = append(lines, "Environment: "+settings.Environment+".")
+	}
+	if len(settings.AvailableSources) > 0 {
+		lines = append(lines, "Available sources: "+strings.Join(settings.AvailableSources, ", ")+".")
+	}
+	if strings.TrimSpace(result.Message) != "" {
+		lines = append(lines, result.Message)
+	}
+	return strings.Join(lines, "\n") + "\nSaved worker configuration persists across controller restarts. Starting the worker requires a separate explicit request."
 }
 
 func workerStatusMessage(result backend.Result) string {
