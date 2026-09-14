@@ -16,6 +16,9 @@ type ProcessIdentity struct {
 func ProcessGroup(cmd *exec.Cmd) {}
 func KillGroup(pid int) error    { return errors.New("process isolation unsupported on this platform") }
 func GroupExists(pid int) bool   { return true }
+func IdentityActive(ProcessIdentity) (bool, error) {
+	return false, errors.New("process identity unsupported on this platform")
+}
 func Identify(pid int) (ProcessIdentity, error) {
 	return ProcessIdentity{}, errors.New("process identity unsupported on this platform")
 }

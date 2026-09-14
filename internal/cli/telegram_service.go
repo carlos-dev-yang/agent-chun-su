@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"chunsu/internal/chatsupervisor"
 	"chunsu/internal/config"
-	"chunsu/internal/platform"
 	"chunsu/internal/secrets"
 	"chunsu/internal/service"
 	"chunsu/internal/telegram"
@@ -102,23 +100,15 @@ func (o *options) addTelegramServiceCommands(parent *cobra.Command, pair func(*c
 			if err != nil {
 				return err
 			}
-			if operation == "enable" {
-				c, e := config.Load(root)
-				var binding telegram.Binding
-				if e == nil {
-					binding, e = telegram.Load(root, c.Limits.MaxArtifactBytes)
-				}
-				if e != nil || binding.UserID == 0 {
-					if err = pair(cmd); err != nil {
-						return err
-					}
-				}
-			}
 			c, err := config.Load(root)
 			if err != nil {
-				return err
+				if operation != "enable" || !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+				// Pairing retains its existing setup path. Defaults only bound the
+				// private lifecycle lock until that path has persisted configuration.
+				c = config.Defaults()
 			}
-			timeout := time.Duration(c.Limits.LockWaitSeconds+telegram.HTTPGraceSeconds) * time.Second
 			if operation == "render" {
 				definition, err := service.RenderFor(root, service.Chat, atLogin)
 				if err != nil {
@@ -130,35 +120,57 @@ func (o *options) addTelegramServiceCommands(parent *cobra.Command, pair func(*c
 				_, err = fmt.Fprint(cmd.OutOrStdout(), definition.Body)
 				return err
 			}
+			lock, err := telegramLifecycleLock(cmd.Context(), root, c)
+			if err != nil {
+				return errors.New("another Telegram lifecycle change is still in progress")
+			}
+			defer lock.Close()
+			if err = cmd.Context().Err(); err != nil {
+				return err
+			}
+			if operation == "enable" {
+				binding, e := telegram.Load(root, c.Limits.MaxArtifactBytes)
+				if e != nil || binding.UserID == 0 {
+					if err = cmd.Context().Err(); err != nil {
+						return err
+					}
+					if err = pair(cmd); err != nil {
+						return err
+					}
+					if c, err = config.Load(root); err != nil {
+						return err
+					}
+				}
+			}
+			var prior telegramProcesses
 			if operation == "stop" || operation == "disable" || operation == "restart" || operation == "remove" {
-				if err = service.SetEnabled(root, false); err != nil {
+				definition, registered, e := verifiedTelegramRegistration(root)
+				if e != nil {
+					return errors.New("the Telegram service registration could not be verified")
+				}
+				ownership, e := telegramOwnership(root, c)
+				if e != nil {
+					return errors.New("existing Telegram process ownership could not be verified")
+				}
+				prior = ownership
+				if err = cmd.Context().Err(); err != nil {
 					return err
 				}
-				if _, e := service.ReadFor(root, service.Chat); e == nil {
-					status, e := service.CommandFor(cmd.Context(), root, service.Chat, "status", timeout)
-					if e != nil {
-						return e
-					}
-					if status.Running {
-						if _, err = service.CommandFor(cmd.Context(), root, service.Chat, "stop", timeout); err != nil {
-							return err
-						}
-					}
-				} else if !errors.Is(e, os.ErrNotExist) {
-					return e
+				if e = service.SetEnabled(root, false); e != nil {
+					return errors.New("the Telegram stop intent could not be saved")
 				}
-				// Stop a foreground receiver only with a fresh matching identity.
-				if health, alive, _ := telegram.ReadHealth(root, c.Limits); alive {
-					actual, e := platform.Identify(health.Identity.PID)
-					if e == nil && actual == health.Identity {
-						process, _ := os.FindProcess(actual.PID)
-						_ = process.Signal(os.Interrupt)
-					}
+				if e = stopTelegram(cmd.Context(), root, c, registered, ownership); e != nil {
+					return errors.New("the Telegram stop could not be confirmed; explicit stop remains saved")
 				}
 				if operation == "remove" {
-					definition, err := service.RemoveFor(cmd.Context(), root, service.Chat, timeout)
-					if err != nil {
+					if !registered {
+						return errors.New("the Telegram service registration is not installed")
+					}
+					if err = cmd.Context().Err(); err != nil {
 						return err
+					}
+					if _, e = service.RemoveFor(cmd.Context(), root, service.Chat, telegramLifecycleBudget(c)); e != nil {
+						return errors.New("the Telegram service could not be removed")
 					}
 					return output(cmd, map[string]any{"removed": definition.Path, "data_preserved": true})
 				}
@@ -176,6 +188,9 @@ func (o *options) addTelegramServiceCommands(parent *cobra.Command, pair func(*c
 					}
 					_ = lock.Close()
 				}
+				if err = cmd.Context().Err(); err != nil {
+					return err
+				}
 				if _, err = service.InstallFor(root, service.Chat, atLogin); err != nil {
 					return err
 				}
@@ -183,15 +198,27 @@ func (o *options) addTelegramServiceCommands(parent *cobra.Command, pair func(*c
 			if _, err = service.ReadFor(root, service.Chat); err != nil {
 				return fmt.Errorf("install the supervisor with chunsu telegram enable: %w", err)
 			}
+			if _, _, err = verifiedTelegramRegistration(root); err != nil {
+				return errors.New("the Telegram service registration could not be verified")
+			}
+			if operation != "restart" {
+				prior, err = telegramOwnership(root, c)
+				if err != nil {
+					return errors.New("existing Telegram process ownership could not be verified")
+				}
+			}
+			fresh := operation == "restart"
+			if err = cmd.Context().Err(); err != nil {
+				return err
+			}
 			if err = service.SetEnabled(root, true); err != nil {
-				return err
+				return errors.New("the Telegram start intent could not be saved")
 			}
-			result, err := service.CommandFor(cmd.Context(), root, service.Chat, "start", timeout)
+			result, err := startTelegram(cmd.Context(), root, c, prior, fresh)
 			if err != nil {
-				_ = output(cmd, result)
-				return err
+				return errors.New("the Telegram supervisor did not become ready; enabled intent remains saved")
 			}
-			return output(cmd, map[string]any{"enabled": true, "service": result.Label, "next": "chunsu telegram status", "diagnostics": "chunsu errors", "definition_root": filepath.Join(root, service.ChatDirectory)})
+			return output(cmd, map[string]any{"enabled": true, "service": result.Label, "ready": true, "next": "chunsu telegram status", "diagnostics": "chunsu errors", "definition_root": filepath.Join(root, service.ChatDirectory)})
 		}}
 		if operation == "enable" || operation == "render" {
 			child.Flags().BoolVar(&atLogin, "at-login", true, "Start at user login; on Linux a persistent user manager is required after logout/reboot")

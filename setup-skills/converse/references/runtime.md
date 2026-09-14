@@ -109,6 +109,19 @@ chunsu --home "<data-home>" controller start
 chunsu --home "<data-home>" worker status
 ```
 
+`telegram restart` first verifies the registration and existing process
+ownership. A failed precheck rejects the transition without changing intent.
+It then performs one ordered operation: save stop intent, wait for
+the old OS service, supervisor, receiver, and ownership locks to clear, start
+the service, then confirm the new supervised receiver is connected to polling.
+Telegram lifecycle changes for the same data home are serialized; status reads
+remain available. A stop-confirmation failure leaves intent disabled and does
+not start a replacement. A startup-confirmation failure returns an error while
+intent remains enabled, so the supervisor may still recover. Inspect `telegram
+status` and `errors` before deciding what to do next. Success means the new
+receiver was ready at the time of the check. Restart does not restart the
+controller or worker, or replay uncertain work or replies.
+
 `/language` changes AI-generated conversational replies only. Fixed command
 responses and this manual are deterministic English. It does not alter runtime
 state or the meaning of commands.

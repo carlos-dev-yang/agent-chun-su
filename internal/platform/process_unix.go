@@ -33,6 +33,24 @@ func GroupExists(pid int) bool {
 	return !errors.Is(syscall.Kill(-pid, 0), syscall.ESRCH)
 }
 
+// IdentityActive proves that the expected process is still present. A reused
+// PID is not treated as the recorded process and is never signalled by callers.
+func IdentityActive(expected ProcessIdentity) (bool, error) {
+	if expected.PID <= 1 || expected.Start == "" {
+		return false, errors.New("invalid process identity")
+	}
+	actual, err := Identify(expected.PID)
+	if err == nil {
+		return actual == expected, nil
+	}
+	if err = syscall.Kill(expected.PID, 0); errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return false, errors.New("process identity could not be verified")
+}
+
 func ReconcileProcess(ctx context.Context, record ProcessIdentity) error {
 	if !GroupExists(record.PID) {
 		return nil
