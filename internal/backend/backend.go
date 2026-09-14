@@ -255,8 +255,10 @@ func workerMessage(code string, status Status) string {
 		return "The controller is stopping and cannot change worker dispatch."
 	case "recovery_blocked":
 		return "The controller is ready, but recovery must be reviewed before work can start."
-	case "config_unavailable", "worker_not_configured":
-		return "The controller is ready, but the worker needs configuration."
+	case "config_unavailable":
+		return "The controller is ready, but local task route configuration could not be read. Chat and controller controls remain available."
+	case "worker_not_configured":
+		return "The controller is ready, but the task AI executor is not configured. Chat and controller controls remain available. Complete local task route configuration."
 	case "worker_intent_unavailable":
 		return "The controller is ready, but the saved worker setting needs attention."
 	case "worker_prerequisites_unavailable":

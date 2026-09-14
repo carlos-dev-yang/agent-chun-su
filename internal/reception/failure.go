@@ -3,6 +3,7 @@ package reception
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
@@ -30,6 +31,10 @@ func FailureMessage(err error) string {
 	}
 	var action *ActionError
 	if errors.As(err, &action) {
+		var workerFailure *workerRuntimeError
+		if errors.As(action.Cause, &workerFailure) && strings.TrimSpace(workerFailure.message) != "" {
+			return workerFailure.message
+		}
 		return "An internal action could not be completed. It was not retried automatically. Check /errors and /status."
 	}
 	var compatibility *executor.CompatibilityError

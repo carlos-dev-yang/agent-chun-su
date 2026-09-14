@@ -49,6 +49,17 @@ type Host struct {
 	GuideInstalled func(onboarding.Result)
 }
 
+// workerRuntimeError carries only the backend's fixed worker-operation copy.
+// Its cause stays available for classification and diagnostics, but is never
+// projected into conversation history or a user-facing failure.
+type workerRuntimeError struct {
+	message string
+	cause   error
+}
+
+func (e *workerRuntimeError) Error() string { return "worker runtime action failed" }
+func (e *workerRuntimeError) Unwrap() error { return e.cause }
+
 func (h Host) call(ctx context.Context, request control.Request, result any) error {
 	data, handled, err := control.Call(ctx, h.Root, time.Duration(h.Config.Limits.LockWaitSeconds)*time.Second, h.Config.Limits.MaxArtifactBytes, request)
 	if err != nil {
@@ -78,7 +89,12 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 			operation = "stop"
 		}
 		result, err := h.runtime(ctx, "worker", operation)
-		return HostResult{Status: "processed", Detail: map[string]string{"message": result.Message}}, err
+		outcome := HostResult{Status: "processed", Detail: map[string]string{"message": result.Message}}
+		if err != nil {
+			outcome.Status = "failed"
+			return outcome, &workerRuntimeError{message: result.Message, cause: err}
+		}
+		return outcome, nil
 	case conversation.ListFeatures:
 		items, err := features.Catalog()
 		return HostResult{Status: "available", Detail: items}, err

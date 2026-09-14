@@ -153,7 +153,10 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 			delegated[reply.Action.Reference] = true
 		}
 		if actionErr != nil {
-			outcome = HostResult{Status: "failed", Detail: "호스트 작업을 완료하지 못했습니다. 로컬 상태를 확인해 주세요. 자동 재시도하지 마세요."}
+			var workerFailure *workerRuntimeError
+			if !errors.As(actionErr, &workerFailure) {
+				outcome = HostResult{Status: "failed", Detail: "호스트 작업을 완료하지 못했습니다. 로컬 상태를 확인해 주세요. 자동 재시도하지 마세요."}
+			}
 		}
 		outcomeBytes, err := json.Marshal(outcome)
 		if err != nil {

@@ -77,6 +77,13 @@ chunsu controller stop
 `controller stop`으로 내리고 기존 `config route` 명령으로 승인된 계정·실행 경로를
 설정한 뒤 다시 시작한다. 이 기능은 계정이나 모델을 자동 선택하지 않는다.
 
+대화용 reception 실행기만 설정된 홈에서는 채팅이 동작해도 업무용 task 실행기가
+없어 워커 시작이 거부될 수 있다. `worker_not_configured`는 재시작으로 해소되지
+않는다. `config route task --help`를 확인하고 사용자가 선택한 실행기·모델·환경을
+설정해야 한다. 자연어 워커 제어가 실패해도 이 원인 안내를 보존하며 자동으로
+다시 시도하지 않는다. 워커를 하나의 관리 요청으로 재시작하려면 `/worker restart`를
+사용한다. 현재 자연어 capability에는 start/stop만 있어 AI가 두 요청으로 나눌 수 있다.
+
 ## 재시작과 관측
 
 채팅만 재시작하려면 `telegram restart`, 백엔드만 재시작하려면 `controller restart`,
