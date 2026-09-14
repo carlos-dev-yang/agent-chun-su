@@ -137,6 +137,14 @@ not an external connector. Unsupported IDs fail rather than downloading code.
 New connectors/drivers still require implementation, bundling and boundary
 validation; account grants and secret entry remain local or via approved SSH.
 
+The PROC-06 follow-up exposes bundled usage documentation through `/guide`
+(discovery) and `/guide runtime` (process structure, recovery steps and command
+examples). The common host returns readable manual text without AI or a live
+controller. Reception AI can use its existing `read_guide` capability to consult
+the same `runtime` document. This guide ID is read-only; it is not an installable
+service, an arbitrary file path, or authority to execute examples. System manual
+copy is English; AI explanations continue to use the selected reply language.
+
 ## Error reports and recovery limits
 
 `state/errors/` contains one private atomic report per fixed diagnostic code,

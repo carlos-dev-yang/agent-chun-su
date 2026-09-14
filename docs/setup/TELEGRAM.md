@@ -61,6 +61,8 @@ macOS는 로그인한 사용자 세션의 LaunchAgent다. 사용자가 명시적
 | `/features` | 설치 가능한 내장 업무 모듈과 안내 자료 |
 | `/install workflow-mail-review` | 메일 업무 번들 설치·검증; 기존 활성 기준 보존 |
 | `/install guide-gmail` | Gmail 설정 안내 설치; 커넥터 인증 완료와는 구별 |
+| `/guide` | 읽을 수 있는 매뉴얼 목록 |
+| `/guide runtime` | 프로세스 구조·복구 순서·명령 예시 읽기 |
 | `/guide gmail` | Gmail 설정 안내 읽기 |
 | `/jobs` | 보존 작업의 ID·상태 |
 | `/controller start`, `/controller stop`, `/controller restart`, `/controller status` | 독립 관리 서비스 시작·중지·재시작·확인 |

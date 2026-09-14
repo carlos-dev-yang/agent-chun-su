@@ -19,6 +19,7 @@ const None = "none"
 const RuntimeStatus = "runtime_status"
 const ReadGuide = "read_guide"
 const InstallGuide = "install_guide"
+const RuntimeManualID = "runtime"
 const GmailSetup = "gmail_setup"
 const ListJobs = "list_jobs"
 const ShowReport = "show_report"
@@ -55,7 +56,7 @@ func Capabilities() []Capability {
 		{InstallFeature, "사용자가 선택한 기능 ID를 service에 넣어 내장 업무 모듈 또는 안내 자료를 설치한다. 기존 활성 기준과 권한은 보존한다.", true, false},
 		{None, "사용자에게 답변만 한다. 텍스트 초안·설명·추가 질문 가능.", false, false},
 		{RuntimeStatus, "현재 춘수 실행 상태를 조회한다. 계정과 메일을 조회하지 않는다.", false, false},
-		{ReadGuide, "선택 서비스의 번들 설치 매뉴얼을 읽는다. 설치하거나 계정에 접속하지 않는다.", true, false},
+		{ReadGuide, "선택한 번들 매뉴얼(서비스 설정 또는 runtime 운영)을 읽는다. 설치하거나 계정에 접속하지 않는다.", true, false},
 		{InstallGuide, "선택 서비스의 설정 자료를 로컬에 설치한다. 외부 서비스 로그인/설치가 아니다.", true, false},
 		{GmailSetup, "Gmail 연결/확인을 위한 로컬 질문과 인증 흐름을 시작한다. 비밀 입력은 AI에 전달하지 않는다.", false, false},
 		{ListJobs, "기존 작업의 ID·종류·상태를 조회한다. 입력과 보고서 본문은 포함하지 않는다.", false, false},
@@ -76,6 +77,14 @@ type Reply struct {
 type Event struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+// Manual is a read-only bundled guide exposed in conversational help. Service
+// manuals come from the onboarding catalog; the runtime manual is deliberately
+// separate because it is not an installable service.
+type Manual struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func Skill() ([]byte, error) { return setupskills.Assets.ReadFile("converse/SKILL.md") }
@@ -104,6 +113,9 @@ func Validate(reply Reply) error {
 		if reply.Action.Name == InstallFeature {
 			_, err := features.Lookup(reply.Action.Service)
 			return err
+		}
+		if reply.Action.Name == ReadGuide && reply.Action.Service == RuntimeManualID {
+			return nil
 		}
 		services, err := onboarding.Services()
 		if err != nil {
@@ -170,12 +182,17 @@ func PromptForWithPreferences(history []Event, limit int64, capabilities []Capab
 	if err != nil {
 		return nil, err
 	}
+	manuals, err := Manuals()
+	if err != nil {
+		return nil, err
+	}
 	b, err := json.Marshal(struct {
 		Channel      string               `json:"channel"`
 		Capabilities []Capability         `json:"capabilities"`
 		Services     []onboarding.Service `json:"services"`
+		Manuals      []Manual             `json:"manuals"`
 		History      []Event              `json:"history"`
-	}{channel, capabilities, services, history})
+	}{channel, capabilities, services, manuals, history})
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +216,9 @@ func PromptForWithPreferences(history []Event, limit int64, capabilities []Capab
 }
 
 func Guide(serviceID string) ([]byte, error) {
+	if serviceID == RuntimeManualID {
+		return setupskills.Assets.ReadFile("converse/references/runtime.md")
+	}
 	services, err := onboarding.Services()
 	if err != nil {
 		return nil, err
@@ -209,4 +229,31 @@ func Guide(serviceID string) ([]byte, error) {
 		}
 	}
 	return nil, errors.New("unsupported service guide")
+}
+
+// Manuals provides the command-discoverable read-only guide list. It follows
+// the onboarding catalog so a catalog change cannot leave stale service IDs in
+// /guide, while retaining the separate non-installable runtime manual.
+func Manuals() ([]Manual, error) {
+	services, err := onboarding.Services()
+	if err != nil {
+		return nil, err
+	}
+	manuals := make([]Manual, 0, len(services)+1)
+	for _, service := range services {
+		manuals = append(manuals, Manual{ID: service.ID, Name: service.Name})
+	}
+	return append(manuals, Manual{ID: RuntimeManualID, Name: "Runtime operation and recovery"}), nil
+}
+
+func ManualMenu() (string, error) {
+	manuals, err := Manuals()
+	if err != nil {
+		return "", err
+	}
+	lines := []string{"Available manuals. Read one with /guide ID:"}
+	for _, manual := range manuals {
+		lines = append(lines, manual.ID+" — "+manual.Name)
+	}
+	return strings.Join(lines, "\n"), nil
 }

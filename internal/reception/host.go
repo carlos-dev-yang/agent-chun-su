@@ -141,7 +141,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 			result["chat"] = health
 		}
 		if !controllerAvailable {
-			result["recovery"] = "The controller did not answer its status request. Use /controller start to recover it when its task configuration is present."
+			result["recovery"] = "The controller did not answer its status request. Use /controller start to recover it."
 		}
 		return HostResult{Status: "observed", Detail: result}, runtimeErr
 	case conversation.ReadGuide:

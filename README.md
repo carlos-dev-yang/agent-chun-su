@@ -50,7 +50,10 @@ queue controls and `/controller start` remain available without a working LLM.
 Start the independent backend with `/controller start`, then enable task dispatch
 with `/worker start` after configuring its task route. `/worker stop` stops new
 dispatch; `/controller stop` stops an idle backend. Chat stays available in both
-cases. See the [process recovery guide](docs/setup/PROCESS_RECOVERY.md).
+cases. Use `/guide` for the manual menu and `/guide runtime` for the bundled
+process structure, recovery steps, and command examples. Reading a guide never
+executes its examples. The reception AI can read the same guide and explain it
+in your selected reply language. See the [process recovery guide](docs/setup/PROCESS_RECOVERY.md).
 Use `bin/chunsu telegram` for foreground operation. No public webhook server is required. Other users,
 groups and local-only auth/report actions are excluded. See
 [Telegram setup](docs/setup/TELEGRAM.md) and the

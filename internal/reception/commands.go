@@ -3,6 +3,7 @@ package reception
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 	"chunsu/internal/telegram"
 )
 
-const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner\n/features available features · /install featureID install a feature · /guide serviceID setup guide\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -48,6 +49,10 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	if name == "/help" || name == "/start" {
 		return Help, true, nil
+	}
+	if name == "/guide" && len(parts) == 1 {
+		menu, err := conversation.ManualMenu()
+		return menu, true, err
 	}
 	action := conversation.Action{}
 	argc := 1
@@ -115,6 +120,13 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	if action.Name == conversation.RuntimeStatus {
 		return readableStatus(result), true, nil
+	}
+	if action.Name == conversation.ReadGuide {
+		guide, ok := result.Detail.(string)
+		if !ok {
+			return "", true, errors.New("guide content is unavailable")
+		}
+		return guide, true, nil
 	}
 	raw, err := json.MarshalIndent(result, "", "  ")
 	return string(raw), true, err
