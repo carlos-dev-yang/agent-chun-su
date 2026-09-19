@@ -21,6 +21,18 @@ was configured once with its existing clean repository, explicit Go/Git paths
 and the full installed revision. `update check` reported that revision current.
 This installation check alone is not a live self-update activation claim.
 
+The first live independent update attempt reached candidate activation but its
+outer chat command deadline was shorter than the established Telegram lifecycle
+budget. The first long poll took about 20.2 seconds; a subsequent readiness poll
+fell after the old 25-second outer deadline. The same short deadline prevented
+confirmation of rollback, so the updater correctly retained `recovery_required`.
+Local inspection verified the prior binary had actually been restored, chat and
+worker were ready, the activation marker had cleared, and all four private
+configuration/binding/key/style digests were unchanged. The timeout was then
+corrected to reuse the existing shared Telegram lifecycle budget plus one lock
+wait for process handoff, for both quiesce and resume. Focused checks and Terra
+review passed; the corrected live activation is recorded separately below.
+
 Private model settings, bot binding, credential-store key and speaking-style
 instructions remain outside the repository. Their values are not validation
 artifacts and must not be copied into this document.

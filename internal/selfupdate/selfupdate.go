@@ -868,8 +868,10 @@ func (l *binaryLock) Close() error {
 
 func runInstalled(ctx context.Context, binary, root string, c config.Config, id, nonce string, args ...string) ([]byte, error) {
 	timeout := time.Duration(c.Limits.LockWaitSeconds+c.Limits.PollSeconds) * time.Second
-	if len(args) == 2 && args[0] == "update" && args[1] == "chat-resume" {
-		timeout = max(timeout, time.Duration(c.Limits.LockWaitSeconds*3+telegram.HTTPGraceSeconds)*time.Second)
+	if len(args) == 2 && args[0] == "update" && (args[1] == "chat-quiesce" || args[1] == "chat-resume") {
+		// Account for the helper's own lifecycle budget plus the outer process
+		// startup/lock handoff; normal backend commands keep their short bound.
+		timeout = max(timeout, telegram.LifecycleBudget(c.Limits)+time.Duration(c.Limits.LockWaitSeconds)*time.Second)
 	}
 	call, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

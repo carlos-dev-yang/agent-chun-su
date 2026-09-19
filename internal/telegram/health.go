@@ -39,6 +39,14 @@ func StallTimeout(limits config.Limits) time.Duration {
 	return max(ioBudget, HealthInterval(limits)*MissedHealthIntervals)
 }
 
+// LifecycleBudget bounds verified chat stop/start transitions. It is shared by
+// normal lifecycle commands and self-update so an outer caller cannot cancel a
+// receiver while its own readiness loop is still within budget.
+func LifecycleBudget(limits config.Limits) time.Duration {
+	stop := time.Duration(limits.LockWaitSeconds+HTTPGraceSeconds) * time.Second
+	return max(stop, StallTimeout(limits))
+}
+
 func HealthInterval(limits config.Limits) time.Duration {
 	return time.Duration(max(limits.PollSeconds, HTTPGraceSeconds)) * time.Second
 }

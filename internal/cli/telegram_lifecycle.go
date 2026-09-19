@@ -82,8 +82,7 @@ func telegramOwnership(root string, c config.Config) (telegramProcesses, error) 
 }
 
 func telegramLifecycleBudget(c config.Config) time.Duration {
-	stop := time.Duration(c.Limits.LockWaitSeconds+telegram.HTTPGraceSeconds) * time.Second
-	return max(stop, telegram.StallTimeout(c.Limits))
+	return telegram.LifecycleBudget(c.Limits)
 }
 
 func telegramLifecyclePoll(c config.Config) time.Duration {
