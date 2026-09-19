@@ -151,6 +151,105 @@ func waitTelegramStopped(parent context.Context, root string, c config.Config, r
 	}
 }
 
+// quiesceTelegramForUpdate uses the same ownership and receiver checks as the
+// public lifecycle path but deliberately does not write the enabled marker.
+// The updater restores the exact prior intent after its binary swap.
+func quiesceTelegramForUpdate(parent context.Context, root string, c config.Config) error {
+	lock, err := telegramLifecycleLock(parent, root, c)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	definition, registered, err := verifiedTelegramRegistration(root)
+	_ = definition
+	if err != nil {
+		return err
+	}
+	old, err := telegramOwnership(root, c)
+	if err != nil {
+		return err
+	}
+	if registered {
+		state, err := service.CommandFor(parent, root, service.Chat, "status", telegramLifecycleBudget(c))
+		if err != nil {
+			return err
+		}
+		if state.Running {
+			if _, err = service.CommandFor(parent, root, service.Chat, "stop", telegramLifecycleBudget(c)); err != nil {
+				return err
+			}
+		}
+	}
+	if old.receiver.PID > 1 {
+		active, err := platform.IdentityActive(old.receiver)
+		if err != nil {
+			return err
+		}
+		if active {
+			process, err := os.FindProcess(old.receiver.PID)
+			if err != nil {
+				return err
+			}
+			if err = process.Signal(os.Interrupt); err != nil {
+				return err
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(parent, telegramLifecycleBudget(c))
+	defer cancel()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		stopped := true
+		if registered {
+			state, err := service.CommandFor(ctx, root, service.Chat, "status", telegramLifecycleBudget(c))
+			if err != nil || state.Running {
+				stopped = false
+			}
+		}
+		if stopped {
+			for _, identity := range []platform.ProcessIdentity{old.supervisor, old.receiver} {
+				if identity.PID > 1 {
+					active, err := platform.IdentityActive(identity)
+					if err != nil || active {
+						stopped = false
+						break
+					}
+				}
+			}
+		}
+		if stopped {
+			released, err := telegramOwnershipReleased(ctx, root, c)
+			if err != nil {
+				return err
+			}
+			if released {
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(telegramLifecyclePoll(c)):
+		}
+	}
+}
+
+func resumeTelegramForUpdate(parent context.Context, root string, c config.Config) error {
+	lock, err := telegramLifecycleLock(parent, root, c)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	prior, err := telegramOwnership(root, c)
+	if err != nil {
+		return err
+	}
+	_, err = startTelegram(parent, root, c, prior, true)
+	return err
+}
+
 func telegramStopped(ctx context.Context, root string, c config.Config, registered bool, old telegramProcesses) (bool, error) {
 	enabled, err := service.Enabled(root)
 	if err != nil {

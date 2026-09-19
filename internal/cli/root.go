@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
+	"chunsu/internal/chatsupervisor"
 	"chunsu/internal/config"
 	"chunsu/internal/control"
 	"chunsu/internal/executor"
@@ -20,14 +23,17 @@ import (
 	"chunsu/internal/runner"
 	"chunsu/internal/secrets"
 	"chunsu/internal/store"
+	"chunsu/internal/updateguard"
 	"chunsu/internal/workgroup"
 	"github.com/spf13/cobra"
 )
 
 type options struct {
-	root    string
-	json    bool
-	version string
+	root            string
+	json            bool
+	version         string
+	activationID    string
+	activationNonce string
 }
 
 func New(version string) *cobra.Command {
@@ -38,11 +44,24 @@ func New(version string) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		if guardedMutation(cmd, path) {
+			active, guardErr := updateguard.Active(path, config.DefaultMaxArtifactBytes)
+			if guardErr != nil {
+				return guardErr
+			}
+			if active && !updateguard.Valid(path, o.activationID, o.activationNonce, config.DefaultMaxArtifactBytes) {
+				return errors.New("self-update activation is in progress; status and errors remain available")
+			}
+		}
 		_, err = secrets.RestoreLinuxBootstrap(path)
 		return err
 	}
 	root.PersistentFlags().StringVar(&o.root, "home", "", "Application data directory (or CHUNSU_HOME)")
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "Print structured JSON")
+	root.PersistentFlags().StringVar(&o.activationID, "update-activation-id", "", "")
+	root.PersistentFlags().StringVar(&o.activationNonce, "update-activation-nonce", "", "")
+	_ = root.PersistentFlags().MarkHidden("update-activation-id")
+	_ = root.PersistentFlags().MarkHidden("update-activation-nonce")
 	root.AddCommand(o.setup(), o.doctor(), o.configuration(), o.queue(), o.jobs(), o.show(), o.logs(), o.cancel(), o.recover())
 	root.AddCommand(o.mailCommands(), o.tools())
 	root.AddCommand(o.run(), o.resume(false), o.resume(true), o.worker(), o.controller())
@@ -55,7 +74,38 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.monitor())
 	root.AddCommand(o.chat(), o.telegram())
 	root.AddCommand(o.access(), o.errors())
+	root.AddCommand(o.update())
 	return root
+}
+
+func guardedMutation(cmd *cobra.Command, root string) bool {
+	parts := strings.Fields(cmd.CommandPath())
+	if len(parts) < 2 {
+		return false
+	}
+	// Service children must be able to start after the updater has launched
+	// them. Observation and error/status commands intentionally remain open.
+	if (parts[1] == "controller" && len(parts) > 2 && (parts[2] == "serve" || parts[2] == "status")) ||
+		(parts[1] == "telegram" && len(parts) > 2 && (parts[2] == "supervise" || parts[2] == "status")) ||
+		(parts[1] == "telegram" && len(parts) == 2 && supervisedPairedReceiver(cmd, root)) ||
+		(parts[1] == "monitor" && len(parts) > 2 && (parts[2] == "run" || parts[2] == "status" || parts[2] == "check")) ||
+		(parts[1] == "errors") || (parts[1] == "update" && len(parts) > 2 && parts[2] == "status") {
+		return false
+	}
+	return true
+}
+
+func supervisedPairedReceiver(cmd *cobra.Command, root string) bool {
+	paired, err := cmd.Flags().GetBool("paired-only")
+	if err != nil || !paired || !cmd.Flags().Changed("paired-only") {
+		return false
+	}
+	status, active, err := chatsupervisor.Read(root, config.Defaults().Limits)
+	if err != nil || !active {
+		return false
+	}
+	parent, err := platform.Identify(os.Getppid())
+	return err == nil && parent == status.Identity
 }
 
 func (o *options) path() (string, error) { return config.Resolve(o.root) }

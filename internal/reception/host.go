@@ -16,6 +16,7 @@ import (
 	"chunsu/internal/onboarding"
 	"chunsu/internal/store"
 	"chunsu/internal/telegram"
+	"chunsu/internal/updateguard"
 	"chunsu/internal/workerconfig"
 )
 
@@ -81,6 +82,15 @@ func (h Host) workerConfig(ctx context.Context, operation, value string) (worker
 }
 
 func (h Host) Dispatch(ctx context.Context, channel string, action conversation.Action, request string, known map[string]bool) (HostResult, error) {
+	if action.Name != conversation.RuntimeStatus && action.Name != conversation.ListErrors && action.Name != conversation.ReadGuide {
+		active, err := updateguard.Active(h.Root, h.Config.Limits.MaxArtifactBytes)
+		if err != nil {
+			return HostResult{}, err
+		}
+		if active {
+			return HostResult{}, errors.New("self-update activation is in progress")
+		}
+	}
 	if err := conversation.Validate(conversation.Reply{Message: "dispatch", Action: action}); err != nil {
 		return HostResult{}, err
 	}

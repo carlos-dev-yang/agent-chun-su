@@ -6,6 +6,8 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+On 2026-09-19 the user selected [UPDATE-01 owner-triggered self-update](docs/implementation/SELF_UPDATE_2026-09-19.md): the registered repository's `master` branch only, independent Linux user-service activation, preserved runtime settings and stopped intent, and refusal of database schema or migration changes. Implementation and focused isolated validation are complete; initial EC2 feature rollout is pending. This does not authorize database migrations or automatic deployment after every commit.
+
 On 2026-09-19 the user authorized [INSTALL-01 first installation and recovery](docs/implementation/EC2_FIRST_INSTALL_2026-09-19.md), including model selection, Astra low reasoning, automatic Linux Telegram credential storage, and Ubuntu bootstrap. Focused local validation is complete; actual EC2 and external pairing acceptance remain separate.
 
 On 2026-09-14 the user authorized the [front/backend boundary goal](docs/implementation/FRONT_BACKEND_BOUNDARY_GOAL_2026-09-14.md).

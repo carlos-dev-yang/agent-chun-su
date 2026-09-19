@@ -19,7 +19,9 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/platform"
 	"chunsu/internal/reception"
+	"chunsu/internal/selfupdate"
 	"chunsu/internal/telegram"
+	"chunsu/internal/updateguard"
 )
 
 type Receiver struct {
@@ -459,6 +461,14 @@ func (r Receiver) Serve(parent context.Context) error {
 			if configErr == nil {
 				r.Config = current
 			}
+			fields := strings.Fields(text)
+			if active, guardErr := updateguard.Active(r.Root, r.Config.Limits.MaxArtifactBytes); guardErr != nil {
+				reply(&receipt, "Self-update state could not be read. Inspect the local update state before another apply.")
+				continue
+			} else if active && !(len(fields) > 0 && (fields[0] == "/status" || fields[0] == "/errors" || (fields[0] == "/update" && len(fields) == 2 && fields[1] == "status"))) {
+				reply(&receipt, "Self-update activation is in progress. /status, /errors, and /update status remain available.")
+				continue
+			}
 			if response, handled, languageErr := chatlanguage.Handle(r.Root, r.Config.Limits, text); handled {
 				tone = &chatstyle.Dialogue{}
 				if languageErr != nil {
@@ -474,6 +484,55 @@ func (r Receiver) Serve(parent context.Context) error {
 					response = reception.FailureMessage(toneErr) + "\nError ID: " + receipt.ErrorID
 				}
 				reply(&receipt, response)
+				continue
+			}
+			if fields := strings.Fields(text); len(fields) > 0 && fields[0] == "/update" {
+				parts := strings.Fields(text)
+				if len(parts) > 2 || (len(parts) == 2 && parts[1] != "check" && parts[1] != "status") {
+					reply(&receipt, "Usage: /update check, /update status, or /update")
+					continue
+				}
+				if len(parts) == 2 && parts[1] == "check" {
+					result, updateErr := selfupdate.Check(ctx, r.Root, r.Config.Limits.MaxArtifactBytes)
+					if updateErr != nil {
+						reply(&receipt, "Update check could not be completed. Use /update status for the retained safe outcome.")
+						continue
+					}
+					if result.Available {
+						reply(&receipt, "An owner-configured update is available: "+result.Revision[:12]+".")
+					} else {
+						reply(&receipt, "The installed revision is current.")
+					}
+					continue
+				}
+				if len(parts) == 2 && parts[1] == "status" {
+					result, updateErr := selfupdate.Inspect(r.Root, r.Config.Limits.MaxArtifactBytes)
+					if updateErr != nil {
+						reply(&receipt, "Update status could not be read. Inspect the local update state before another apply.")
+						continue
+					}
+					if !result.Configured {
+						reply(&receipt, "Self-update is not configured on this host.")
+					} else if result.State != nil {
+						reply(&receipt, updateStatusMessage(result.State.Status, result.State.Message))
+					} else {
+						reply(&receipt, "Self-update is configured; no update has run yet.")
+					}
+					continue
+				}
+				// The completion of this first reply is the durable receipt handshake.
+				// Only then can the detached unit read it and begin an activation.
+				if err := r.send(ctx, &receipt, "Update request accepted. The chat will stay available while the candidate is fetched and built."); err != nil {
+					continue
+				}
+				receipt.State = "completed"
+				if err := telegram.Record(r.Root, receipt, true); err != nil {
+					r.record(ctx, "receipt_failed", u.ID, health.SessionID)
+					continue
+				}
+				if _, err := selfupdate.Launch(ctx, r.Root, u.ID, r.Binding.ChatID); err != nil {
+					reply(&receipt, "The independent update service could not be started. Use /update status before trying again.")
+				}
 				continue
 			}
 			if text == "/cancel" || text == "취소" || text == "/reset" || text == "/새대화" {
@@ -557,6 +616,31 @@ func (r Receiver) Serve(parent context.Context) error {
 				result <- receiver.turn(workCtx, ctx, session, prior, u, receipt)
 			}(r, done, health.SessionID, append([]conversation.Event(nil), history...))
 		}
+	}
+}
+
+func updateStatusMessage(status, reason string) string {
+	if status == "completed" {
+		return "Update status: completed."
+	}
+	if status == "recovery_required" {
+		return "Update status: recovery is required locally before another update."
+	}
+	switch reason {
+	case "schema_rejected":
+		return "Update status: refused because the candidate changes the database schema or migrations."
+	case "candidate_build_failed":
+		return "Update status: the candidate could not be built; installed services were not changed."
+	case "busy":
+		return "Update status: deferred because work or chat activity was still in progress."
+	case "rollback_failed":
+		return "Update status: rollback could not be confirmed; local recovery is required."
+	case "interrupted":
+		return "Update status: interrupted; inspect local recovery before another update."
+	case "rolled_back":
+		return "Update status: the candidate failed and the prior binaries were restored."
+	default:
+		return "Update status: failed before completion."
 	}
 }
 

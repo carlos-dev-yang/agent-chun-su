@@ -111,6 +111,12 @@ chunsu controller stop
 
 ## 재시작과 관측
 
+Linux 서버의 프로그램 갱신은 [셀프 업데이트 안내](SELF_UPDATE.md)를 따른다.
+최초 로컬 설정 후 `/update check`, `/update`, `/update status`를 사용할 수 있다.
+등록된 저장소의 `master`만 적용하며 DB 구조·마이그레이션 변경은 거부한다.
+독립 실행기가 프로그램을 교체하고 기존 서비스 상태를 복원하므로 채팅이
+자신을 재시작하다 갱신 작업까지 종료하는 문제를 피한다.
+
 채팅만 재시작하려면 `telegram restart`, 백엔드만 재시작하려면 `controller restart`,
 감시기만 재시작하려면 `monitor restart`를 사용한다. 업데이트 때는 실행 중 업무를
 먼저 확인하고 변경된 구성요소를 재시작한다. 전체 재시작 전용 강제 명령은 제공하지

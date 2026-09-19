@@ -67,6 +67,7 @@ def main():
         for source, dest in (("scripts/install.sh", "install.sh"),
                              ("scripts/server-setup.sh", "server-setup.sh"),
                              ("scripts/check-recovery.sh", "check-recovery.sh"),
+                             ("scripts/update.sh", "update.sh"),
                              ("scripts/check_recovery.py", "check_recovery.py"),
                              ("docs/setup/SERVER.md", "SERVER.md"),
                              ("docs/setup/EC2.md", "EC2.md"),
@@ -75,6 +76,7 @@ def main():
         (package / "install.sh").chmod(0o755)
         (package / "server-setup.sh").chmod(0o755)
         (package / "check-recovery.sh").chmod(0o755)
+        (package / "update.sh").chmod(0o755)
         (package / "check_recovery.py").chmod(0o755)
         guide = (package / "SERVER.md").read_text()
         (package / "SERVER.md").write_text(root_links(guide, "docs/setup/SERVER.md"))

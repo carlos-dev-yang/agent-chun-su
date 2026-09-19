@@ -41,9 +41,29 @@ status` give component-specific observations.
 - `/errors` shows retained operational errors and recovery guidance. `/jobs`
   helps identify active or past work.
 
-There is no force-all command and no supported command to restart every
-component. Change only the component you have inspected. Do not repeat an
+There is no force-all recovery command. Change only the component you have inspected. Do not repeat an
 uncertain start, stop, or reply automatically.
+
+## Updating this installation
+
+On a Linux installation whose owner has configured self-update locally,
+`/update check` checks the registered repository's `master` branch,
+`/update` requests an update, and `/update status` reads its saved outcome.
+These are fixed commands and do not require a working task AI. Use the exact
+slash command; natural-language deployment requests do not grant shell access.
+
+The updater builds one pinned revision separately, refuses active work and
+database schema or migration changes, and runs outside the chat service so
+chat restart cannot terminate it. It replaces the main application executable
+and restores the prior component states, with chat restarted last. It preserves
+saved models, authentication, language, tone and stopped-worker intent.
+It does not upgrade Codex, the secret helper, OS packages or database structure.
+
+The owner configures the repository and build tools through the server terminal
+once. Chat cannot select another repository, branch or executable path. If an
+update fails, inspect `/update status`. If recovery needs local attention or
+chat is unavailable, use the server terminal/SSM; do not repeat the update
+blindly. A failed activation attempts binary rollback, never database rollback.
 
 ## Saved worker AI settings
 

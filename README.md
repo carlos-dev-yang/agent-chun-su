@@ -5,6 +5,10 @@ For a fresh Ubuntu EC2 installation from this checkout, see
 performs the required account login and first Telegram setup, and does not open
 an inbound port.
 
+For an installed Linux server, [chat-triggered self-update](docs/setup/SELF_UPDATE.md)
+supports the registered repository's `master` branch and refuses database
+schema/migration changes.
+
 A local/server AI workflow controller built with Go and embedded SQLite.
 Human-owned Skills, golden cases, evaluation, analyzer/optimizer criteria and
 adoption policies stay outside task executors. Mail reporting comes first.

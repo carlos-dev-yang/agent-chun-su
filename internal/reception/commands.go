@@ -12,10 +12,11 @@ import (
 	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
 	"chunsu/internal/telegram"
+	"chunsu/internal/updateguard"
 	"chunsu/internal/workerconfig"
 )
 
-const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/update check · /update status · /update fetch and apply the owner-configured update\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -25,6 +26,13 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 		return "", false, nil
 	}
 	name := strings.ToLower(parts[0])
+	if name != "/status" && name != "/errors" && name != "/help" && name != "/guide" && !(name == "/update" && len(parts) == 2 && parts[1] == "status") {
+		if active, err := updateguard.Active(h.Root, h.Config.Limits.MaxArtifactBytes); err != nil {
+			return "", true, err
+		} else if active {
+			return "Self-update activation is in progress. /status, /errors, and /update status remain available.", true, nil
+		}
+	}
 	if name == "/worker" && len(parts) >= 2 && parts[1] == "config" {
 		return h.workerConfigCommand(ctx, channel, request, parts)
 	}

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"encoding/json"
@@ -24,6 +25,31 @@ const DBRelative = "state/chunsu.db"
 
 //go:embed migrations/*.sql
 var migrations embed.FS
+
+// MigrationDigest identifies the exact embedded migration set without opening a
+// database. Self-update compares it before it is allowed to replace a running
+// binary, so an update cannot silently run a production migration.
+func MigrationDigest() (string, error) {
+	entries, err := migrations.ReadDir("migrations")
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := migrations.ReadFile("migrations/" + entry.Name())
+		if err != nil {
+			return "", err
+		}
+		_, _ = h.Write([]byte(entry.Name()))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write(data)
+		_, _ = h.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
 
 type Store struct {
 	DB   *sql.DB
