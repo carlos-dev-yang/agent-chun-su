@@ -1,6 +1,6 @@
 # UPDATE-01 validation checkpoint
 
-Status: focused implementation and isolated Linux checks passed; initial EC2 rollout pending.
+Status: focused implementation and isolated Linux checks passed; initial EC2 feature installation verified.
 
 ## Production baseline
 
@@ -10,6 +10,16 @@ controller was ready, worker dispatch was requested and running with no active
 job, Telegram was paired/enabled with live receiver/supervisor and connected
 polling, and the independent monitor was fresh with ready front/backend health.
 The update feature had not been installed at this checkpoint.
+
+The initial feature installation subsequently built `1566d35` natively on
+Amazon Linux 2023 amd64 with Go 1.26.8. Read-only readiness confirmed schema 4
+and the saved Astra task/reception/review prerequisites. The controller and
+requested worker returned ready; the Telegram supervisor/receiver restarted
+and connected polling was verified. Exact digests of configuration, speaking
+style, bot binding and credential-store master key were unchanged. The server
+was configured once with its existing clean repository, explicit Go/Git paths
+and the full installed revision. `update check` reported that revision current.
+This installation check alone is not a live self-update activation claim.
 
 Private model settings, bot binding, credential-store key and speaking-style
 instructions remain outside the repository. Their values are not validation
@@ -49,6 +59,12 @@ Development checks found and corrected an executable-size limit and missing
 lock-directory initialization before production deployment. A fresh-home run
 was performed after the lock fix; the earlier fixture workaround is not the
 evidence for that fix.
+
+The final guarded supervisor path was inspected through its actual child
+invocation (`telegram --paired-only`). Only an explicitly true paired-only
+flag with the live supervisor as parent can bypass the activation admission
+guard; manual paired-only and false-flag invocations were refused in the native
+fixture, while update status remained readable.
 
 ## Not performed / limits
 

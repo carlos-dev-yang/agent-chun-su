@@ -1,6 +1,6 @@
 # UPDATE-01 — Owner-triggered master updates
 
-Status: implementation and focused Linux validation complete; initial EC2 feature rollout pending.
+Status: implementation, focused Linux validation and initial EC2 feature installation complete.
 
 ## Authorized behavior
 
