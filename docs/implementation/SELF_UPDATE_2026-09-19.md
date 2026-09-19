@@ -1,6 +1,6 @@
 # UPDATE-01 — Owner-triggered master updates
 
-Status: implementation, focused Linux validation and initial EC2 feature installation complete.
+Status: implementation, focused Linux validation and corrected live EC2 self-update activation complete. Real owner-message acceptance/completion delivery and reboot recovery remain separate checks.
 
 ## Authorized behavior
 

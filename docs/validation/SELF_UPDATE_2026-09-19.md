@@ -1,6 +1,6 @@
 # UPDATE-01 validation checkpoint
 
-Status: focused implementation and isolated Linux checks passed; initial EC2 feature installation verified.
+Status: focused checks and corrected live EC2 self-update activation verified.
 
 ## Production baseline
 
@@ -32,6 +32,22 @@ configuration/binding/key/style digests were unchanged. The timeout was then
 corrected to reuse the existing shared Telegram lifecycle budget plus one lock
 wait for process handoff, for both quiesce and resume. Focused checks and Terra
 review passed; the corrected live activation is recorded separately below.
+
+After verifying recovery, the failed record was archived privately and a
+corrected one-shot runner was built locally on EC2. It used the registered
+installed-binary path/digest and activated `1566d35` → `adf3976` through the
+independent update service. The operation completed from 10:39:51Z to 10:40:22Z
+on 2026-09-19 with `completed/installed`. This repair runner was necessary because
+the previously installed updater itself still had the short outer timeout.
+The installed application now includes the corrected timeout for future runs.
+
+After completion, Telegram remained paired/enabled with a live supervisor and
+receiver and connected polling. The controller was ready, worker dispatch was
+requested/running, and the independent monitor was fresh with both front and
+backend health ready. Configuration, tone, binding and credential-key digests
+still matched the pre-installation baseline. The activation marker was removed;
+`update check` confirmed the installed revision current. The update did not send
+a Telegram completion notification because it was explicitly invoked locally.
 
 Private model settings, bot binding, credential-store key and speaking-style
 instructions remain outside the repository. Their values are not validation
@@ -84,7 +100,8 @@ Real Telegram-triggered update acceptance and completion delivery require a
 real owner message. A local CLI update exercise alone does not establish that
 external delivery path. Host reboot/power-loss recovery is a separate check.
 The native fixture had no paired Telegram account, so its activation did not
-exercise live Telegram quiesce/reconnect. Active-job refusal was not separately
+exercise live Telegram quiesce/reconnect; the subsequent EC2 activation above
+did verify that path. Active-job refusal was not separately
 fault-injected; existing controller admission checks/tests were retained.
 Monitor activation verification checks the registered service is active; its
 normal fresh observation was inspected after native success, not made an
