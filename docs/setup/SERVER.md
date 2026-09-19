@@ -1,5 +1,9 @@
 # Install Chun-su locally or on a Linux server
 
+For an Ubuntu EC2 host built directly from this checkout, use the
+[EC2 installation guide](EC2.md). It provides the clone-to-install command,
+verified tool downloads, interactive model choice and an opt-in recovery check.
+
 Chun-su uses one Go executable and an embedded SQLite engine. The same private
 data-home contract applies on a local computer, a company-managed workstation
 or a Linux/EC2 host. Each data home has one controller owner. Do not put its

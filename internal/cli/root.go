@@ -18,6 +18,7 @@ import (
 	"chunsu/internal/mail"
 	"chunsu/internal/platform"
 	"chunsu/internal/runner"
+	"chunsu/internal/secrets"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 	"github.com/spf13/cobra"
@@ -32,6 +33,14 @@ type options struct {
 func New(version string) *cobra.Command {
 	o := &options{version: version}
 	root := &cobra.Command{Use: "chunsu", Short: "Personal AI workflows with human-owned controls", Version: version, SilenceUsage: true, SilenceErrors: true}
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		path, err := o.path()
+		if err != nil {
+			return err
+		}
+		_, err = secrets.RestoreLinuxBootstrap(path)
+		return err
+	}
 	root.PersistentFlags().StringVar(&o.root, "home", "", "Application data directory (or CHUNSU_HOME)")
 	root.PersistentFlags().BoolVar(&o.json, "json", false, "Print structured JSON")
 	root.AddCommand(o.setup(), o.doctor(), o.configuration(), o.queue(), o.jobs(), o.show(), o.logs(), o.cancel(), o.recover())
@@ -186,6 +195,7 @@ func (o *options) doctor() *cobra.Command {
 func (o *options) configuration() *cobra.Command {
 	cmd := &cobra.Command{Use: "config", Short: "Inspect or change non-secret settings"}
 	cmd.AddCommand(o.configRoute())
+	cmd.AddCommand(o.configModels())
 	cmd.AddCommand(&cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {

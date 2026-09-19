@@ -25,7 +25,6 @@ import (
 )
 
 const TestedVersion = "codex-cli 0.153.4"
-const TestedModel = "gpt-5.5"
 const Profile = "chunsu_mail"
 const ProcessFile = "process.json"
 const MaxVersionBytes = 4096
@@ -48,6 +47,22 @@ var disabledFeatures = []string{
 	"sleep_tool", "tool_suggest", "unified_exec", "view_image", "workspace_dependencies",
 	"code_mode_host", "code_mode", "code_mode_only", "deferred_executor", "standalone_web_search",
 	"auth_elicitation", "tool_call_mcp_elicitation", "request_permissions_tool", "unbounded_connection_retries",
+}
+
+func disabledReportFeatures(model string) []string {
+	preset, ok := codexModelPreset(model)
+	if !ok || !preset.CodeModeOnly {
+		return disabledFeatures
+	}
+	disabled := make([]string, 0, len(disabledFeatures)-3)
+	for _, feature := range disabledFeatures {
+		switch feature {
+		case "code_mode_host", "code_mode", "code_mode_only":
+			continue
+		}
+		disabled = append(disabled, feature)
+	}
+	return disabled
 }
 
 type Result struct {
@@ -160,9 +175,10 @@ func reportArguments(binary, root string, p workgroup.Package, boundary runtimee
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", p.Directory, "--output-schema", filepath.Join(p.Directory, mail.ExecutorSchemaName)}
 	args = append(args, boundaryArgs(boundary)...)
 	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `project_doc_max_bytes=0`, "--enable", "skip_host_skill_discovery")
-	for _, f := range disabledFeatures {
+	for _, f := range disabledReportFeatures(p.Executor.Model) {
 		args = append(args, "--disable", f)
 	}
+	args = append(args, codexReportFeatures(p.Executor.Model)...)
 	serverArgs := []string{"--home", root, "tools", "serve", p.JobID, p.AttemptID}
 	quoted := []string{}
 	for _, a := range serverArgs {
@@ -180,6 +196,9 @@ func reportArguments(binary, root string, p workgroup.Package, boundary runtimee
 	args = append(args, "-c", "mcp_servers."+serverName+".tools."+tool+`.approval_mode="approve"`)
 	if p.Executor.Model != "" {
 		args = append(args, "--model", p.Executor.Model)
+		if preset, ok := codexModelPreset(p.Executor.Model); ok && preset.ReasoningEffort != "" {
+			args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(preset.ReasoningEffort))
+		}
 	}
 	return append(args, "-")
 }
@@ -199,9 +218,6 @@ func runCodexReport(ctx context.Context, root string, p workgroup.Package) (Resu
 	if err := CheckDataRoot(root); err != nil {
 		return result, err
 	}
-	if p.Executor.Model != TestedModel {
-		return result, fmt.Errorf("executor model %q needs boundary revalidation; select the verified direct-tool model %s", p.Executor.Model, TestedModel)
-	}
 	if p.Workgroup == "mail-review" && !p.Snapshot.Synthetic && !p.Executor.LiveMailApproved {
 		return result, errors.New("live-mail disclosure is disabled; validate the actual executor boundary with synthetic sources, then explicitly approve this executor configuration")
 	}
@@ -215,8 +231,11 @@ func runCodexReport(ctx context.Context, root string, p workgroup.Package) (Resu
 	if err != nil {
 		return result, err
 	}
-	if version != TestedVersion {
-		return result, fmt.Errorf("executor version %q needs boundary revalidation; supported version is %s", version, TestedVersion)
+	if err = codexCompatibility(config.RoleTask, version, p.Executor.Model); err != nil {
+		return result, err
+	}
+	if err = codexTaskPrerequisites(p.Executor.Path, p.Executor.Model); err != nil {
+		return result, err
 	}
 	loginCtx, loginCancel := context.WithTimeout(ctx, time.Duration(p.Limits.LockWaitSeconds)*time.Second)
 	defer loginCancel()

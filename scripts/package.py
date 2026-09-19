@@ -65,10 +65,17 @@ def main():
             subprocess.run(["go", "build", "-trimpath", "-ldflags", "-X main.version=" + args.version,
                             "-o", str(package / binary), "./cmd/" + binary], cwd=ROOT, env=environment, check=True)
         for source, dest in (("scripts/install.sh", "install.sh"),
+                             ("scripts/server-setup.sh", "server-setup.sh"),
+                             ("scripts/check-recovery.sh", "check-recovery.sh"),
+                             ("scripts/check_recovery.py", "check_recovery.py"),
                              ("docs/setup/SERVER.md", "SERVER.md"),
+                             ("docs/setup/EC2.md", "EC2.md"),
                              ("docs/contracts/credential-helper-v1.md", "CREDENTIALS.md")):
             shutil.copyfile(ROOT / source, package / dest)
         (package / "install.sh").chmod(0o755)
+        (package / "server-setup.sh").chmod(0o755)
+        (package / "check-recovery.sh").chmod(0o755)
+        (package / "check_recovery.py").chmod(0o755)
         guide = (package / "SERVER.md").read_text()
         (package / "SERVER.md").write_text(root_links(guide, "docs/setup/SERVER.md"))
         (package / "TARGET").write_text(target + "\n")

@@ -78,6 +78,17 @@ func Inspect(ctx context.Context, role, root string, selected config.Executor, l
 		result.Detail = err.Error()
 		return result
 	}
+	if role == config.RoleTask {
+		if err = codexTaskPrerequisites(selected.Path, selected.Model); err != nil {
+			result.Detail = err.Error()
+			return result
+		}
+	}
+	if preset, ok := codexModelPreset(selected.Model); ok && preset.Status != "validated" {
+		result.Status = "candidate"
+		result.Detail = "selected model requires independent boundary validation before it becomes a validated preset"
+		return result
+	}
 	result.Status = "prerequisites_match"
 	result.Detail = "authentication and enforcement on this host require their own checks"
 	return result

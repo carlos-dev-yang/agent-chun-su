@@ -1,5 +1,10 @@
 # Chun-su
 
+For a fresh Ubuntu EC2 installation from this checkout, see
+[the EC2 guide](docs/setup/EC2.md). It installs a locally built candidate,
+performs the required account login and first Telegram setup, and does not open
+an inbound port.
+
 A local/server AI workflow controller built with Go and embedded SQLite.
 Human-owned Skills, golden cases, evaluation, analyzer/optimizer criteria and
 adoption policies stay outside task executors. Mail reporting comes first.

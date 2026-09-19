@@ -24,8 +24,13 @@ func codexCompatibility(role, version, model string) error {
 	if role == config.RoleReception && runtime.GOOS == "darwin" && runtime.GOARCH == "arm64" {
 		versions = append(versions, TestedReceptionVersion)
 	}
-	if model != TestedModel {
-		return &CompatibilityError{detail: fmt.Sprintf("AI 실행 모델 %q은 검증되지 않았습니다. 지원 모델: %s. 모델 변경은 별도 실행 경계 재검증이 필요합니다.", model, TestedModel)}
+	if _, ok := codexModelPreset(model); !ok {
+		models := CodexModels().Models
+		ids := make([]string, 0, len(models))
+		for _, preset := range models {
+			ids = append(ids, preset.ID)
+		}
+		return &CompatibilityError{detail: fmt.Sprintf("AI 실행 모델 %q은 지원되지 않습니다. 선택 가능 모델: %s.", model, strings.Join(ids, ", "))}
 	}
 	if !slices.Contains(versions, version) {
 		return &CompatibilityError{detail: fmt.Sprintf("설치된 AI 실행기 %q은 검증되지 않았습니다. %s 경로 지원 버전: %s. 실행기 변경은 별도 실행 경계 재검증이 필요합니다.", version, role, strings.Join(versions, ", "))}

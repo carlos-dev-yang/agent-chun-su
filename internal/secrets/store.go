@@ -43,18 +43,25 @@ func OpenFor(kind string) (Store, error) {
 		return nil, errors.New("unsupported credential store")
 	}
 	path := os.Getenv(HelperEnv)
+	if err := validateHelperProgram(path); err != nil {
+		return nil, err
+	}
+	return Helper{Program: path}, nil
+}
+
+func validateHelperProgram(path string) error {
 	if !filepath.IsAbs(path) {
-		return nil, errors.New("configure an absolute CHUNSU_SECRET_HELPER path for the host credential store")
+		return errors.New("configure an absolute CHUNSU_SECRET_HELPER path for the host credential store")
 	}
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0022 != 0 || info.Mode().Perm()&0111 == 0 {
-		return nil, errors.New("credential helper must be a regular executable that other users cannot modify")
+		return errors.New("credential helper must be a regular executable that other users cannot modify")
 	}
 	owner, err := files.OwnerUID(info)
 	if err != nil || (owner != 0 && owner != os.Geteuid()) {
-		return nil, errors.New("credential helper must belong to this OS user or the administrator")
+		return errors.New("credential helper must belong to this OS user or the administrator")
 	}
-	return Helper{Program: path}, nil
+	return nil
 }
 
 type HelperRequest struct {

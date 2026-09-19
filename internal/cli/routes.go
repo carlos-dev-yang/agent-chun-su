@@ -11,6 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func (o *options) configModels() *cobra.Command {
+	return &cobra.Command{Use: "models", Short: "List locally supported Codex model presets", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return output(cmd, executor.CodexModels())
+	}}
+}
+
 func (o *options) configRoute() *cobra.Command {
 	var driver, path, model, environment string
 	var inherit bool

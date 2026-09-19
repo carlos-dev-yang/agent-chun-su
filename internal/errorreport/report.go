@@ -37,7 +37,7 @@ var catalog = map[string]Diagnostic{
 	"model_compatibility":       {"reception", "Conversation AI version or model is incompatible", "Use chunsu doctor on the host to check supported versions for the conversation route and configure an executor."},
 	"chat_style_unavailable":    {"reception", "Saved tone instruction is unavailable", "Run /tone reset, then check the data directory permissions and available storage on the host."},
 	"chat_language_unavailable": {"reception", "Saved chat language preference is unavailable", "Run /language reset, then check the private preference storage permissions and available space."},
-	"secret_unavailable":        {"chat", "Chat secret store or bot token is unavailable", "Restore the host Keychain or CHUNSU_SECRET_HELPER configuration and the saved bot token. Do not send tokens in chat."},
+	"secret_unavailable":        {"chat", "Chat secret store or bot token is unavailable", "Restore the host credential store or CHUNSU_SECRET_HELPER configuration and the saved bot token. Do not send tokens in chat."},
 	"poll_failed":               {"telegram", "Message polling connection failed", "The receiver reconnects from its saved position. If this repeats, check the host network."},
 	"authentication_failed":     {"telegram", "Telegram authentication or access was denied", "Polling retries continue. Restore the bot token and access permissions on the host."},
 	"poll_conflict":             {"telegram", "Another receiver or webhook conflicts with polling", "Check other receivers or webhooks using this bot. Existing webhooks are not removed automatically."},

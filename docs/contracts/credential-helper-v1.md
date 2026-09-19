@@ -33,12 +33,17 @@ packages never contain this credential reference or the credential value.
 ## Optional encrypted file helper
 
 `chunsu-secret-store` implements this protocol using AES-256-GCM, random nonces
-and authenticated service/account identity. Set `CHUNSU_SECRET_STORE_DIR` to a
-private ciphertext directory and `CHUNSU_SECRET_KEY_FILE` to a separately
-provisioned private file containing exactly 32 random bytes. Both paths are
-absolute. No key is generated implicitly or stored in the ciphertext record.
-The key can come from a mounted secret or a systemd credential; the caller must
-give the helper a readable path under the approved host identity.
+and authenticated service/account identity. An explicitly configured helper
+continues to use absolute `CHUNSU_SECRET_STORE_DIR` and
+`CHUNSU_SECRET_KEY_FILE` paths. On Linux, a first `chunsu telegram enable` or
+`chunsu telegram pair` without a helper configuration can initialize the
+bundled sibling helper: it writes a private 32-byte random key and private
+ciphertext directory under the private data home, and saves only their paths
+in excluded local metadata. Backup and restore exclude that key, ciphertext and
+metadata. If ciphertext exists while the key is absent, setup fails rather than
+generating a replacement. The key can also come from a mounted secret or a
+systemd credential; the caller must give the helper a readable path under the
+approved host identity.
 
 Install this helper only when needed. Preserve the master key separately from
 Chun-su backups; losing it makes the encrypted credentials unreadable. An

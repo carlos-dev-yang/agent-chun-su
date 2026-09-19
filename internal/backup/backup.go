@@ -81,7 +81,7 @@ func allowed(name string) bool {
 }
 
 func Create(ctx context.Context, s *store.Store, c config.Config, destination string) (Manifest, error) {
-	manifest := Manifest{Version: Version, SchemaVersion: store.SchemaVersion, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]Entry{}, Credentials: "Keychain values excluded; restore requires reconnection"}
+	manifest := Manifest{Version: Version, SchemaVersion: store.SchemaVersion, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Files: map[string]Entry{}, Credentials: "Credential-store values and encrypted helper key/data excluded; restore requires reconnection"}
 	jobs, err := s.Jobs(ctx)
 	if err != nil {
 		return manifest, err

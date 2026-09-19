@@ -61,12 +61,15 @@ func (o *options) telegram() *cobra.Command {
 		var keychain secrets.Store
 		binding, e := telegram.Load(root, c.Limits.MaxArtifactBytes)
 		if errors.Is(e, os.ErrNotExist) {
+			if pairedOnly {
+				return errors.New("pair Telegram locally before enabling its service")
+			}
+			if e = secrets.BootstrapLinuxStore(root); e != nil {
+				return e
+			}
 			keychain, e = secrets.Open()
 			if e != nil {
 				return e
-			}
-			if pairedOnly {
-				return errors.New("pair Telegram locally before enabling its service")
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "춘수 전용 또는 다른 프로그램이 사용하지 않는 봇을 준비해 주세요. Telegram @BotFather에서 /newbot으로 만들 수 있습니다.")
 			var token string
@@ -117,14 +120,14 @@ func (o *options) telegram() *cobra.Command {
 					return errors.New("봇 연결 파일은 보이지만 저장 완료를 확인하지 못했습니다. 상태를 확인한 뒤 다시 실행해 주세요")
 				}
 				if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
-					return errors.New("연결 저장 결과가 불명확합니다. Keychain 항목을 보존했으니 로컬 연결 상태를 확인해 주세요")
+					return errors.New("연결 저장 결과가 불명확합니다. credential store 항목을 보존했으니 로컬 연결 상태를 확인해 주세요")
 				}
 				cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Duration(c.Limits.LockWaitSeconds)*time.Second)
 				defer cancel()
 				cleanup := keychain.Delete(cleanupCtx, binding.TokenRef)
 				return errors.Join(e, cleanup)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "봇 신원을 확인하고 토큰을 Keychain에 저장했습니다.")
+			fmt.Fprintln(cmd.OutOrStdout(), "봇 신원을 확인하고 토큰을 credential store에 저장했습니다.")
 		} else if e != nil {
 			return e
 		} else if tokenFile != "" || cmd.Flags().Changed("api-base") {
