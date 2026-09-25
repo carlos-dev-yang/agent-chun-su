@@ -6,6 +6,13 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+On 2026-09-25 the user requested research and a next-step plan for web search
+and AI browser interaction on the existing EC2 installation. The
+[web exploration proposal](docs/implementation/WEB_EXPLORATION_PROPOSAL_2026-09-25.md)
+records the current tool-free reception boundary, Aside/Chromium alternatives,
+and staged implementation and measurement work. It is a proposal; no web
+capability, provider account, browser package or EC2 deployment is enabled.
+
 On 2026-09-19 the user selected [UPDATE-01 owner-triggered self-update](docs/implementation/SELF_UPDATE_2026-09-19.md): the registered repository's `master` branch only, independent Linux user-service activation, preserved runtime settings and stopped intent, and refusal of database schema or migration changes. Implementation, focused isolated validation and corrected live EC2 self-update activation are complete. Actual owner-message acceptance/completion delivery and reboot recovery remain separate checks. This does not authorize database migrations or automatic deployment after every commit.
 
 On 2026-09-19 the user authorized [INSTALL-01 first installation and recovery](docs/implementation/EC2_FIRST_INSTALL_2026-09-19.md), including model selection, Astra low reasoning, automatic Linux Telegram credential storage, and Ubuntu bootstrap. Focused local validation is complete; actual EC2 and external pairing acceptance remain separate.
