@@ -46,6 +46,7 @@ type actionRecord struct {
 	Audience           string              `json:"audience"`
 	Delivery           string              `json:"delivery"`
 	Action             conversation.Action `json:"action"`
+	InputDigest        string              `json:"input_digest,omitempty"`
 	State              string              `json:"state"`
 	ResultDigest       string              `json:"result_digest,omitempty"`
 	StoredResultDigest string              `json:"stored_result_digest,omitempty"`
@@ -111,6 +112,10 @@ func (s *Session) deliver(directory, requestID string, step int, event Event, em
 func traceResult(action string, result HostResult) HostResult {
 	trace := HostResult{Status: result.Status}
 	switch action {
+	case conversation.WebOpen:
+		trace.Detail = traceMap(result.Detail, "url", "sha256", "retrieved_at", "truncated")
+	case conversation.WebSearch:
+		trace.Detail = traceMap(result.Detail, "provider", "retrieved_at")
 	case conversation.ReadGuide, conversation.AcknowledgeError:
 		if detail, ok := result.Detail.(string); ok {
 			trace.Detail = detail
@@ -143,6 +148,15 @@ func traceResult(action string, result HostResult) HostResult {
 		trace.Detail = traceMap(result.Detail, "job_id", "workgroup", "state", "note")
 	}
 	return trace
+}
+
+func traceAction(action conversation.Action) (conversation.Action, string) {
+	if action.Name != conversation.WebSearch && action.Name != conversation.WebOpen {
+		return action, ""
+	}
+	digest := files.Digest([]byte(action.Reference))
+	action.Reference = ""
+	return action, digest
 }
 
 func traceMap(detail any, keys ...string) any {

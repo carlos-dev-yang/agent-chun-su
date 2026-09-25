@@ -45,6 +45,11 @@ other four still install local guidance only. See the
 [AI chat checkpoint](docs/validation/AI_CHAT_2026-09-11.md) and
 [chat contract](docs/contracts/chat-v1.md).
 
+Public read-only web research is available through bounded host actions after
+the owner enables it. It can read HTTPS text pages without a browser package;
+Brave search additionally needs a key stored locally. Browser automation is
+still disabled. See [web setup and limits](docs/setup/WEB_RESEARCH.md).
+
 Choose the AI reply language with `/language ko`, `/language en`, `/language ja`,
 or another valid language tag such as `pt-BR`. `/언어` is an alias; `/language`
 shows the current setting and `/language auto` follows the current message's

@@ -54,6 +54,7 @@ func Capabilities(channel string) []conversation.Capability {
 		} else if channel == Telegram {
 			switch capability.Name {
 			case conversation.None, conversation.RuntimeStatus, conversation.ReadGuide, conversation.InstallGuide, conversation.ListJobs, conversation.DelegateJob,
+				conversation.WebSearch, conversation.WebOpen,
 				conversation.ListErrors, conversation.AcknowledgeError, conversation.PauseQueue, conversation.ResumeQueue, conversation.CancelJob, conversation.RetryJob, conversation.ListFeatures, conversation.InstallFeature,
 				conversation.StartWorker, conversation.StopWorker, conversation.RestartWorker, conversation.ReadWorkerConfig, conversation.ConfigureWorker:
 				allowed = append(allowed, capability)
@@ -144,7 +145,8 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		intent := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: reply.Action, State: "requested"}
+		traceActionValue, inputDigest := traceAction(reply.Action)
+		intent := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: traceActionValue, InputDigest: inputDigest, State: "requested"}
 		if err = s.writeJSON(directory, "action.json", intent, false); err != nil {
 			return err
 		}
@@ -167,7 +169,7 @@ func (s *Session) Turn(ctx context.Context, request string, host Host, generate 
 		if err != nil {
 			return errors.Join(ErrUncertain, err)
 		}
-		audit := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: reply.Action, State: outcome.Status, ResultDigest: files.Digest(outcomeBytes), StoredResultDigest: files.Digest(storedBytes), Result: &stored}
+		audit := actionRecord{TraceContext: s.traceContext(requestID, ordinal), EventKind: EventAction, Audience: audienceInternal, Delivery: deliverySuppressed, Action: traceActionValue, InputDigest: inputDigest, State: outcome.Status, ResultDigest: files.Digest(outcomeBytes), StoredResultDigest: files.Digest(storedBytes), Result: &stored}
 		if err = s.writeJSON(directory, "action.json", audit, true); err != nil {
 			return errors.Join(ErrUncertain, err)
 		}

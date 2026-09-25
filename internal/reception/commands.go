@@ -5,18 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"chunsu/internal/backend"
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
+	"chunsu/internal/platform"
+	"chunsu/internal/secrets"
 	"chunsu/internal/telegram"
 	"chunsu/internal/updateguard"
+	"chunsu/internal/webresearch"
 	"chunsu/internal/workerconfig"
 )
 
-const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/update check · /update status · /update fetch and apply the owner-configured update\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/web status|enable|disable|limit NUMBER · /web open HTTPS_URL · /web search QUERY (public read-only)\n/update check · /update status · /update fetch and apply the owner-configured update\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -35,6 +40,9 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	if name == "/worker" && len(parts) >= 2 && parts[1] == "config" {
 		return h.workerConfigCommand(ctx, channel, request, parts)
+	}
+	if name == "/web" {
+		return h.webCommand(ctx, channel, request, parts)
 	}
 	if name == "/controller" || name == "/worker" {
 		if channel != Local && channel != Telegram {
@@ -142,6 +150,82 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	raw, err := json.MarshalIndent(result, "", "  ")
 	return string(raw), true, err
+}
+
+func (h Host) webCommand(ctx context.Context, channel, request string, parts []string) (string, bool, error) {
+	if channel != Local && channel != Telegram {
+		return "Web commands are unavailable in this channel.", true, nil
+	}
+	usage := "Usage: /web status|enable|disable|limit NUMBER|open HTTPS_URL|search QUERY. Set the Brave key locally with chunsu web key."
+	if len(parts) < 2 {
+		return usage, true, nil
+	}
+	switch parts[1] {
+	case "status":
+		if len(parts) != 2 {
+			return usage, true, nil
+		}
+		settings, err := webresearch.LoadSettings(h.Root)
+		if err != nil {
+			return "", true, err
+		}
+		keyReady := false
+		if keychain, err := secrets.Open(); err == nil {
+			_, err = keychain.Get(ctx, webresearch.KeyRef(h.Root))
+			keyReady = err == nil
+		}
+		return fmt.Sprintf("Public web: enabled=%t; Brave key configured=%t; daily search limit=%d (UTC). Browser automation: disabled.", settings.Enabled, keyReady, settings.SearchesPerDay), true, nil
+	case "enable", "disable", "limit":
+		if (parts[1] == "limit" && len(parts) != 3) || (parts[1] != "limit" && len(parts) != 2) {
+			return usage, true, nil
+		}
+		lock, err := platform.Acquire(ctx, h.Root, time.Duration(h.Config.Limits.LockWaitSeconds)*time.Second)
+		if err != nil {
+			return "", true, err
+		}
+		defer lock.Close()
+		settings, err := webresearch.LoadSettings(h.Root)
+		if err != nil {
+			return "", true, err
+		}
+		if parts[1] == "limit" {
+			value, parseErr := strconv.Atoi(parts[2])
+			if parseErr != nil || value < 1 || value > 1000 {
+				return "Daily web search limit must be between 1 and 1000.", true, nil
+			}
+			settings.SearchesPerDay = value
+		} else {
+			settings.Enabled = parts[1] == "enable"
+		}
+		if err := webresearch.SaveSettings(h.Root, settings); err != nil {
+			return "", true, err
+		}
+		return fmt.Sprintf("Public read-only web enabled=%t; daily search limit=%d (UTC). Browser automation remains disabled.", settings.Enabled, settings.SearchesPerDay), true, nil
+	case "open", "search":
+		if len(parts) < 3 {
+			return usage, true, nil
+		}
+		action := conversation.Action{Reference: strings.Join(parts[2:], " ")}
+		if parts[1] == "open" {
+			action.Name = conversation.WebOpen
+		} else {
+			action.Name = conversation.WebSearch
+		}
+		if err := conversation.Validate(conversation.Reply{Message: "web command", Action: action}); err != nil {
+			if errors.Is(err, webresearch.ErrNonPublic) {
+				return webresearch.PublicError(err), true, nil
+			}
+			return usage, true, nil
+		}
+		result, err := h.Dispatch(ctx, channel, action, request, map[string]bool{})
+		if err != nil {
+			return "", true, err
+		}
+		encoded, err := json.Marshal(result)
+		return string(encoded), true, err
+	default:
+		return usage, true, nil
+	}
 }
 
 func (h Host) workerConfigCommand(ctx context.Context, channel, request string, parts []string) (string, bool, error) {

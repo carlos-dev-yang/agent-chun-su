@@ -1,8 +1,10 @@
 # WEB exploration proposal — public web research from EC2
 
-**Status:** Research and implementation proposal only. No browser, search API,
-credential, network permission, service or deployment has been installed or
-enabled by this document.
+**Status:** WEB-01 public read-only host actions implemented on 2026-09-25,
+disabled by default on existing installations. The user authorized code and
+Git publication. Local page open and private-address denial were observed.
+Live Brave search, paired Telegram/EC2 acceptance, browser pilot and route
+comparison remain open; no browser package or provider credential was installed.
 
 ## Current boundary and deployment facts
 
@@ -55,6 +57,14 @@ the browser engine only after the AL2023 pilot. The actual EC2 is amd64, so
 the arm64 case is a future portability check, not a claim about this node.
 
 ## Proposed work units
+
+Owner setup is in [WEB_RESEARCH.md](../setup/WEB_RESEARCH.md), and checks
+actually run are in [WEB_RESEARCH_2026-09-25.md](../validation/WEB_RESEARCH_2026-09-25.md).
+The provider is Brave Search API;
+the default local spend guard is 20 attempted searches per UTC day. The owner
+must provision the key locally and explicitly enable web. The key and full
+retrieved text do not enter action traces. Since actual AL2023 sandbox and egress
+are unverified, WEB-02 is not activated by the executable update.
 
 ### WEB-00 — scope, provider and baseline
 
@@ -139,13 +149,17 @@ service recovery, and retain a way to disable the web capability without
 affecting chat, controller or worker. Do not treat this proposal as permission
 to install packages, register a paid API, alter egress or deploy.
 
-## Decisions needed before implementation
+## Decisions and remaining gates
 
-- Public read-only first release and whether authenticated browsing is a
-  separate later goal.
-- Search provider, credential provisioning and spending limit.
-- Actual AL2023 browser isolation/egress mechanism after the disposable probe.
-- Retention policy for retrieved public page text versus URL/hash-only evidence.
+- First release is public read-only; authenticated browsing remains a separate
+  later decision.
+- Brave Search API is selected. The owner supplies its key through the host
+  credential store; 20 attempted searches per UTC day is the default local cap.
+  A provider-side spending limit and real keyed acceptance remain outstanding.
+- Action evidence retains input digests and URL/hash metadata, not retrieved
+  page bodies. The reception model sees bounded text in its live turn.
+- Actual AL2023 browser isolation/egress mechanism and agent-browser versus
+  chromedp choice wait for a disposable host probe. Neither is enabled now.
 
 ## Primary sources checked on 2026-09-25
 

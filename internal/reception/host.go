@@ -14,9 +14,11 @@ import (
 	"chunsu/internal/errorreport"
 	"chunsu/internal/features"
 	"chunsu/internal/onboarding"
+	"chunsu/internal/secrets"
 	"chunsu/internal/store"
 	"chunsu/internal/telegram"
 	"chunsu/internal/updateguard"
+	"chunsu/internal/webresearch"
 	"chunsu/internal/workerconfig"
 )
 
@@ -98,6 +100,37 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{}, errors.New("reception channel does not permit this action")
 	}
 	switch action.Name {
+	case conversation.WebSearch, conversation.WebOpen:
+		settings, err := webresearch.LoadSettings(h.Root)
+		if err != nil {
+			return HostResult{}, err
+		}
+		if !settings.Enabled {
+			return HostResult{Status: "unavailable", Detail: "공개 웹 조회가 꺼져 있습니다. 소유자가 /web enable로 켤 수 있습니다."}, nil
+		}
+		if action.Name == conversation.WebOpen {
+			page, err := webresearch.Open(ctx, action.Reference)
+			if err != nil {
+				return HostResult{Status: "unavailable", Detail: webresearch.PublicError(err)}, nil
+			}
+			return HostResult{Status: "observed", Detail: page}, nil
+		}
+		keychain, err := secrets.Open()
+		if err != nil {
+			return HostResult{Status: "unavailable", Detail: "검색 비밀 저장소를 사용할 수 없습니다. 호스트에서 확인해 주세요."}, nil
+		}
+		key, err := keychain.Get(ctx, webresearch.KeyRef(h.Root))
+		if err != nil {
+			return HostResult{Status: "unavailable", Detail: "Brave 검색 키가 없습니다. 호스트에서 chunsu web key로 설정해 주세요."}, nil
+		}
+		if err := webresearch.ReserveSearch(ctx, h.Root, settings.SearchesPerDay, h.Config.Limits.LockWaitSeconds); err != nil {
+			return HostResult{Status: "unavailable", Detail: webresearch.PublicError(err)}, nil
+		}
+		results, err := webresearch.Search(ctx, action.Reference, key)
+		if err != nil {
+			return HostResult{Status: "unavailable", Detail: webresearch.PublicError(err)}, nil
+		}
+		return HostResult{Status: "observed", Detail: results}, nil
 	case conversation.StartWorker, conversation.StopWorker, conversation.RestartWorker:
 		operation := "start"
 		if action.Name == conversation.StopWorker {

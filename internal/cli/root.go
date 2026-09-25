@@ -75,6 +75,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.chat(), o.telegram())
 	root.AddCommand(o.access(), o.errors())
 	root.AddCommand(o.update())
+	root.AddCommand(o.web())
 	return root
 }
 
