@@ -13,7 +13,6 @@ import (
 	"chunsu/internal/conversation"
 	"chunsu/internal/errorreport"
 	"chunsu/internal/files"
-	"chunsu/internal/platform"
 	"chunsu/internal/secrets"
 	"chunsu/internal/telegram"
 	"chunsu/internal/updateguard"
@@ -179,25 +178,19 @@ func (h Host) webCommand(ctx context.Context, channel, request string, parts []s
 		if (parts[1] == "limit" && len(parts) != 3) || (parts[1] != "limit" && len(parts) != 2) {
 			return usage, true, nil
 		}
-		lock, err := platform.Acquire(ctx, h.Root, time.Duration(h.Config.Limits.LockWaitSeconds)*time.Second)
-		if err != nil {
-			return "", true, err
-		}
-		defer lock.Close()
-		settings, err := webresearch.LoadSettings(h.Root)
-		if err != nil {
-			return "", true, err
-		}
+		wait := time.Duration(h.Config.Limits.LockWaitSeconds) * time.Second
+		var settings webresearch.Settings
+		var err error
 		if parts[1] == "limit" {
 			value, parseErr := strconv.Atoi(parts[2])
 			if parseErr != nil || value < 1 || value > 1000 {
 				return "Daily web search limit must be between 1 and 1000.", true, nil
 			}
-			settings.SearchesPerDay = value
+			settings, err = webresearch.SetDailyLimit(ctx, h.Root, value, wait)
 		} else {
-			settings.Enabled = parts[1] == "enable"
+			settings, err = webresearch.SetEnabled(ctx, h.Root, parts[1] == "enable", wait)
 		}
-		if err := webresearch.SaveSettings(h.Root, settings); err != nil {
+		if err != nil {
 			return "", true, err
 		}
 		return fmt.Sprintf("Public read-only web enabled=%t; daily search limit=%d (UTC). Browser automation remains disabled.", settings.Enabled, settings.SearchesPerDay), true, nil

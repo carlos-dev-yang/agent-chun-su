@@ -60,17 +60,8 @@ func (o *options) web() *cobra.Command {
 		if err != nil {
 			return errors.New("daily web search limit must be an integer")
 		}
-		lock, err := platform.Acquire(command.Context(), root, time.Duration(c.Limits.LockWaitSeconds)*time.Second)
+		settings, err := webresearch.SetDailyLimit(command.Context(), root, value, time.Duration(c.Limits.LockWaitSeconds)*time.Second)
 		if err != nil {
-			return err
-		}
-		defer lock.Close()
-		settings, err := webresearch.LoadSettings(root)
-		if err != nil {
-			return err
-		}
-		settings.SearchesPerDay = value
-		if err := webresearch.SaveSettings(root, settings); err != nil {
 			return err
 		}
 		fmt.Fprintf(command.OutOrStdout(), "Daily web search limit: %d attempted requests (UTC).\n", settings.SearchesPerDay)

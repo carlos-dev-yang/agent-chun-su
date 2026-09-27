@@ -23,7 +23,6 @@ import (
 
 	"chunsu/internal/audit"
 	"chunsu/internal/files"
-	"chunsu/internal/platform"
 
 	"golang.org/x/net/html"
 )
@@ -74,7 +73,7 @@ func (settings Settings) Validate() error {
 	return nil
 }
 
-func SaveSettings(root string, settings Settings) error {
+func saveSettings(root string, settings Settings) error {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
@@ -90,6 +89,34 @@ func SaveSettings(root string, settings Settings) error {
 		return err
 	}
 	return files.Write(dir, settingsFile, data, true)
+}
+
+func updateSettings(ctx context.Context, root string, wait time.Duration, change func(*Settings)) (Settings, error) {
+	lock, err := acquireWebLock(ctx, root, wait)
+	if err != nil {
+		return Settings{}, err
+	}
+	defer lock.Close()
+	settings, err := LoadSettings(root)
+	if err != nil {
+		return Settings{}, err
+	}
+	change(&settings)
+	if err := saveSettings(root, settings); err != nil {
+		return Settings{}, err
+	}
+	return settings, nil
+}
+
+func SetEnabled(ctx context.Context, root string, enabled bool, wait time.Duration) (Settings, error) {
+	return updateSettings(ctx, root, wait, func(settings *Settings) { settings.Enabled = enabled })
+}
+
+func SetDailyLimit(ctx context.Context, root string, limit int, wait time.Duration) (Settings, error) {
+	if limit < 1 || limit > 1000 {
+		return Settings{}, errors.New("web searches_per_day must be between 1 and 1000")
+	}
+	return updateSettings(ctx, root, wait, func(settings *Settings) { settings.SearchesPerDay = limit })
 }
 
 type SearchItem struct {
@@ -153,6 +180,9 @@ func ValidateURL(raw string) error {
 
 // PublicError keeps network diagnostics and response bodies out of model history.
 func PublicError(err error) string {
+	if errors.Is(err, ErrWebDisabled) {
+		return "공개 웹 조회가 꺼져 있습니다. 소유자가 /web enable로 켤 수 있습니다."
+	}
 	if errors.Is(err, ErrNonPublic) {
 		return "공개 인터넷이 아닌 주소는 보안상 열 수 없습니다."
 	}
@@ -172,21 +202,26 @@ func PublicError(err error) string {
 }
 
 var ErrSearchBudget = errors.New("daily web search budget exhausted")
+var ErrWebDisabled = errors.New("public web is disabled")
 var ErrNonPublic = errors.New("non-public web address")
 var ErrProviderAuth = errors.New("search provider authentication rejected")
 var ErrProviderRate = errors.New("search provider rate limited")
 
 // ReserveSearch charges an attempt before the provider call. Ambiguous network
 // outcomes stay charged, so retries cannot silently bypass the owner's cap.
-func ReserveSearch(ctx context.Context, root string, dailyLimit, lockWaitSeconds int) error {
-	if dailyLimit < 1 || dailyLimit > 1000 {
-		return errors.New("invalid search budget")
-	}
-	lock, err := platform.Acquire(ctx, root, time.Duration(lockWaitSeconds)*time.Second)
+func ReserveSearch(ctx context.Context, root string, lockWaitSeconds int) error {
+	lock, err := acquireWebLock(ctx, root, time.Duration(lockWaitSeconds)*time.Second)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
+	settings, err := LoadSettings(root)
+	if err != nil {
+		return err
+	}
+	if !settings.Enabled {
+		return ErrWebDisabled
+	}
 	dir := filepath.Join(root, "state")
 	if err := files.RequirePrivateDir(dir); err != nil {
 		return err
@@ -206,7 +241,7 @@ func ReserveSearch(ctx context.Context, root string, dailyLimit, lockWaitSeconds
 	if ledger.Day != today {
 		ledger.Day, ledger.Count = today, 0
 	}
-	if ledger.Count >= dailyLimit {
+	if ledger.Count >= settings.SearchesPerDay {
 		return ErrSearchBudget
 	}
 	ledger.Count++

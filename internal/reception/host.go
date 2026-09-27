@@ -123,7 +123,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		if err != nil {
 			return HostResult{Status: "unavailable", Detail: "Brave 검색 키가 없습니다. 호스트에서 chunsu web key로 설정해 주세요."}, nil
 		}
-		if err := webresearch.ReserveSearch(ctx, h.Root, settings.SearchesPerDay, h.Config.Limits.LockWaitSeconds); err != nil {
+		if err := webresearch.ReserveSearch(ctx, h.Root, h.Config.Limits.LockWaitSeconds); err != nil {
 			return HostResult{Status: "unavailable", Detail: webresearch.PublicError(err)}, nil
 		}
 		results, err := webresearch.Search(ctx, action.Reference, key)

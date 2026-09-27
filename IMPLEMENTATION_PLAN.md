@@ -15,6 +15,9 @@ and staged implementation and measurement work. WEB-01 host actions and
 owner-controlled settings are implemented; live Brave search and actual EC2
 acceptance still need a key and host check. No browser package or interactive
 browsing was enabled.
+The 2026-09-27 [WEB-01 lock regression check](docs/validation/WEB_RESEARCH_LOCK_2026-09-27.md)
+reproduced a `/web enable` failure against a running controller and records
+the web-only lock correction. EC2 acceptance remains separate.
 
 On 2026-09-19 the user selected [UPDATE-01 owner-triggered self-update](docs/implementation/SELF_UPDATE_2026-09-19.md): the registered repository's `master` branch only, independent Linux user-service activation, preserved runtime settings and stopped intent, and refusal of database schema or migration changes. Implementation, focused isolated validation and corrected live EC2 self-update activation are complete. Actual owner-message acceptance/completion delivery and reboot recovery remain separate checks. This does not authorize database migrations or automatic deployment after every commit.
 

@@ -33,6 +33,8 @@ the cap with `/web limit NUMBER` in the paired chat or locally with
 their original configuration during rollback. The private ledger is
 `state/web-search-budget.json`. The cap is an application
 guard, not an account-level spending ceiling; set a provider-side limit too.
+Web settings and the ledger use a separate `state/web.lock`, so `/web enable`
+and search do not wait for the running controller's long-held lock.
 
 ## Boundary and limitations
 
