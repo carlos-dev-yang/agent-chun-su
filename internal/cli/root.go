@@ -234,7 +234,7 @@ func (o *options) doctor() *cobra.Command {
 			}
 		}
 		routes := map[string]executor.Compatibility{}
-		for _, role := range []string{config.RoleTask, config.RoleReception, config.RoleReview} {
+		for _, role := range []string{config.RoleTask, config.RoleReception, config.RoleReview, config.RoleCollection, config.RoleRefinement, config.RoleSynthesis} {
 			routes[role] = executor.Inspect(cmd.Context(), role, root, c.ExecutorFor(role), c.Limits)
 		}
 		checks["execution_routes"] = routes
@@ -247,6 +247,7 @@ func (o *options) configuration() *cobra.Command {
 	cmd := &cobra.Command{Use: "config", Short: "Inspect or change non-secret settings"}
 	cmd.AddCommand(o.configRoute())
 	cmd.AddCommand(o.configModels())
+	cmd.AddCommand(o.configPolicy())
 	cmd.AddCommand(&cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
@@ -290,6 +291,12 @@ func (o *options) configuration() *cobra.Command {
 			c.Executor.RevokeDisclosure()
 		case "executor.model":
 			c.Executor.Model = args[1]
+			c.Executor.RevokeDisclosure()
+		case "executor.reasoning_effort":
+			if !config.ValidEffort(args[1]) || args[1] == "" {
+				return errors.New("unsupported reasoning effort")
+			}
+			c.Executor.ReasoningEffort = args[1]
 			c.Executor.RevokeDisclosure()
 		case "executor.live_code_approved":
 			approved, e := strconv.ParseBool(args[1])

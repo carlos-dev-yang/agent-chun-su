@@ -119,7 +119,7 @@ func Run(ctx context.Context, root string, p workgroup.Package) (Result, error) 
 			return Result{ExitCode: -1, Outcome: "not_started"}, err
 		}
 		route := current.Executor
-		if route.Kind != p.Executor.Kind || route.Path != p.Executor.Path || route.Model != p.Executor.Model || route.Environment != p.Executor.Environment {
+		if route.Kind != p.Executor.Kind || route.Path != p.Executor.Path || route.Model != p.Executor.Model || route.ReasoningEffort != p.Executor.ReasoningEffort || route.Environment != p.Executor.Environment {
 			return Result{ExitCode: -1, Outcome: "not_started"}, errors.New("selected route changed before source disclosure; restart the controller with the reviewed configuration")
 		}
 		definition, err := workgroup.Lookup(p.Workgroup)
@@ -159,7 +159,7 @@ func Structured(ctx context.Context, r StructuredRequest) (Result, error) {
 	if err := access.Check(r.Root); err != nil {
 		return Result{ExitCode: -1, Outcome: "not_started"}, err
 	}
-	if r.Role != config.RoleReception && r.Role != config.RoleReview {
+	if r.Role != config.RoleReception && r.Role != config.RoleReview && r.Role != config.RoleCollection && r.Role != config.RoleRefinement && r.Role != config.RoleSynthesis {
 		return Result{}, errors.New("unsupported structured agent role")
 	}
 	driver, err := selection(r.Executor, r.Root)

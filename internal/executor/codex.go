@@ -196,9 +196,7 @@ func reportArguments(binary, root string, p workgroup.Package, boundary runtimee
 	args = append(args, "-c", "mcp_servers."+serverName+".tools."+tool+`.approval_mode="approve"`)
 	if p.Executor.Model != "" {
 		args = append(args, "--model", p.Executor.Model)
-		if preset, ok := codexModelPreset(p.Executor.Model); ok && preset.ReasoningEffort != "" {
-			args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(preset.ReasoningEffort))
-		}
+		args = append(args, "-c", "model_reasoning_effort="+strconv.Quote(reasoningEffort(p.Executor, "low")))
 	}
 	return append(args, "-")
 }

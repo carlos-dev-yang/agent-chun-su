@@ -51,6 +51,7 @@ type Executor struct {
 	Kind             string `json:"kind"`
 	Path             string `json:"path"`
 	Model            string `json:"model,omitempty"`
+	ReasoningEffort  string `json:"reasoning_effort,omitempty"`
 	Environment      string `json:"environment,omitempty"`
 	LiveMailApproved bool   `json:"live_mail_approved"`
 	LiveCodeApproved bool   `json:"live_code_approved,omitempty"`
@@ -66,10 +67,16 @@ type Executor struct {
 const RoleTask = "task"
 const RoleReception = "reception"
 const RoleReview = "review"
+const RoleCollection = "collection"
+const RoleRefinement = "refinement"
+const RoleSynthesis = "synthesis"
 
 type Routes struct {
-	Reception *Executor `json:"reception,omitempty"`
-	Review    *Executor `json:"review,omitempty"`
+	Reception  *Executor `json:"reception,omitempty"`
+	Review     *Executor `json:"review,omitempty"`
+	Collection *Executor `json:"collection,omitempty"`
+	Refinement *Executor `json:"refinement,omitempty"`
+	Synthesis  *Executor `json:"synthesis,omitempty"`
 }
 
 func (e *Executor) RevokeDisclosure() {
@@ -87,25 +94,80 @@ func (c *Config) RevokeDisclosures() {
 	if c.Routes.Review != nil {
 		c.Routes.Review.RevokeDisclosure()
 	}
+	for _, route := range []*Executor{c.Routes.Collection, c.Routes.Refinement, c.Routes.Synthesis} {
+		if route != nil {
+			route.RevokeDisclosure()
+		}
+	}
 }
 
 type Config struct {
-	Version  int      `json:"version"`
-	Limits   Limits   `json:"limits"`
-	Executor Executor `json:"executor"`
-	Routes   Routes   `json:"routes,omitempty"`
-	MailMode string   `json:"mail_mode"`
-	Timezone string   `json:"timezone"`
+	Version            int      `json:"version"`
+	ModelPolicyVersion int      `json:"model_policy_version,omitempty"`
+	Limits             Limits   `json:"limits"`
+	Executor           Executor `json:"executor"`
+	Routes             Routes   `json:"routes,omitempty"`
+	MailMode           string   `json:"mail_mode"`
+	Timezone           string   `json:"timezone"`
+}
+
+// ApplyConversationPolicy changes only selected execution identities. Existing
+// homes opt in explicitly, because a new model or effort needs fresh disclosure
+// approval and independent executable compatibility checks.
+func (c *Config) ApplyConversationPolicy() error {
+	if c.Executor.Kind == "" || c.Executor.Path == "" {
+		return errors.New("configure the task executable before applying the conversation policy")
+	}
+	base := c.Executor
+	base.RevokeDisclosure()
+	sol := base
+	sol.Model, sol.ReasoningEffort = "gpt-6-sol", "xhigh"
+	chat := sol
+	chat.ReasoningEffort = "medium"
+	luna := base
+	luna.Model, luna.ReasoningEffort = "gpt-6-luna", "xhigh"
+	c.Executor = sol
+	c.Routes.Reception = &chat
+	c.Routes.Review = &sol
+	c.Routes.Collection = &luna
+	c.Routes.Refinement = &luna
+	c.Routes.Synthesis = &sol
+	c.ModelPolicyVersion = 1
+	return c.Validate()
 }
 
 func (c Config) ExecutorFor(role string) Executor {
-	if role == RoleReception && c.Routes.Reception != nil {
-		return *c.Routes.Reception
-	}
-	if role == RoleReview && c.Routes.Review != nil {
-		return *c.Routes.Review
+	switch role {
+	case RoleReception:
+		if c.Routes.Reception != nil {
+			return *c.Routes.Reception
+		}
+	case RoleReview:
+		if c.Routes.Review != nil {
+			return *c.Routes.Review
+		}
+	case RoleCollection:
+		if c.Routes.Collection != nil {
+			return *c.Routes.Collection
+		}
+	case RoleRefinement:
+		if c.Routes.Refinement != nil {
+			return *c.Routes.Refinement
+		}
+	case RoleSynthesis:
+		if c.Routes.Synthesis != nil {
+			return *c.Routes.Synthesis
+		}
 	}
 	return c.Executor
+}
+
+func ValidEffort(effort string) bool {
+	switch effort {
+	case "", "minimal", "low", "medium", "high", "xhigh", "max", "ultra":
+		return true
+	}
+	return false
 }
 
 func Defaults() Config {
@@ -211,7 +273,10 @@ func (c Config) Validate() error {
 			return errors.New("configured byte budget exceeds supported range")
 		}
 	}
-	for _, selected := range []Executor{c.ExecutorFor(RoleTask), c.ExecutorFor(RoleReception), c.ExecutorFor(RoleReview)} {
+	for _, selected := range []Executor{c.ExecutorFor(RoleTask), c.ExecutorFor(RoleReception), c.ExecutorFor(RoleReview), c.ExecutorFor(RoleCollection), c.ExecutorFor(RoleRefinement), c.ExecutorFor(RoleSynthesis)} {
+		if !ValidEffort(selected.ReasoningEffort) {
+			return errors.New("unsupported reasoning effort")
+		}
 		if selected.LiveJiraPolicyDigest != "" && !files.ValidDigest(selected.LiveJiraPolicyDigest) {
 			return errors.New("live_jira_policy_digest must be a SHA-256 digest")
 		}

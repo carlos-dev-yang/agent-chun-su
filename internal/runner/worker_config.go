@@ -60,7 +60,7 @@ func (r *Runner) workerConfig(ctx context.Context, input json.RawMessage) (worke
 		}
 		// A source is a snapshot of its execution identity only. Its source-data
 		// disclosure grants and Jira policy proof never transfer to the task route.
-		next = config.Executor{Kind: source.Kind, Path: source.Path, Model: source.Model, Environment: source.Environment}
+		next = config.Executor{Kind: source.Kind, Path: source.Path, Model: source.Model, ReasoningEffort: source.ReasoningEffort, Environment: source.Environment}
 		next.RevokeDisclosure()
 	}
 	preserveInheritedRoutes(&updated)
@@ -138,7 +138,7 @@ func preserveInheritedRoutes(c *config.Config) {
 }
 
 func sameWorkerIdentity(a, b config.Executor) bool {
-	return a.Kind == b.Kind && a.Path == b.Path && a.Model == b.Model && a.Environment == b.Environment
+	return a.Kind == b.Kind && a.Path == b.Path && a.Model == b.Model && a.ReasoningEffort == b.ReasoningEffort && a.Environment == b.Environment
 }
 
 func workerConfigUnchanged(c config.Config) workerconfig.Result {

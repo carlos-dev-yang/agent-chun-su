@@ -8,6 +8,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,13 +21,13 @@ import (
 // ConversationArguments gives the model no native tools. Structured proposals
 // are validated and dispatched later by the host, outside this process.
 func ConversationArguments(directory, model string) []string {
-	return conversationArguments(directory, model, runtimeenv.Boundary{ReadRoots: []string{directory}})
+	return conversationArguments(directory, model, "low", runtimeenv.Boundary{ReadRoots: []string{directory}})
 }
 
-func conversationArguments(directory, model string, boundary runtimeenv.Boundary) []string {
+func conversationArguments(directory, model, effort string, boundary runtimeenv.Boundary) []string {
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", directory, "--output-schema", filepath.Join(directory, "response.schema.json")}
 	args = append(args, boundaryArgs(boundary)...)
-	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `mcp_servers={}`, "-c", `project_doc_max_bytes=0`, "-c", `model_reasoning_effort="low"`, "--enable", "skip_host_skill_discovery")
+	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `mcp_servers={}`, "-c", `project_doc_max_bytes=0`, "-c", `model_reasoning_effort=`+strconv.Quote(effort), "--enable", "skip_host_skill_discovery")
 	for _, feature := range disabledFeatures {
 		args = append(args, "--disable", feature)
 	}
@@ -70,7 +71,7 @@ func runCodexStructured(parent context.Context, role, root, directory string, se
 		return result, err
 	}
 	result.Boundary = &boundary
-	arguments := conversationArguments(directory, selected.Model, boundary)
+	arguments := conversationArguments(directory, selected.Model, reasoningEffort(selected, "low"), boundary)
 	argumentBytes, _ := json.Marshal(arguments)
 	result.ArgumentsDigest = files.Digest(argumentBytes)
 	defer func() {

@@ -17,13 +17,55 @@ func (o *options) configModels() *cobra.Command {
 	}}
 }
 
+func (o *options) configPolicy() *cobra.Command {
+	cmd := &cobra.Command{Use: "policy", Short: "Inspect or explicitly apply the conversation model policy"}
+	cmd.AddCommand(&cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := o.path()
+		if err != nil {
+			return err
+		}
+		c, err := config.Load(root)
+		if err != nil {
+			return err
+		}
+		return output(cmd, map[string]any{"version": c.ModelPolicyVersion, "task": c.ExecutorFor(config.RoleTask), "reception": c.ExecutorFor(config.RoleReception), "collection": c.ExecutorFor(config.RoleCollection), "refinement": c.ExecutorFor(config.RoleRefinement), "synthesis": c.ExecutorFor(config.RoleSynthesis), "review": c.ExecutorFor(config.RoleReview)})
+	}})
+	cmd.AddCommand(&cobra.Command{Use: "apply", Short: "Select Sol medium chat, Luna xhigh evidence, and Sol xhigh synthesis; revoke changed-route disclosure grants", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		root, err := o.path()
+		if err != nil {
+			return err
+		}
+		c, err := config.Load(root)
+		if err != nil {
+			return err
+		}
+		lock, err := platform.Acquire(cmd.Context(), root, time.Duration(c.Limits.LockWaitSeconds)*time.Second)
+		if err != nil {
+			return err
+		}
+		defer lock.Close()
+		c, err = config.Load(root)
+		if err != nil {
+			return err
+		}
+		if err = c.ApplyConversationPolicy(); err != nil {
+			return err
+		}
+		if err = config.Save(root, c); err != nil {
+			return err
+		}
+		return output(cmd, map[string]any{"version": c.ModelPolicyVersion, "status": "configured_unvalidated", "disclosures": "revoked", "compatibility": "run doctor and synthetic boundary validation for this executable"})
+	}})
+	return cmd
+}
+
 func (o *options) configRoute() *cobra.Command {
-	var driver, path, model, environment string
+	var driver, path, model, environment, effort string
 	var inherit bool
-	cmd := &cobra.Command{Use: "route ROLE", Short: "Select the task, reception or review driver independently", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "route ROLE", Short: "Select a role's execution identity independently", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		role := args[0]
-		if role != config.RoleTask && role != config.RoleReception && role != config.RoleReview {
-			return errors.New("role must be task, reception or review")
+		if role != config.RoleTask && role != config.RoleReception && role != config.RoleReview && role != config.RoleCollection && role != config.RoleRefinement && role != config.RoleSynthesis {
+			return errors.New("unsupported role")
 		}
 		root, err := o.path()
 		if err != nil {
@@ -43,16 +85,23 @@ func (o *options) configRoute() *cobra.Command {
 			return err
 		}
 		if inherit {
-			if role == config.RoleTask || driver != "" || path != "" || model != "" || environment != "" {
-				return errors.New("inherit applies only to reception/review and cannot be combined with route fields")
+			if role == config.RoleTask || driver != "" || path != "" || model != "" || environment != "" || effort != "" {
+				return errors.New("inherit applies only to a non-task role and cannot be combined with route fields")
 			}
-			if role == config.RoleReception {
+			switch role {
+			case config.RoleReception:
 				c.Routes.Reception = nil
-			} else {
+			case config.RoleReview:
 				c.Routes.Review = nil
+			case config.RoleCollection:
+				c.Routes.Collection = nil
+			case config.RoleRefinement:
+				c.Routes.Refinement = nil
+			case config.RoleSynthesis:
+				c.Routes.Synthesis = nil
 			}
 		} else {
-			if driver == "" && path == "" && model == "" && environment == "" {
+			if driver == "" && path == "" && model == "" && environment == "" && effort == "" {
 				return output(cmd, map[string]any{"role": role, "executor": c.ExecutorFor(role)})
 			}
 			selected := c.ExecutorFor(role)
@@ -68,6 +117,12 @@ func (o *options) configRoute() *cobra.Command {
 			if environment != "" {
 				selected.Environment = environment
 			}
+			if effort != "" {
+				if !config.ValidEffort(effort) {
+					return errors.New("unsupported reasoning effort")
+				}
+				selected.ReasoningEffort = effort
+			}
 			if _, err = executor.Select(selected.Kind); err != nil {
 				return err
 			}
@@ -82,6 +137,12 @@ func (o *options) configRoute() *cobra.Command {
 				c.Routes.Reception = &selected
 			case config.RoleReview:
 				c.Routes.Review = &selected
+			case config.RoleCollection:
+				c.Routes.Collection = &selected
+			case config.RoleRefinement:
+				c.Routes.Refinement = &selected
+			case config.RoleSynthesis:
+				c.Routes.Synthesis = &selected
 			}
 		}
 		if err = config.Save(root, c); err != nil {
@@ -93,6 +154,7 @@ func (o *options) configRoute() *cobra.Command {
 	cmd.Flags().StringVar(&path, "path", "", "Driver executable path")
 	cmd.Flags().StringVar(&model, "model", "", "Model selected for this role")
 	cmd.Flags().StringVar(&environment, "environment", "", "Execution environment adapter")
+	cmd.Flags().StringVar(&effort, "effort", "", "Reasoning effort for the selected model")
 	cmd.Flags().BoolVar(&inherit, "inherit", false, "Use task route again (reception/review only)")
 	return cmd
 }

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"chunsu/internal/config"
 	"chunsu/internal/runtimeenv"
 )
 
@@ -14,6 +15,8 @@ const (
 	// historical evidence.
 	TestedModel = "gpt-5.5"
 	AstraModel  = "gpt-6-astra"
+	SolModel    = "gpt-6-sol"
+	LunaModel   = "gpt-6-luna"
 )
 
 type ModelPreset struct {
@@ -35,6 +38,8 @@ var codexModelPresets = [...]ModelPreset{
 	{ID: TestedModel, Status: "validated"},
 	// Validated for the synthetic macOS/arm64 task boundary only.
 	{ID: AstraModel, Status: "validated", ReasoningEffort: "low", CodeModeOnly: true},
+	{ID: SolModel, Status: "candidate", ReasoningEffort: "xhigh"},
+	{ID: LunaModel, Status: "candidate", ReasoningEffort: "xhigh"},
 }
 
 // CodexModels describes the local model policy without contacting a provider.
@@ -44,7 +49,7 @@ func CodexModels() ModelMetadata {
 	return ModelMetadata{
 		Driver:       "codex",
 		Version:      TestedVersion,
-		DefaultModel: AstraModel,
+		DefaultModel: SolModel,
 		Models:       models,
 		Environment:  runtimeenv.NativeRestricted,
 	}
@@ -57,6 +62,16 @@ func codexModelPreset(id string) (ModelPreset, bool) {
 		}
 	}
 	return ModelPreset{}, false
+}
+
+func reasoningEffort(selected config.Executor, fallback string) string {
+	if selected.ReasoningEffort != "" {
+		return selected.ReasoningEffort
+	}
+	if preset, ok := codexModelPreset(selected.Model); ok && preset.ReasoningEffort != "" {
+		return preset.ReasoningEffort
+	}
+	return fallback
 }
 
 func codexReportFeatures(model string) []string {

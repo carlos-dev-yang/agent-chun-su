@@ -668,7 +668,7 @@ func verifyJiraSyntheticAttempt(s *store.Store, c config.Config, j store.Job, at
 	if requiredDigest != "" && (manifest.WorkgroupDigest != requiredDigest || manifest.Skill.Name != requiredSkill.Name || manifest.Skill.Description != requiredSkill.Description || manifest.Skill.Digest != files.Digest([]byte(requiredSkill.Markdown))) {
 		return errors.New("synthetic Jira proof does not match the selected live Jira Skill")
 	}
-	if manifest.Executor.Kind != c.Executor.Kind || manifest.Executor.Path != c.Executor.Path || manifest.Executor.Model != c.Executor.Model {
+	if manifest.Executor.Kind != c.Executor.Kind || manifest.Executor.Path != c.Executor.Path || manifest.Executor.Model != c.Executor.Model || manifest.Executor.ReasoningEffort != c.Executor.ReasoningEffort {
 		return errors.New("synthetic Jira proof used a different executor configuration")
 	}
 	if result.Outcome != "generated" || result.ExitCode != 0 || len(result.ObservedTools) == 0 {
