@@ -1,6 +1,7 @@
 package stagedworkflow
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -140,7 +141,7 @@ func validateEvidence(raw RawBundle, data []byte, limits config.Limits) (Evidenc
 		return evidence, err
 	}
 	rawData, _ := json.Marshal(raw)
-	if evidence.Version != 1 || evidence.Workgroup != raw.Workgroup || evidence.InputDigest != raw.InputDigest || evidence.RawBundleDigest != files.Digest(rawData) || string(evidence.PinnedMetadata) != string(raw.PinnedMetadata) || len(evidence.Sources) != len(raw.Sources) {
+	if evidence.Version != 1 || evidence.Workgroup != raw.Workgroup || evidence.InputDigest != raw.InputDigest || evidence.RawBundleDigest != files.Digest(rawData) || !samePinnedJSON(evidence.PinnedMetadata, raw.PinnedMetadata) || len(evidence.Sources) != len(raw.Sources) {
 		return evidence, errors.New("refined evidence changed pinned source scope or metadata")
 	}
 	known := map[string]RawSource{}
@@ -166,6 +167,17 @@ func validateEvidence(raw RawBundle, data []byte, limits config.Limits) (Evidenc
 		}
 	}
 	return evidence, nil
+}
+
+// JSON RawMessage formatting can change when an envelope is marshaled. Ignore
+// whitespace only; source IDs, source digests and the raw bundle digest above
+// remain exact byte-bound checks.
+func samePinnedJSON(a, b json.RawMessage) bool {
+	var left, right bytes.Buffer
+	if json.Compact(&left, a) != nil || json.Compact(&right, b) != nil {
+		return false
+	}
+	return bytes.Equal(left.Bytes(), right.Bytes())
 }
 
 // sourceContent is a deterministic readable projection of the exact pinned
