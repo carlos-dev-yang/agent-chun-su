@@ -18,6 +18,16 @@ migration validation are authorized; production migration/activation and live
 disclosure changes remain explicit operational actions. See FLOW-00–05 for
 accurate completion status and evidence.
 
+The FLOW implementation is committed locally and its focused structural review
+is complete. Disposable CLI acceptance covers role policy, conversation reset
+and selected-job handoff, staged mail and code execution, and durable result delivery.
+Jira staged refinement failed the exact-source-excerpt validator twice, so its
+full staged report path needs a new grounding decision before acceptance.
+Credential-backed public web, live private sources, Telegram transport and
+production schema-5 activation have not been exercised. The
+[FLOW validation and activation runbook](docs/validation/FLOW_2026-09-28.md)
+records the exact checks and operational boundary.
+
 On 2026-09-25 the user requested research and a next-step plan for web search
 and AI browser interaction on the existing EC2 installation, then authorized
 the public read-only implementation and a Git push after local validation. The

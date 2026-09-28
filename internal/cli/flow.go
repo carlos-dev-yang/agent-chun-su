@@ -120,6 +120,32 @@ func (o *options) flow() *cobra.Command {
 		}
 		return output(command, map[string]any{"workflow": workflow, "steps": steps, "results": selected})
 	}}
+	artifact := &cobra.Command{Use: "artifact JOB_ID ARTIFACT_ID", Short: "Inspect one verified stage artifact on the owner CLI", Args: cobra.ExactArgs(2), RunE: func(command *cobra.Command, args []string) error {
+		s, c, closeStore, err := o.open(command.Context(), false)
+		if err != nil {
+			return err
+		}
+		defer closeStore()
+		artifacts, err := s.Artifacts(command.Context(), args[0])
+		if err != nil {
+			return err
+		}
+		for _, entry := range artifacts {
+			if entry.ID != args[1] {
+				continue
+			}
+			data, readErr := s.ReadArtifact(entry, c.Limits.MaxArtifactBytes)
+			if readErr != nil {
+				return readErr
+			}
+			var content any = string(data)
+			if json.Valid(data) {
+				content = json.RawMessage(data)
+			}
+			return output(command, map[string]any{"artifact": entry, "content": content})
+		}
+		return errors.New("artifact is not attached to this job")
+	}}
 	result := &cobra.Command{Use: "result EVENT_ID", Short: "Read a complete validated result on the owner CLI", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, args []string) error {
 		s, c, closeStore, err := o.open(command.Context(), false)
 		if err != nil {
@@ -227,7 +253,7 @@ func (o *options) flow() *cobra.Command {
 			return o.flowControl(command, req)
 		}})
 	}
-	cmd.AddCommand(submit, web, run, inspect, result)
+	cmd.AddCommand(submit, web, run, inspect, artifact, result)
 	return cmd
 }
 

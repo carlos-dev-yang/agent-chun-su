@@ -1,6 +1,9 @@
 # FLOW-01 — Durable conversation coordination and staged work
 
-Status: design established; implementation and acceptance pending.
+Status: implementation committed; local acceptance partial. Mail and code staged execution
+and CLI handoff completed on disposable synthetic data. Jira exact-excerpt refinement
+failed twice under strict validation; live web and production activation remain
+unperformed. See [the validation record](../validation/FLOW_2026-09-28.md).
 
 ## Authorization and scope
 
@@ -188,11 +191,11 @@ enforced even as stage identities become explicit.
 | Unit | Deliverable | Required evidence | Status |
 |---|---|---|---|
 | FLOW-00 | This design and implementation-plan entry | Code-grounded ownership and contracts | designed |
-| FLOW-01 | Role model/effort policy and durable conversation store | Configuration projection; restore/reset; compatibility outcomes | pending |
-| FLOW-02 | Durable job steps, attempts, controls and recovery | Dependency gating; stale rejection; cancellation/restart; migration on disposable schema-4 DB | pending |
-| FLOW-03 | Mail/Jira/code staged extraction and synthesis | Preserved source validation; stage-specific executor receipts; targeted existing checks | pending |
-| FLOW-04 | Web jobs and conversation result handoff | Public boundaries/quota; job admission; durable event ingestion and restart deduplication | pending |
-| FLOW-05 | Integration, docs and focused structural review | Coherent CLI/Telegram walkthroughs; one structural review; explicit unperformed live checks | pending |
+| FLOW-01 | Role model/effort policy and durable conversation store | Configuration projection; restore/reset; compatibility outcomes | implemented; disposable CLI reset/select and exact macOS CLI selectors checked; Telegram live restore untested |
+| FLOW-02 | Durable job steps, attempts, controls and recovery | Dependency gating; stale rejection; cancellation/restart; migration on disposable schema-4 DB | implemented; disposable migration and mail retry/checkpoint checked; live cancellation/restart untested |
+| FLOW-03 | Mail/Jira/code staged extraction and synthesis | Preserved source validation; stage-specific executor receipts; targeted existing checks | partial acceptance: mail and code synthetic paths completed with Luna/Sol receipts and host validation; Jira Luna excerpt grounding rejected twice, so Jira synthesis remains unverified |
+| FLOW-04 | Web jobs and conversation result handoff | Public boundaries/quota; job admission; durable event ingestion and restart deduplication | partial acceptance: selected-origin CLI handoff and receipt completion checked; Brave-backed web and Telegram transport untested |
+| FLOW-05 | Integration, docs and focused structural review | Coherent CLI/Telegram walkthroughs; one structural review; explicit unperformed live checks | implementation and focused review complete; disposable CLI checked; Telegram/live/production checks pending |
 
 Implementation can adjust package/file layout without changing these contracts.
 New architecture, model substitutions, live permission changes or deployment
