@@ -137,6 +137,9 @@ func (s *Store) Cancel(ctx context.Context, id string) error {
 	if _, err = tx.ExecContext(ctx, "UPDATE attempts SET status=?,ended_at=?,diagnostic=? WHERE job_id=? AND status=?", Cancelled, now(), "cancelled by user", id, Running); err != nil {
 		return err
 	}
+	if err = s.cancelStagedTx(ctx, tx, id); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, "INSERT INTO events(job_id,attempt_id,kind,created_at,data_json) VALUES(?,?,?,?,?)", id, j.CurrentAttempt, "job.cancelled", now(), `{}`); err != nil {
 		return err
 	}
