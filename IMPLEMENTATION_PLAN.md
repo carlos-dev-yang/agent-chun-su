@@ -6,6 +6,18 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+On 2026-09-28 the owner authorized the design and implementation of
+[durable conversation coordination and staged jobs](docs/implementation/CONVERSATION_TASKS_2026-09-28.md).
+The primary agent owns design; implementation and a bounded structural review
+use GPT-6 Sol xhigh. The selected application policy is Sol medium for chat,
+Luna xhigh for collection/refinement and Sol xhigh for synthesis, with no Astra
+default/fallback. Scope includes web, mail, Jira and code snapshots. Conversation
+state survives restart; jobs carry durable task steps and return validated
+results to their originating conversation. Local implementation and disposable
+migration validation are authorized; production migration/activation and live
+disclosure changes remain explicit operational actions. See FLOW-00–05 for
+accurate completion status and evidence.
+
 On 2026-09-25 the user requested research and a next-step plan for web search
 and AI browser interaction on the existing EC2 installation, then authorized
 the public read-only implementation and a Git push after local validation. The
