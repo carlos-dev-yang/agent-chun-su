@@ -707,6 +707,12 @@ func (s *Store) SupersedeJobRevision(ctx context.Context, jobID string, expected
 	if running > 0 {
 		return ErrStepBlocked
 	}
+	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM result_events WHERE job_id=? AND delivery_status=?", jobID, ResultSending).Scan(&running); err != nil {
+		return err
+	}
+	if running > 0 {
+		return ErrStepBlocked
+	}
 	result, err := tx.ExecContext(ctx, "UPDATE workflow_jobs SET request_revision=?,updated_at=? WHERE job_id=? AND request_revision=? AND EXISTS(SELECT 1 FROM jobs WHERE id=? AND status=?)", nextRevision, now(), jobID, expectedRevision, jobID, Staged)
 	if err != nil {
 		return err

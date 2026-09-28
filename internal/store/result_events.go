@@ -138,18 +138,24 @@ func (s *Store) ResultEvent(ctx context.Context, eventID string) (ResultEvent, e
 	return scanResultEvent(s.DB.QueryRowContext(ctx, "SELECT "+resultEventColumns+" FROM result_events WHERE id=?", eventID))
 }
 
+// ResultEventForHandoff rejects an event from a superseded request. ResultEvent
+// and ResultEvents remain available for historical inspection.
+func (s *Store) ResultEventForHandoff(ctx context.Context, eventID, conversationID string) (ResultEvent, error) {
+	return scanResultEvent(s.DB.QueryRowContext(ctx, "SELECT "+resultEventColumns+" FROM result_events WHERE id=? AND conversation_id=? AND EXISTS(SELECT 1 FROM workflow_jobs w WHERE w.job_id=result_events.job_id AND w.request_revision=result_events.request_revision)", eventID, conversationID))
+}
+
 // PendingResultEvents excludes sending and unconfirmed events so uncertain
 // transport outcomes are not replayed after a restart.
 func (s *Store) PendingResultEvents(ctx context.Context, conversationID string) ([]ResultEvent, error) {
-	return s.resultEvents(ctx, conversationID, ResultAvailable)
+	return s.resultEvents(ctx, conversationID, ResultAvailable, true)
 }
 
 func (s *Store) ResultEvents(ctx context.Context, conversationID string) ([]ResultEvent, error) {
-	return s.resultEvents(ctx, conversationID, "")
+	return s.resultEvents(ctx, conversationID, "", false)
 }
 
-func (s *Store) resultEvents(ctx context.Context, conversationID, deliveryStatus string) ([]ResultEvent, error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT "+resultEventColumns+" FROM result_events WHERE conversation_id=? AND (?='' OR delivery_status=?) ORDER BY created_at,id", conversationID, deliveryStatus, deliveryStatus)
+func (s *Store) resultEvents(ctx context.Context, conversationID, deliveryStatus string, currentRevisionOnly bool) ([]ResultEvent, error) {
+	rows, err := s.DB.QueryContext(ctx, "SELECT "+resultEventColumns+" FROM result_events WHERE conversation_id=? AND (?='' OR delivery_status=?) AND (?=0 OR EXISTS(SELECT 1 FROM workflow_jobs w WHERE w.job_id=result_events.job_id AND w.request_revision=result_events.request_revision)) ORDER BY created_at,id", conversationID, deliveryStatus, deliveryStatus, currentRevisionOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -186,11 +192,15 @@ func (s *Store) MarkResultDelivery(ctx context.Context, eventID, status string) 
 	}
 	defer tx.Rollback()
 	var old, jobID string
-	if err = tx.QueryRowContext(ctx, "SELECT delivery_status,job_id FROM result_events WHERE id=?", eventID).Scan(&old, &jobID); err != nil {
+	var eventRevision, currentRevision int64
+	if err = tx.QueryRowContext(ctx, "SELECT e.delivery_status,e.job_id,e.request_revision,w.request_revision FROM result_events e JOIN workflow_jobs w ON w.job_id=e.job_id WHERE e.id=?", eventID).Scan(&old, &jobID, &eventRevision, &currentRevision); err != nil {
 		return err
 	}
 	if old == status {
 		return nil
+	}
+	if old == ResultAvailable && eventRevision != currentRevision {
+		return ErrStaleStep
 	}
 	if !allowedDeliveryTransition(old, status) {
 		return errors.New("invalid or stale result delivery transition")
