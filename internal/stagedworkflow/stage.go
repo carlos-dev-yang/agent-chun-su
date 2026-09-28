@@ -227,7 +227,7 @@ func synthesize(ctx context.Context, in StageInput) (StageOutput, error) {
 		}
 		skill = []byte(selected.Markdown)
 	}
-	prompt, _ := json.Marshal(map[string]any{"task": "Produce the selected domain report from the original request, pinned metadata and verified facts. No raw source retrieval or network tools are available. If evidence is insufficient, disclose that in the schema's gaps/limitations fields; do not invent facts.", "original_objective": in.Objective, "pinned_metadata": evidence.PinnedMetadata, "evidence": evidence})
+	prompt, _ := json.Marshal(map[string]any{"task": "Produce the selected domain report from the original request, pinned metadata and verified facts. In this staged execution, the host collected each admitted immutable source and recorded its ID and digest before Luna refined exact excerpts. This host collection is the source inspection proof for the selected Skill's gateway requirement. You have no gateway, raw source, filesystem, or network tools in this synthesis stage. Never claim that you personally called a gateway or inspected an unavailable source. If evidence is insufficient, disclose that in the schema's gaps/limitations fields; do not invent facts.", "original_objective": in.Objective, "pinned_metadata": evidence.PinnedMetadata, "evidence": evidence})
 	result, err := runModel(ctx, in, config.RoleSynthesis, prompt, schema, skill)
 	if err != nil {
 		return StageOutput{Receipt: &result}, err
