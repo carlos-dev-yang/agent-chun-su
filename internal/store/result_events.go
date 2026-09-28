@@ -16,6 +16,8 @@ const (
 	ResultDelivered        = "delivered"
 	ResultUnconfirmed      = "unconfirmed"
 	ResultDeliveryFailed   = "failed"
+	ResultResolutionSent   = "sent"
+	ResultResolutionRetry  = "retry"
 	MaxResultSummaryBytes  = 4096
 	MaxResultMetadataBytes = 16384
 )
@@ -150,6 +152,13 @@ func (s *Store) PendingResultEvents(ctx context.Context, conversationID string) 
 	return s.resultEvents(ctx, conversationID, ResultAvailable, true)
 }
 
+// SendingResultEvents is for a caller that holds the conversation's exclusive
+// delivery lease. The caller must establish that the prior sender has exited
+// before reconciling any event returned here.
+func (s *Store) SendingResultEvents(ctx context.Context, conversationID string) ([]ResultEvent, error) {
+	return s.resultEvents(ctx, conversationID, ResultSending, true)
+}
+
 func (s *Store) ResultEvents(ctx context.Context, conversationID string) ([]ResultEvent, error) {
 	return s.resultEvents(ctx, conversationID, "", false)
 }
@@ -177,8 +186,6 @@ func allowedDeliveryTransition(from, to string) bool {
 		return to == ResultSending || to == ResultDelivered
 	case ResultSending:
 		return to == ResultDelivered || to == ResultUnconfirmed || to == ResultDeliveryFailed
-	case ResultUnconfirmed:
-		return to == ResultDelivered
 	case ResultDeliveryFailed:
 		return to == ResultAvailable
 	}
@@ -205,7 +212,11 @@ func (s *Store) MarkResultDelivery(ctx context.Context, eventID, status string) 
 	if !allowedDeliveryTransition(old, status) {
 		return errors.New("invalid or stale result delivery transition")
 	}
-	result, err := tx.ExecContext(ctx, "UPDATE result_events SET delivery_status=?,updated_at=? WHERE id=? AND delivery_status=?", status, now(), eventID, old)
+	var oldUpdatedAt int64
+	if err = tx.QueryRowContext(ctx, "SELECT updated_at FROM result_events WHERE id=?", eventID).Scan(&oldUpdatedAt); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, "UPDATE result_events SET delivery_status=?,updated_at=? WHERE id=? AND delivery_status=? AND updated_at=?", status, nextResultTransitionTime(oldUpdatedAt), eventID, old, oldUpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -214,9 +225,89 @@ func (s *Store) MarkResultDelivery(ctx context.Context, eventID, status string) 
 		return ErrStaleStep
 	}
 	if status == ResultDelivered {
-		// Completion requires all required steps and all result handoffs.
-		_, err = tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=? WHERE id=? AND status=? AND NOT EXISTS(SELECT 1 FROM workflow_steps WHERE job_id=? AND state!=?) AND NOT EXISTS(SELECT 1 FROM result_events WHERE job_id=? AND delivery_status!=?)", Completed, now(), jobID, Staged, jobID, StepCompleted, jobID, ResultDelivered)
-		if err != nil {
+		if err = completeDeliveredJobTx(ctx, tx, jobID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func nextResultTransitionTime(previous int64) int64 {
+	current := now()
+	if current <= previous {
+		return previous + 1
+	}
+	return current
+}
+
+func completeDeliveredJobTx(ctx context.Context, tx *sql.Tx, jobID string) error {
+	// Completion requires all required steps and all result handoffs.
+	_, err := tx.ExecContext(ctx, "UPDATE jobs SET status=?,updated_at=? WHERE id=? AND status=? AND NOT EXISTS(SELECT 1 FROM workflow_steps WHERE job_id=? AND state!=?) AND NOT EXISTS(SELECT 1 FROM result_events WHERE job_id=? AND delivery_status!=?)", Completed, now(), jobID, Staged, jobID, StepCompleted, jobID, ResultDelivered)
+	return err
+}
+
+// ReconcileAbandonedResultSend marks one send as uncertain. Call only while
+// holding the conversation delivery lease after the previous sender has exited.
+// The expected timestamp prevents reconciling a newer send accidentally.
+func (s *Store) ReconcileAbandonedResultSend(ctx context.Context, eventID, conversationID string, expectedUpdatedAt int64) error {
+	if eventID == "" || conversationID == "" || expectedUpdatedAt <= 0 {
+		return errors.New("event, conversation and expected timestamp are required")
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var jobID string
+	err = tx.QueryRowContext(ctx, "UPDATE result_events SET delivery_status=?,updated_at=? WHERE id=? AND conversation_id=? AND delivery_status=? AND updated_at=? AND EXISTS(SELECT 1 FROM workflow_jobs w WHERE w.job_id=result_events.job_id AND w.request_revision=result_events.request_revision) RETURNING job_id", ResultUnconfirmed, nextResultTransitionTime(expectedUpdatedAt), eventID, conversationID, ResultSending, expectedUpdatedAt).Scan(&jobID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrStaleStep
+	}
+	if err != nil {
+		return err
+	}
+	data, _ := json.Marshal(map[string]string{"event_id": eventID})
+	if _, err = tx.ExecContext(ctx, "INSERT INTO events(job_id,kind,created_at,data_json) VALUES(?,?,?,?)", jobID, "result.abandoned_send", now(), string(data)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ResolveUnconfirmedResult records the owner's explicit decision after an
+// uncertain send. Retry makes the event available for a new delivery attempt;
+// sent records a confirmed prior send. Neither action occurs automatically.
+func (s *Store) ResolveUnconfirmedResult(ctx context.Context, eventID, conversationID string, expectedUpdatedAt int64, resolution string) error {
+	if eventID == "" || conversationID == "" || expectedUpdatedAt <= 0 {
+		return errors.New("event, conversation and expected timestamp are required")
+	}
+	var target string
+	switch resolution {
+	case ResultResolutionSent:
+		target = ResultDelivered
+	case ResultResolutionRetry:
+		target = ResultAvailable
+	default:
+		return errors.New("invalid result resolution")
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var jobID string
+	err = tx.QueryRowContext(ctx, "UPDATE result_events SET delivery_status=?,updated_at=? WHERE id=? AND conversation_id=? AND delivery_status=? AND updated_at=? AND EXISTS(SELECT 1 FROM workflow_jobs w WHERE w.job_id=result_events.job_id AND w.request_revision=result_events.request_revision) RETURNING job_id", target, nextResultTransitionTime(expectedUpdatedAt), eventID, conversationID, ResultUnconfirmed, expectedUpdatedAt).Scan(&jobID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrStaleStep
+	}
+	if err != nil {
+		return err
+	}
+	data, _ := json.Marshal(map[string]string{"event_id": eventID, "resolution": resolution})
+	if _, err = tx.ExecContext(ctx, "INSERT INTO events(job_id,kind,created_at,data_json) VALUES(?,?,?,?)", jobID, "result.resolved", now(), string(data)); err != nil {
+		return err
+	}
+	if target == ResultDelivered {
+		if err = completeDeliveredJobTx(ctx, tx, jobID); err != nil {
 			return err
 		}
 	}
