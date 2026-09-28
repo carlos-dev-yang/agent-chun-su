@@ -21,6 +21,7 @@ import (
 )
 
 const Help = "Describe what you need in plain language. The commands below work even when AI replies are unavailable.\n/status current status · /errors error reports · /ack errorID acknowledge an error · /jobs job list\n/pause pause the queue · /resume resume the queue · /cancel jobID cancel a job · /retry jobID retry a job\n/controller start|stop|restart|status manage the controller · /worker start|stop|restart|status manage the work runner · /worker config [use reception|use review|model MODEL] inspect or save task AI settings\n/web status|enable|disable|limit NUMBER · /web open HTTPS_URL · /web search QUERY (public read-only)\n/update check · /update status · /update fetch and apply the owner-configured update\n/features available features · /install featureID install a feature · /guide list manuals · /guide runtime process usage and recovery · /guide ID read a manual\n/language auto · /language ko · /language en · /language ja · /language pt-BR · /언어 auto\n/tone options · /tone current · /tone reset · /말투 옵션 · /말투 현재 · /말투 초기화\n/cancel stop the current reply · /reset start a new conversation · /help show this help\nComplete account authentication and secret entry in the host's local or SSH configuration."
+const JobHelp = "/job ID inspect staged steps · /job results ID inspect result events · /job pause|resume ID control the next step · /job approve STEP_ID · /job retry STEP_ID ATTEMPT_ID · /job select PRIOR_CONVERSATION_ID JOB_ID link one old job"
 
 // Command returns handled=false only for ordinary conversation. Unknown slash
 // commands are answered mechanically so they cannot accidentally become actions.
@@ -42,6 +43,9 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 	}
 	if name == "/web" {
 		return h.webCommand(ctx, channel, request, parts)
+	}
+	if name == "/job" {
+		return h.jobCommand(ctx, parts)
 	}
 	if name == "/controller" || name == "/worker" {
 		if channel != Local && channel != Telegram {
@@ -67,7 +71,7 @@ func (h Host) Command(ctx context.Context, channel, request string) (string, boo
 		return result.Message, true, nil
 	}
 	if name == "/help" || name == "/start" {
-		return Help, true, nil
+		return Help + "\n" + JobHelp, true, nil
 	}
 	if name == "/guide" && len(parts) == 1 {
 		menu, err := conversation.ManualMenu()

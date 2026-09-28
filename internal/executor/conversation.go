@@ -51,7 +51,7 @@ func runCodexStructured(parent context.Context, role, root, directory string, se
 	if err != nil {
 		return result, err
 	}
-	if err = codexCompatibility(role, version, selected.Model); err != nil {
+	if err = codexSelectedCompatibility(role, version, selected); err != nil {
 		return result, err
 	}
 	if err = files.PrivateDir(directory); err != nil {

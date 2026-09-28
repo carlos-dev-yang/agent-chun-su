@@ -104,7 +104,17 @@ func (r *Runner) setWorker(ctx context.Context, enabled bool, restart bool) erro
 		r.mu.Unlock()
 		return errors.New(r.workerErr)
 	}
-	if executor.Inspect(ctx, config.RoleTask, r.Store.Root, c.Executor, c.Limits).Status != "prerequisites_match" {
+	ready := executor.Inspect(ctx, config.RoleTask, r.Store.Root, c.Executor, c.Limits).Status == "prerequisites_match"
+	if c.ModelPolicyVersion == 1 {
+		ready = true
+		for _, role := range []string{config.RoleCollection, config.RoleRefinement, config.RoleSynthesis} {
+			if executor.Inspect(ctx, role, r.Store.Root, c.ExecutorFor(role), c.Limits).Status != "prerequisites_match" {
+				ready = false
+				break
+			}
+		}
+	}
+	if !ready {
 		r.mu.Lock()
 		r.dispatch = false
 		r.workerErr = "worker_prerequisites_unavailable"
@@ -196,7 +206,7 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 	if req.Operation == "worker_config" {
 		return r.workerConfig(ctx, req.Input)
 	}
-	if r.admissionBlocked() && (strings.HasPrefix(req.Operation, onboarding.Prefix) || req.Operation == "queue" || req.Operation == "delegate" || req.Operation == "install_feature" || req.Operation == "retry" || req.Operation == "resolve") {
+	if r.admissionBlocked() && (strings.HasPrefix(req.Operation, onboarding.Prefix) || req.Operation == "queue" || req.Operation == "delegate" || req.Operation == "staged_web" || req.Operation == "install_feature" || req.Operation == "retry" || req.Operation == "resolve") {
 		return nil, errors.New("controller is stopping and is not admitting new work")
 	}
 	if strings.HasPrefix(req.Operation, onboarding.Prefix) {
@@ -204,6 +214,59 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		return r.setupHost.Handle(ctx, req)
 	}
 	switch req.Operation {
+	case "staged_web":
+		return r.submitWebStage(ctx, req)
+	case "staged_submit":
+		if req.Workgroup == "" {
+			return nil, errors.New("staged workgroup is required")
+		}
+		return r.submitSavedStage(ctx, req.Workgroup, req.Input, map[string]any{"origin": "saved", "admission": "owner_cli", "user_request": req.Answer}, req)
+	case "staged_steps":
+		return r.Store.Steps(ctx, req.JobID)
+	case "staged_results":
+		workflow, err := r.Store.Workflow(ctx, req.JobID)
+		if err != nil {
+			return nil, err
+		}
+		events, err := r.Store.ResultEvents(ctx, workflow.OriginConversationID)
+		if err != nil {
+			return nil, err
+		}
+		selected := make([]store.ResultEvent, 0)
+		for _, event := range events {
+			if event.JobID == req.JobID {
+				selected = append(selected, event)
+			}
+		}
+		return selected, nil
+	case "staged_pause":
+		return nil, r.Store.PauseJob(ctx, req.JobID)
+	case "staged_resume":
+		return nil, r.Store.ResumeJob(ctx, req.JobID)
+	case "staged_approve":
+		return nil, r.Store.ApproveStep(ctx, req.StepID)
+	case "staged_retry":
+		return nil, r.Store.RetryStep(ctx, req.StepID, req.AttemptID)
+	case "result_pending":
+		events, err := r.resultEventsForConversation(ctx, req.ConversationID, false)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]string, 0, len(events))
+		for _, event := range events {
+			ids = append(ids, event.ID)
+		}
+		return ids, nil
+	case "result_sending":
+		return r.resultEventsForConversation(ctx, req.ConversationID, true)
+	case "result_reconcile":
+		return nil, r.Store.ReconcileAbandonedResultSend(ctx, req.EventID, req.ConversationID, req.ExpectedUpdatedAt)
+	case "result_resolve":
+		return nil, r.Store.ResolveUnconfirmedResult(ctx, req.EventID, req.ConversationID, req.ExpectedUpdatedAt, req.DeliveryStatus)
+	case "result_mark":
+		return nil, r.Store.MarkResultDelivery(ctx, req.EventID, req.DeliveryStatus)
+	case "result_read":
+		return r.readResultEvent(ctx, req.EventID, req.ConversationID)
 	case "install_feature":
 		return features.Install(ctx, r.Store.Root, req.SourceName, r.Config)
 	case "revoke_access":
@@ -254,6 +317,9 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		// A reception request selects existing evidence, never a filesystem path,
 		// credential or candidate-control version. No coverage cursor is advanced.
 		request := map[string]any{"origin": "saved", "admission": "reception", "delegated_from": job.ID, "user_request": req.Answer}
+		if req.ConversationID != "" {
+			return r.submitSavedStage(ctx, job.Workgroup, input, request, req)
+		}
 		return r.Store.Submit(ctx, job.Workgroup, input, request, r.Config.Limits.MaxArtifactBytes)
 	case "queue":
 		workgroupID := req.Workgroup
@@ -845,5 +911,10 @@ func Recover(ctx context.Context, s *store.Store, c config.Config) (int, error) 
 	if _, err = (feedback.Service{Store: s, Config: c}).RecoverReviews(ctx); err != nil {
 		return 0, err
 	}
-	return s.RecoverInterrupted(ctx)
+	staged, err := RecoverStages(ctx, s, c)
+	if err != nil {
+		return 0, err
+	}
+	legacy, err := s.RecoverInterrupted(ctx)
+	return staged + legacy, err
 }

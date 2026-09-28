@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"chunsu/internal/chatstyle"
 	"chunsu/internal/config"
 	"chunsu/internal/conversation"
+	"chunsu/internal/conversationstate"
 	"chunsu/internal/errorreport"
 	"chunsu/internal/executor"
 	"chunsu/internal/files"
@@ -144,9 +146,11 @@ func (r Receiver) turn(ctx, notifyCtx context.Context, sessionID string, history
 		}
 	}()
 	session := reception.New(r.Root, r.Config, reception.Telegram)
-	session.ID = "telegram-" + sessionID
+	if err := session.Attach(ctx, strconv.FormatInt(r.Binding.UserID, 10)); err != nil {
+		result.err = err
+		return result
+	}
 	session.UpdateID = update.ID
-	session.History = history
 	emit := func(event reception.Event) error {
 		if !event.UserVisible() {
 			return nil
@@ -239,7 +243,11 @@ func (r Receiver) Serve(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	health := telegram.Health{Identity: identity, StartedAt: time.Now().UTC(), State: "receiving", Poll: "connecting", SessionID: files.ID()}
+	seed := reception.New(r.Root, r.Config, reception.Telegram)
+	if err = seed.Attach(ctx, strconv.FormatInt(r.Binding.UserID, 10)); err != nil {
+		return err
+	}
+	health := telegram.Health{Identity: identity, StartedAt: time.Now().UTC(), State: "receiving", Poll: "connecting", SessionID: seed.ConversationID}
 	if err = Reconcile(ctx, r.Root, r.Config.Limits); err != nil {
 		health.AIBlocked = true
 		r.record(ctx, "recovery_blocked", 0, "")
@@ -285,7 +293,19 @@ func (r Receiver) Serve(parent context.Context) error {
 	defer ticker.Stop()
 	var activeCancel context.CancelFunc
 	var done chan turnResult
-	var history []conversation.Event
+	history := seed.History
+	state := conversationstate.New(r.Root, r.Config.Limits)
+	resetConversation := func() error {
+		if _, err := state.Reset(ctx, reception.Telegram, strconv.FormatInt(r.Binding.UserID, 10)); err != nil {
+			return err
+		}
+		fresh := reception.New(r.Root, r.Config, reception.Telegram)
+		if err := fresh.Attach(ctx, strconv.FormatInt(r.Binding.UserID, 10)); err != nil {
+			return err
+		}
+		history, health.SessionID = fresh.History, fresh.ConversationID
+		return nil
+	}
 	var pendingControl *controlNotice
 	tone := &chatstyle.Dialogue{}
 	defer func() {
@@ -358,33 +378,41 @@ func (r Receiver) Serve(parent context.Context) error {
 			case result.uncertain:
 				text := "The previous request or action result could not be confirmed. It was not retried automatically. Check /jobs and /errors."
 				if control.reset {
-					history = nil
-					health.SessionID = files.ID()
-					text += "\nA new chat has started."
+					if err := resetConversation(); err != nil {
+						text += "\nConversation reset could not be saved."
+					} else {
+						text += "\nA new chat has started. Conversation ID: " + health.SessionID
+					}
 				}
 				reply(&control.receipt, text)
 			case result.cancelled:
 				if control.reset {
-					history = nil
-					health.SessionID = files.ID()
-					reply(&control.receipt, "The previous execution cleanup finished and a new chat has started.")
+					if err := resetConversation(); err != nil {
+						reply(&control.receipt, "The previous reply stopped, but conversation reset could not be saved.")
+					} else {
+						reply(&control.receipt, "The previous execution cleanup finished and a new chat has started. Conversation ID: "+health.SessionID)
+					}
 				} else {
 					reply(&control.receipt, "The current reply was stopped. Check /jobs for work that may already have started.")
 				}
 			case result.err == nil:
 				if control.reset {
-					history = nil
-					health.SessionID = files.ID()
-					reply(&control.receipt, "The earlier reply had already finished, and a new chat has started.")
+					if err := resetConversation(); err != nil {
+						reply(&control.receipt, "The earlier reply finished, but conversation reset could not be saved.")
+					} else {
+						reply(&control.receipt, "The earlier reply had already finished, and a new chat has started. Conversation ID: "+health.SessionID)
+					}
 				} else {
 					reply(&control.receipt, "The earlier reply had already finished, so it was not stopped.")
 				}
 			default:
 				text := "The earlier reply had already ended. Check /errors for the cause and recovery guidance."
 				if control.reset {
-					history = nil
-					health.SessionID = files.ID()
-					text += "\nA new chat has started."
+					if err := resetConversation(); err != nil {
+						text += "\nConversation reset could not be saved."
+					} else {
+						text += "\nA new chat has started. Conversation ID: " + health.SessionID
+					}
 				}
 				reply(&control.receipt, text)
 			}
@@ -397,6 +425,20 @@ func (r Receiver) Serve(parent context.Context) error {
 			return nil
 		case <-ticker.C:
 			_ = r.Errors.Flush(ctx)
+			if activeCancel == nil && pendingControl == nil {
+				idle := reception.New(r.Root, r.Config, reception.Telegram)
+				if err := idle.Attach(ctx, strconv.FormatInt(r.Binding.UserID, 10)); err == nil {
+					if err = idle.ConsumeResults(ctx, func(message string) error {
+						_, sendErr := r.Client.Send(ctx, r.Binding.ChatID, message)
+						if sendErr == nil {
+							health.LastReplyAt = time.Now().UTC()
+						}
+						return sendErr
+					}); err != nil {
+						r.record(ctx, "result_handoff_failed", 0, health.SessionID)
+					}
+				}
+			}
 			writeHealth()
 		case result := <-done:
 			finishTurn(result)
@@ -457,6 +499,10 @@ func (r Receiver) Serve(parent context.Context) error {
 			}
 			health.LastMessageAt = time.Now().UTC()
 			text := strings.TrimSpace(u.Message.Text)
+			if text == "/conversation" {
+				reply(&receipt, "Conversation ID: "+health.SessionID)
+				continue
+			}
 			current, configErr := config.Load(r.Root)
 			if configErr == nil {
 				r.Config = current
@@ -559,14 +605,34 @@ func (r Receiver) Serve(parent context.Context) error {
 						reply(&receipt, "The previous execution cleanup could not be confirmed, so a new chat did not start. /status and /errors remain available.\nError ID: "+receipt.ErrorID)
 					} else {
 						health.AIBlocked = false
-						history = nil
-						health.SessionID = files.ID()
-						reply(&receipt, "A new chat has started.")
+						if err := resetConversation(); err != nil {
+							reply(&receipt, "Conversation reset could not be saved. Check local chat state.")
+						} else {
+							reply(&receipt, "A new chat has started. Conversation ID: "+health.SessionID)
+						}
 					}
 				} else {
 					reply(&receipt, "There is no reply in progress.")
 				}
 				writeHealth()
+				continue
+			}
+			if len(fields) > 1 && fields[0] == "/job" && fields[1] == "select" {
+				if len(fields) != 4 {
+					reply(&receipt, "Usage: /job select PRIOR_CONVERSATION_ID JOB_ID")
+					continue
+				}
+				selected := reception.New(r.Root, r.Config, reception.Telegram)
+				if err := selected.Attach(ctx, strconv.FormatInt(r.Binding.UserID, 10)); err != nil {
+					reply(&receipt, "The conversation could not be restored. Check local state.")
+					continue
+				}
+				if err := selected.SelectPriorJob(ctx, fields[2], fields[3]); err != nil {
+					reply(&receipt, "That prior job could not be selected for this conversation.")
+					continue
+				}
+				history = selected.History
+				reply(&receipt, "Selected job "+fields[3]+" for this conversation.")
 				continue
 			}
 			if reception.RequiresRuntimeWait(text) {

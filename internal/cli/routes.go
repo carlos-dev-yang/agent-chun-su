@@ -6,8 +6,11 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/executor"
+	"chunsu/internal/files"
 	"chunsu/internal/platform"
+	"chunsu/internal/runner"
 	"chunsu/internal/runtimeenv"
+	"chunsu/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +18,100 @@ func (o *options) configModels() *cobra.Command {
 	return &cobra.Command{Use: "models", Short: "List locally supported Codex model presets", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		return output(cmd, executor.CodexModels())
 	}}
+}
+
+func (o *options) configGrant() *cobra.Command {
+	var allow bool
+	var proof, policyDigest string
+	cmd := &cobra.Command{Use: "grant ROLE SOURCE", Short: "Explicitly approve or revoke one role's private source disclosure", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
+		role, source := args[0], args[1]
+		if role != config.RoleTask && role != config.RoleReception && role != config.RoleRefinement && role != config.RoleSynthesis && role != config.RoleReview {
+			return errors.New("unsupported disclosure role")
+		}
+		if source != "mail" && source != "jira" && source != "code" {
+			return errors.New("source must be mail, jira or code")
+		}
+		root, err := o.path()
+		if err != nil {
+			return err
+		}
+		c, err := config.Load(root)
+		if err != nil {
+			return err
+		}
+		lock, err := platform.Acquire(cmd.Context(), root, time.Duration(c.Limits.LockWaitSeconds)*time.Second)
+		if err != nil {
+			return err
+		}
+		defer lock.Close()
+		c, err = config.Load(root)
+		if err != nil {
+			return err
+		}
+		selected := c.ExecutorFor(role)
+		if allow {
+			if executor.Inspect(cmd.Context(), role, root, selected, c.Limits).Status != "prerequisites_match" {
+				return errors.New("the exact model, effort, CLI and host boundary are not validated for this role")
+			}
+			if source == "jira" {
+				if role != config.RoleTask && role != config.RoleRefinement && role != config.RoleSynthesis {
+					return errors.New("Jira private handoff to this role has no source proof path; host delivery remains available")
+				}
+				if !files.ValidDigest(policyDigest) || !files.ValidID(proof) {
+					return errors.New("Jira approval needs --policy-digest and --proof synthetic job ID")
+				}
+				s, openErr := store.OpenReadOnly(cmd.Context(), root)
+				if openErr != nil {
+					return openErr
+				}
+				if role == config.RoleTask {
+					candidate := c
+					candidate.Executor = selected
+					candidate.Executor.LiveJiraPolicyDigest = policyDigest
+					err = runner.VerifyJiraSyntheticProof(cmd.Context(), s, candidate, proof)
+				} else {
+					err = runner.VerifyStagedJiraProof(cmd.Context(), s, c, proof, role, policyDigest)
+				}
+				closeErr := s.Close()
+				if err != nil {
+					return err
+				}
+				if closeErr != nil {
+					return closeErr
+				}
+				selected.LiveJiraPolicyDigest, selected.LiveJiraValidationJobID = policyDigest, proof
+			}
+		}
+		switch source {
+		case "mail":
+			selected.LiveMailApproved = allow
+		case "code":
+			selected.LiveCodeApproved = allow
+		case "jira":
+			selected.LiveJiraApproved = allow
+		}
+		selectedRole := &selected
+		switch role {
+		case config.RoleTask:
+			c.Executor = selected
+		case config.RoleReception:
+			c.Routes.Reception = selectedRole
+		case config.RoleRefinement:
+			c.Routes.Refinement = selectedRole
+		case config.RoleSynthesis:
+			c.Routes.Synthesis = selectedRole
+		case config.RoleReview:
+			c.Routes.Review = selectedRole
+		}
+		if err = config.Save(root, c); err != nil {
+			return err
+		}
+		return output(cmd, map[string]any{"role": role, "source": source, "approved": allow, "model": selected.Model, "reasoning_effort": selected.ReasoningEffort, "proof_job_id": selected.LiveJiraValidationJobID})
+	}}
+	cmd.Flags().BoolVar(&allow, "allow", false, "Approve this source for the selected role; omitted revokes")
+	cmd.Flags().StringVar(&proof, "proof", "", "Completed synthetic Jira proof job ID")
+	cmd.Flags().StringVar(&policyDigest, "policy-digest", "", "Selected Jira report policy SHA-256 digest")
+	return cmd
 }
 
 func (o *options) configPolicy() *cobra.Command {

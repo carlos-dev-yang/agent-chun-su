@@ -73,7 +73,7 @@ func Inspect(ctx context.Context, role, root string, selected config.Executor, l
 		result.Detail = err.Error()
 		return result
 	}
-	if err = codexCompatibility(role, version, selected.Model); err != nil {
+	if err = codexSelectedCompatibility(role, version, selected); err != nil {
 		result.Status = "needs_revalidation"
 		result.Detail = err.Error()
 		return result
@@ -84,13 +84,16 @@ func Inspect(ctx context.Context, role, root string, selected config.Executor, l
 			return result
 		}
 	}
-	if preset, ok := codexModelPreset(selected.Model); ok && preset.Status != "validated" {
+	if preset, ok := codexModelPreset(selected.Model); ok && preset.Status != "validated" && !structuredBoundaryValidated(role, version, selected) {
 		result.Status = "candidate"
 		result.Detail = "selected model requires independent boundary validation before it becomes a validated preset"
 		return result
 	}
 	result.Status = "prerequisites_match"
 	result.Detail = "authentication and enforcement on this host require their own checks"
+	if structuredBoundaryValidated(role, version, selected) {
+		result.Detail = "synthetic tool-free structured boundary accepted this exact model and requested effort on macOS arm64; effective provider effort is not visible in CLI events"
+	}
 	return result
 }
 

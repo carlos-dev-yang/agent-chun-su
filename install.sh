@@ -132,6 +132,7 @@ for model in data.get("models", []):
 fi
 if [ "$has_route" = no ]; then
   [ -n "${selected_model:-}" ] || { echo 'A model is required; no default was selected.' >&2; exit 2; }
+  [ "$selected_model" != gpt-6-luna ] || { echo 'Luna is reserved for collection and refinement; select Sol for task judgment.' >&2; exit 2; }
   printf '%s' "$metadata" | python3 -c '
 import json, sys
 value=sys.argv[1]
@@ -155,7 +156,13 @@ if [ "$has_route" = no ] && [ ! -x "$codex_path" ]; then
 fi
 
 if [ "$has_route" = no ]; then
-  "$bin" config route task --driver codex --path "$codex_path" --model "$selected_model" --environment native-restricted
+  if [ "$selected_model" = gpt-6-sol ]; then
+    "$bin" config route task --driver codex --path "$codex_path" --model "$selected_model" --effort xhigh --environment native-restricted
+    "$bin" config policy apply
+  else
+    "$bin" config route task --driver codex --path "$codex_path" --model "$selected_model" --environment native-restricted
+    printf '%s\n' 'An explicitly selected legacy task model was preserved. Use config policy apply to opt in to the Sol/Luna conversation policy.'
+  fi
 else
   codex_path=$(printf '%s' "$config_show" | python3 -c 'import json,sys; print(json.load(sys.stdin)["executor"]["path"])')
   printf '%s\n' 'An existing task route was preserved; its model and executable were not changed.'

@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"chunsu/internal/chatlanguage"
 	"chunsu/internal/chatstyle"
@@ -20,17 +23,30 @@ var errReceptionSteered = errors.New("reception input changed")
 
 func (d *setupDialogue) runAI(initial string) error {
 	session := reception.New(d.root, d.config, reception.Local)
+	owner := strconv.Itoa(os.Getuid())
+	if err := session.Attach(d.ctx, owner); err != nil {
+		return err
+	}
+	if d.resumeConversation != "" {
+		if _, err := session.State.Select(d.ctx, reception.Local, owner, d.resumeConversation); err != nil {
+			return err
+		}
+		if err := session.Attach(d.ctx, owner); err != nil {
+			return err
+		}
+	}
 	tone := &chatstyle.Dialogue{}
 	reports := errorreport.New(d.root, d.config.Limits)
 	aiBlocked := false
 	fmt.Fprintln(d.out, "Chat with Chun-su naturally. Execution remains limited to supported work.")
-	fmt.Fprintln(d.out, "Conversation is sent to the configured Codex. Do not enter secrets. cancel stops the current reply, /reset clears context, and exit leaves chat.")
+	fmt.Fprintln(d.out, "Conversation is sent to the configured Codex and ordinary dialogue is retained privately. Do not enter secrets. cancel stops the current reply, /reset starts a new conversation, and exit leaves chat.")
+	fmt.Fprintln(d.out, "Conversation ID:", session.ConversationID)
 	for {
 		request := initial
 		initial = ""
 		if request == "" {
 			var err error
-			request, err = d.askInput("", tone.Pending())
+			request, err = d.askAIInput(session, tone.Pending())
 			if errors.Is(err, errSetupBack) {
 				continue
 			}
@@ -67,8 +83,43 @@ func (d *setupDialogue) runAI(initial string) error {
 				continue
 			}
 			aiBlocked = false
+			if _, err := session.State.Reset(d.ctx, reception.Local, owner); err != nil {
+				return err
+			}
 			session = reception.New(d.root, d.config, reception.Local)
-			fmt.Fprintln(d.out, "A new chat has started.")
+			if err := session.Attach(d.ctx, owner); err != nil {
+				return err
+			}
+			fmt.Fprintln(d.out, "A new chat has started. Conversation ID:", session.ConversationID)
+			continue
+		}
+		if request == "/conversation" {
+			fmt.Fprintln(d.out, "Conversation ID:", session.ConversationID)
+			continue
+		}
+		if parts := strings.Fields(request); len(parts) > 0 && parts[0] == "/job" && len(parts) > 1 && parts[1] == "select" {
+			if len(parts) != 4 {
+				fmt.Fprintln(d.out, "Usage: /job select PRIOR_CONVERSATION_ID JOB_ID")
+				continue
+			}
+			if err := session.SelectPriorJob(d.ctx, parts[2], parts[3]); err != nil {
+				fmt.Fprintln(d.out, reception.FailureMessage(err))
+			} else {
+				fmt.Fprintln(d.out, "Selected job", parts[3], "for this conversation.")
+			}
+			continue
+		}
+		if strings.HasPrefix(request, "/conversation select ") {
+			selected := strings.TrimSpace(strings.TrimPrefix(request, "/conversation select "))
+			if _, err := session.State.Select(d.ctx, reception.Local, owner, selected); err != nil {
+				fmt.Fprintln(d.out, reception.FailureMessage(err))
+				continue
+			}
+			session = reception.New(d.root, d.config, reception.Local)
+			if err := session.Attach(d.ctx, owner); err != nil {
+				return err
+			}
+			fmt.Fprintln(d.out, "Conversation ID:", session.ConversationID)
 			continue
 		}
 		if strings.TrimSpace(request) == "/cancel" {
@@ -170,6 +221,43 @@ func (d *setupDialogue) runAI(initial string) error {
 			}
 			id, _ := reports.Record(d.ctx, code, errorreport.Correlation{SessionID: session.ID})
 			fmt.Fprintln(d.out, reception.FailureMessage(err), "Error ID:", id)
+		}
+	}
+}
+
+func (d *setupDialogue) askAIInput(session *reception.Session, preserveCancel bool) (string, error) {
+	fmt.Fprintln(d.out)
+	fmt.Fprint(d.out, "> ")
+	ticker := time.NewTicker(time.Duration(d.config.Limits.PollSeconds) * time.Second)
+	defer ticker.Stop()
+	lastError := ""
+	for {
+		select {
+		case <-d.ctx.Done():
+			return "", d.ctx.Err()
+		case <-ticker.C:
+			err := session.ConsumeResults(d.ctx, func(message string) error { _, e := fmt.Fprintln(d.out, "\nChun-su:", message); return e })
+			if err != nil && err.Error() != lastError {
+				fmt.Fprintln(d.out, "\nResult handoff needs local inspection:", reception.FailureMessage(err))
+				lastError = err.Error()
+			}
+		case line, ok := <-d.lines:
+			if !ok {
+				return "", io.EOF
+			}
+			if line.err != nil {
+				return "", line.err
+			}
+			switch strings.ToLower(line.text) {
+			case "종료", "그만", "quit", "exit":
+				return "", io.EOF
+			case "취소", "뒤로", "cancel", "back":
+				if preserveCancel {
+					return line.text, nil
+				}
+				return "", errSetupBack
+			}
+			return line.text, nil
 		}
 	}
 }

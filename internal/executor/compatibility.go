@@ -12,6 +12,29 @@ import (
 // This additional version is validated only for the tool-free reception route
 // on macOS/arm64. It does not extend task or review disclosure authorization.
 const TestedReceptionVersion = "codex-cli 0.154.0-alpha.6.2"
+const TestedStructuredVersion = "codex-cli 0.158.0-alpha.2.1"
+
+// This exact host/CLI/model/effort combination passed a synthetic tool-free
+// boundary check. It does not validate the native-MCP report path or Linux.
+func structuredBoundaryValidated(role, version string, selected config.Executor) bool {
+	if role == config.RoleTask || runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" || version != TestedStructuredVersion || selected.Kind != "codex" {
+		return false
+	}
+	switch selected.Model {
+	case SolModel:
+		return selected.ReasoningEffort == "medium" || selected.ReasoningEffort == "xhigh"
+	case LunaModel:
+		return selected.ReasoningEffort == "xhigh"
+	}
+	return false
+}
+
+func codexSelectedCompatibility(role, version string, selected config.Executor) error {
+	if structuredBoundaryValidated(role, version, selected) {
+		return nil
+	}
+	return codexCompatibility(role, version, selected.Model)
+}
 
 // CompatibilityError contains only a local prerequisite diagnostic, so a
 // transport can distinguish it from private provider or host-action errors.

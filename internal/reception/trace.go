@@ -144,14 +144,14 @@ func traceResult(action string, result HostResult) HostResult {
 		trace.Detail = traceMap(result.Detail, "queue_paused", "active_job", "active_work")
 	case conversation.CancelJob, conversation.RetryJob:
 		trace.Detail = traceMap(result.Detail, "job_id", "status")
-	case conversation.DelegateJob:
+	case conversation.DelegateJob, conversation.StartWebJob:
 		trace.Detail = traceMap(result.Detail, "job_id", "workgroup", "state", "note")
 	}
 	return trace
 }
 
 func traceAction(action conversation.Action) (conversation.Action, string) {
-	if action.Name != conversation.WebSearch && action.Name != conversation.WebOpen {
+	if action.Name != conversation.WebSearch && action.Name != conversation.WebOpen && action.Name != conversation.StartWebJob {
 		return action, ""
 	}
 	digest := files.Digest([]byte(action.Reference))

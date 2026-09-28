@@ -159,7 +159,13 @@ func (c Config) ExecutorFor(role string) Executor {
 			return *c.Routes.Synthesis
 		}
 	}
-	return c.Executor
+	inherited := c.Executor
+	if role != RoleTask {
+		// Inheritance selects the executable and model only. A disclosure grant
+		// belongs to its role and must never move with the task route.
+		inherited.RevokeDisclosure()
+	}
+	return inherited
 }
 
 func ValidEffort(effort string) bool {

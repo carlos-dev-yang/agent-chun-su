@@ -18,12 +18,21 @@ import (
 const SocketPath = "state/control.sock"
 
 type Request struct {
-	Operation  string          `json:"operation"`
-	JobID      string          `json:"job_id,omitempty"`
-	Input      json.RawMessage `json:"input,omitempty"`
-	Workgroup  string          `json:"workgroup,omitempty"`
-	SourceName string          `json:"source_name,omitempty"`
-	Answer     string          `json:"answer,omitempty"`
+	Operation         string          `json:"operation"`
+	JobID             string          `json:"job_id,omitempty"`
+	StepID            string          `json:"step_id,omitempty"`
+	AttemptID         string          `json:"attempt_id,omitempty"`
+	EventID           string          `json:"event_id,omitempty"`
+	DeliveryStatus    string          `json:"delivery_status,omitempty"`
+	ExpectedUpdatedAt int64           `json:"expected_updated_at,omitempty"`
+	ConversationID    string          `json:"conversation_id,omitempty"`
+	MessageID         string          `json:"message_id,omitempty"`
+	RequestRevision   int64           `json:"request_revision,omitempty"`
+	ManualCheckpoint  bool            `json:"manual_checkpoint,omitempty"`
+	Input             json.RawMessage `json:"input,omitempty"`
+	Workgroup         string          `json:"workgroup,omitempty"`
+	SourceName        string          `json:"source_name,omitempty"`
+	Answer            string          `json:"answer,omitempty"`
 }
 type Response struct {
 	Data  json.RawMessage `json:"data,omitempty"`

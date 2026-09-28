@@ -6,6 +6,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/control"
+	"chunsu/internal/executor"
 	"chunsu/internal/platform"
 	"chunsu/internal/schedule"
 	"chunsu/internal/service"
@@ -104,7 +105,20 @@ func (r *Runner) step(ctx context.Context) error {
 	}
 	for i := len(jobs) - 1; i >= 0; i-- {
 		j := jobs[i]
+		if j.Status == store.Staged {
+			out, runErr := r.RunStage(ctx, j.ID)
+			if runErr != nil && out.Status == "" {
+				r.blockDispatch("staged_dispatch_failed")
+			}
+			if out.Status == store.Staged && runErr == nil {
+				continue
+			}
+			return nil
+		}
 		if (j.Status == store.Queued || j.Status == store.RetryWait) && j.NotBefore <= time.Now().UnixMilli() {
+			if r.Config.ModelPolicyVersion == 1 && executor.Inspect(ctx, config.RoleTask, r.Store.Root, r.Config.Executor, r.Config.Limits).Status != "prerequisites_match" {
+				continue
+			}
 			out, runErr := r.Run(ctx, j.ID, "")
 			if runErr != nil && out.Status == "" {
 				r.mu.Lock()

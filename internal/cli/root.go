@@ -76,6 +76,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.access(), o.errors())
 	root.AddCommand(o.update())
 	root.AddCommand(o.web())
+	root.AddCommand(o.flow())
 	return root
 }
 
@@ -248,6 +249,7 @@ func (o *options) configuration() *cobra.Command {
 	cmd.AddCommand(o.configRoute())
 	cmd.AddCommand(o.configModels())
 	cmd.AddCommand(o.configPolicy())
+	cmd.AddCommand(o.configGrant())
 	cmd.AddCommand(&cobra.Command{Use: "show", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {

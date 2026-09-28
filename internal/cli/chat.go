@@ -128,6 +128,7 @@ func (o *options) setupServe() *cobra.Command {
 func (o *options) chat() *cobra.Command {
 	var noBrowser bool
 	var guided bool
+	var resumeConversation string
 	cmd := &cobra.Command{Use: "chat [REQUEST]", Short: "Natural AI conversation with host-enforced actions", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
@@ -156,7 +157,7 @@ func (o *options) chat() *cobra.Command {
 			}
 			defer stopHost()
 		}
-		d := &setupDialogue{ctx: ctx, root: root, config: c, out: cmd.OutOrStdout(), noBrowser: noBrowser}
+		d := &setupDialogue{ctx: ctx, root: root, config: c, out: cmd.OutOrStdout(), noBrowser: noBrowser, resumeConversation: resumeConversation}
 		d.lines = readSetupLines(ctx, cmd.InOrStdin(), c.Limits.MaxSourceBytes)
 		initial := ""
 		if len(args) != 0 {
@@ -175,6 +176,7 @@ func (o *options) chat() *cobra.Command {
 	}}
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Show Google sign-in URL locally instead of opening the browser")
 	cmd.Flags().BoolVar(&guided, "guided", false, "Use fixed setup questions without an AI executor")
+	cmd.Flags().StringVar(&resumeConversation, "resume", "", "Select a prior conversation ID for this local owner")
 	return cmd
 }
 
@@ -211,13 +213,14 @@ func readSetupLines(ctx context.Context, in io.Reader, limit int64) <-chan setup
 }
 
 type setupDialogue struct {
-	ctx       context.Context
-	root      string
-	config    config.Config
-	out       io.Writer
-	lines     <-chan setupLine
-	noBrowser bool
-	lastSetup *onboarding.Result
+	ctx                context.Context
+	root               string
+	config             config.Config
+	out                io.Writer
+	lines              <-chan setupLine
+	noBrowser          bool
+	lastSetup          *onboarding.Result
+	resumeConversation string
 }
 
 func (d *setupDialogue) ask(prompt string) (string, error) {

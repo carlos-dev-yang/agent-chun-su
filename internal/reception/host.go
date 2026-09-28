@@ -46,11 +46,14 @@ type controllerStatusReply struct {
 // Local callbacks contain user interaction only. Common admission, authority
 // checks and result projection do not depend on Cobra or a particular UI.
 type Host struct {
-	Root           string
-	Config         config.Config
-	GmailSetup     func(context.Context) (HostResult, error)
-	DisplayReport  func(context.Context, []byte) error
-	GuideInstalled func(onboarding.Result)
+	Root            string
+	Config          config.Config
+	GmailSetup      func(context.Context) (HostResult, error)
+	DisplayReport   func(context.Context, []byte) error
+	GuideInstalled  func(onboarding.Result)
+	ConversationID  string
+	MessageID       string
+	RequestRevision int64
 }
 
 // workerRuntimeError carries only the backend's fixed worker message. Its cause
@@ -100,6 +103,13 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		return HostResult{}, errors.New("reception channel does not permit this action")
 	}
 	switch action.Name {
+	case conversation.StartWebJob:
+		var job store.Job
+		if err := h.call(ctx, control.Request{Operation: "staged_web", Answer: action.Reference, ConversationID: h.ConversationID, MessageID: h.MessageID, RequestRevision: h.RequestRevision}, &job); err != nil {
+			return HostResult{}, err
+		}
+		known[job.ID] = true
+		return HostResult{Status: "queued", Detail: map[string]string{"job_id": job.ID, "workgroup": job.Workgroup, "state": job.Status, "note": "A staged public web job was accepted. Inspect progress before assuming a result exists."}}, nil
 	case conversation.WebSearch, conversation.WebOpen:
 		settings, err := webresearch.LoadSettings(h.Root)
 		if err != nil {
@@ -283,7 +293,7 @@ func (h Host) Dispatch(ctx context.Context, channel string, action conversation.
 		}
 		if action.Name == conversation.DelegateJob {
 			var job store.Job
-			if err := h.call(ctx, control.Request{Operation: "delegate", JobID: action.Reference, Answer: request}, &job); err != nil {
+			if err := h.call(ctx, control.Request{Operation: "delegate", JobID: action.Reference, Answer: request, ConversationID: h.ConversationID, MessageID: h.MessageID, RequestRevision: h.RequestRevision}, &job); err != nil {
 				return HostResult{}, err
 			}
 			known[job.ID] = true
