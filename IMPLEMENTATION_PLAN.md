@@ -6,6 +6,28 @@
 **Confirmed stack:** Go + embedded SQLite  
 **Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
 
+## Current product direction — TEAM-00 (2026-10-04)
+
+The owner selected team work-omission prevention, release-cycle accountability,
+Slack evidence triage with low-noise messenger on-call, an internal business
+workflow independent of Jira status, and feedback-driven internal Skills.
+[Team operations goal and delivery plan](docs/implementation/TEAM_OPERATIONS_2026-10-04.md)
+records the current inventory, proposed contracts, work units and acceptance gates.
+An always-on company-accessible device is the proposed deployment baseline;
+connectivity and private-data disclosure still need actual company verification.
+
+TEAM-00 is design/preparation only. TEAM-01 onward are planned, not implemented
+or activated by this document. Existing FLOW steps and versioned Skill/feedback
+assets are reused; business work-item state is distinct from job execution state.
+This direction supersedes the personal-report-only product target and the old
+mail-before-everything expansion order for future team work. Preserve existing
+mail/Jira read-only boundaries, human-owned controls and evidence requirements.
+Schema changes, team authorization, external notifications and deployment need
+their specific implementation/activation decisions. Earlier model policies and
+validation records below are historical evidence, not instructions to override
+the current task's model settings. See the new plan for the proposed sequence;
+do not restart the historical Phase 0 starting sequence for this goal.
+
 On 2026-09-28 the owner authorized the design and implementation of
 [durable conversation coordination and staged jobs](docs/implementation/CONVERSATION_TASKS_2026-09-28.md).
 The primary agent owns design; implementation and a bounded structural review
