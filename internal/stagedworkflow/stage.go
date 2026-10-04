@@ -42,6 +42,7 @@ type StageInput struct {
 	PinnedIdentity     string
 	PinnedBundleDigest string
 	PinnedMailMode     string
+	PinnedSkillScope   *workgroup.SkillScope
 }
 
 type StageOutput struct {

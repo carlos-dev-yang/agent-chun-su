@@ -32,11 +32,26 @@ type Origin struct {
 	ManualCheckpoint bool
 }
 
+type SkillSelection struct {
+	Scope  *workgroup.SkillScope
+	Digest string
+}
+
 // BuildSpec fixes stage dependencies and role identities before admission.
 // An existing snapshot is validated and identified, never read from a path
 // chosen by a model. The web source scope is public HTTPS only.
-func BuildSpec(root, group, objective string, snapshot []byte, c config.Config, origin Origin) (store.WorkflowSpec, error) {
+func BuildSpec(root, group, objective string, snapshot []byte, c config.Config, origin Origin, selections ...SkillSelection) (store.WorkflowSpec, error) {
 	var spec store.WorkflowSpec
+	if len(selections) > 1 {
+		return spec, errors.New("at most one explicit Skill selection is supported")
+	}
+	var selection SkillSelection
+	if len(selections) == 1 {
+		selection = selections[0]
+		if selection.Scope == nil || selection.Scope.Validate() != nil || !files.ValidDigest(selection.Digest) || group == WebWorkgroup {
+			return spec, errors.New("scoped report selection requires a valid scope and exact bundle digest")
+		}
+	}
 	if strings.TrimSpace(objective) == "" || len(objective) > int(c.Limits.MaxArtifactBytes) {
 		return spec, errors.New("staged objective is empty or exceeds the configured artifact budget")
 	}
@@ -58,12 +73,21 @@ func BuildSpec(root, group, objective string, snapshot []byte, c config.Config, 
 		for _, source := range collected.Sources {
 			sourceIDs = append(sourceIDs, source.ID)
 		}
-		_, bundleDigest, err = workgroup.ActiveFor(root, group, c.Limits.MaxArtifactBytes)
+		if selection.Scope == nil {
+			_, bundleDigest, err = workgroup.ActiveFor(root, group, c.Limits.MaxArtifactBytes)
+		} else {
+			var bundle workgroup.Bundle
+			bundle, err = workgroup.LoadFor(root, group, selection.Digest, c.Limits.MaxArtifactBytes)
+			if err == nil {
+				err = workgroup.ValidateScopeBundle(bundle, *selection.Scope)
+			}
+			bundleDigest = selection.Digest
+		}
 		if err != nil {
 			return spec, err
 		}
 	}
-	scope, _ := json.Marshal(map[string]any{"workgroup": group, "input_digest": files.Digest(snapshot), "source_ids": sourceIDs, "public_https_only": group == WebWorkgroup, "bundle_digest": bundleDigest, "mail_mode": c.MailMode})
+	scope, _ := json.Marshal(map[string]any{"workgroup": group, "input_digest": files.Digest(snapshot), "source_ids": sourceIDs, "public_https_only": group == WebWorkgroup, "bundle_digest": bundleDigest, "mail_mode": c.MailMode, "skill_scope": selection.Scope})
 	budget, _ := json.Marshal(c.Limits)
 	destination := origin.Destination
 	if destination == "" {

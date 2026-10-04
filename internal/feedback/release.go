@@ -131,7 +131,7 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 	if policy.Workgroup != group {
 		return store.Record{}, a, errors.New("release policy belongs to another workgroup")
 	}
-	_, active, err := workgroup.ActiveFor(s.Store.Root, group, s.Config.Limits.MaxArtifactBytes)
+	_, active, err := workgroup.ActiveInScope(s.Store.Root, group, proposal.Scope, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return store.Record{}, a, err
 	}
@@ -148,6 +148,10 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 	for i := range comparison.Runs {
 		run := &comparison.Runs[i]
 		if run.Job.Workgroup != group || run.Manifest == nil {
+			continue
+		}
+		if (proposal.Scope == nil) != (run.Manifest.SkillScope == nil) ||
+			(proposal.Scope != nil && *run.Manifest.SkillScope != *proposal.Scope) {
 			continue
 		}
 		if run.Manifest.WorkgroupDigest == proposal.BaseDigest {

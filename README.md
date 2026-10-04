@@ -16,6 +16,13 @@ Reception, task execution and optional result review have separate contexts and
 configurable routes. The Codex CLI/model pin is a temporary stabilization rule
 inside the first driver; execution environments have a separate interface.
 
+[Scoped internal Skills](docs/setup/SCOPED_SKILLS.md) now preserve immutable common,
+team and project instruction versions with explicit composed selections, scoped
+feedback, existing reviewed adoption/rollback gates and queue/FLOW execution pins.
+These are owner-operated namespaces, not multi-user team authorization. Actual AI
+acceptance still requires the installed executor boundary; see
+[TEAM-08A validation](docs/validation/TEAM_08A_SCOPED_SKILLS_2026-10-04.md).
+
 The approved [modular-agent goal](docs/implementation/MODULAR_AGENT_GOAL_2026-09-11.md)
 records bounded implementation and actual evidence. See
 [local/Linux server installation](docs/setup/SERVER.md),

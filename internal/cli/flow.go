@@ -23,6 +23,7 @@ func (o *options) flow() *cobra.Command {
 	cmd := &cobra.Command{Use: "flow", Short: "Submit, inspect and locally execute staged conversation work"}
 	var objective string
 	var checkpoint bool
+	var scoped skillFlags
 	submit := &cobra.Command{Use: "submit WORKGROUP INPUT_JSON", Short: "Admit an existing saved snapshot into a staged job", Args: cobra.ExactArgs(2), RunE: func(command *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
@@ -52,10 +53,14 @@ func (o *options) flow() *cobra.Command {
 			return errors.New("snapshot exceeds artifact limit")
 		}
 		req := control.Request{Operation: "staged_submit", Workgroup: args[0], Input: json.RawMessage(input), Answer: objective, ManualCheckpoint: checkpoint}
+		if err = scoped.apply(&req); err != nil {
+			return err
+		}
 		return o.submitFlow(command, root, c, req)
 	}}
 	submit.Flags().StringVar(&objective, "objective", "", "User objective for this saved snapshot")
 	submit.Flags().BoolVar(&checkpoint, "checkpoint", false, "Wait for owner approval before each later stage")
+	scoped.add(submit, true)
 	_ = submit.MarkFlagRequired("objective")
 	var webCheckpoint bool
 	web := &cobra.Command{Use: "web QUERY", Short: "Admit public web research as a staged job", Args: cobra.ExactArgs(1), RunE: func(command *cobra.Command, args []string) error {

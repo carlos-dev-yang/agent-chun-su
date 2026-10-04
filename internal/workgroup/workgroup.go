@@ -16,11 +16,12 @@ const BundleVersion = 2
 const ActivePath = "workgroups/mail-review/active.json"
 
 type Bundle struct {
-	Version   int             `json:"version"`
-	Guide     string          `json:"guide"`
-	Schema    json.RawMessage `json:"schema"`
-	Workgroup string          `json:"workgroup,omitempty"`
-	Skill     *Skill          `json:"skill,omitempty"`
+	Version     int               `json:"version"`
+	Guide       string            `json:"guide"`
+	Schema      json.RawMessage   `json:"schema"`
+	Workgroup   string            `json:"workgroup,omitempty"`
+	Skill       *Skill            `json:"skill,omitempty"`
+	Composition *SkillComposition `json:"composition,omitempty"`
 }
 
 type Selection struct {
@@ -87,6 +88,9 @@ func Put(root string, b Bundle) (string, error) {
 	}
 	data, err := json.Marshal(b)
 	if err != nil {
+		return "", err
+	}
+	if err = verifyCompositionBase(root, b, int64(len(data))); err != nil {
 		return "", err
 	}
 	digest := files.Digest(data)
@@ -160,6 +164,9 @@ func LoadFor(root, id, digest string, limit int64) (Bundle, error) {
 	if err = b.Validate(); err != nil {
 		return b, err
 	}
+	if err = verifyCompositionBase(root, b, limit); err != nil {
+		return b, err
+	}
 	return b, nil
 }
 
@@ -193,7 +200,7 @@ func (b Bundle) Validate() error {
 	}
 	switch b.Version {
 	case 1:
-		if !mail.Nonempty(b.Guide) || b.Workgroup != "" || b.Skill != nil {
+		if !mail.Nonempty(b.Guide) || b.Workgroup != "" || b.Skill != nil || b.Composition != nil {
 			return errors.New("invalid legacy workgroup bundle")
 		}
 		return nil
@@ -201,8 +208,17 @@ func (b Bundle) Validate() error {
 		if !allowedWorkgroup(b.Workgroup) {
 			return errors.New("unsupported workgroup")
 		}
-		_, err := b.SelectedSkill()
-		return err
+		selected, err := b.SelectedSkill()
+		if err != nil || b.Composition == nil {
+			return err
+		}
+		if err = b.Composition.Validate(b.Workgroup, b.Schema); err != nil {
+			return err
+		}
+		if selected != b.Composition.RenderSkill() {
+			return errors.New("composed Skill differs from its pinned component snapshots")
+		}
+		return nil
 	default:
 		return errors.New("unsupported workgroup bundle version")
 	}

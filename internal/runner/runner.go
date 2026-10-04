@@ -333,6 +333,11 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		if req.SourceName != "" {
 			request["source_name"] = req.SourceName
 		}
+		scope, digest, err := r.resolveSkills(workgroupID, req)
+		if err != nil {
+			return nil, err
+		}
+		addSkillPin(request, scope, digest)
 		return r.Store.Submit(ctx, workgroupID, req.Input, request, r.Config.Limits.MaxArtifactBytes)
 	case "cancel":
 		r.mu.Lock()

@@ -77,6 +77,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.update())
 	root.AddCommand(o.web())
 	root.AddCommand(o.flow())
+	root.AddCommand(o.skills())
 	return root
 }
 
@@ -407,6 +408,7 @@ func (o *options) configuration() *cobra.Command {
 
 func (o *options) queue() *cobra.Command {
 	var workgroupID string
+	var scoped skillFlags
 	cmd := &cobra.Command{Use: "queue INPUT.json", Short: "Snapshot a saved JSON input and queue it for a workgroup", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		root, err := o.path()
 		if err != nil {
@@ -421,6 +423,9 @@ func (o *options) queue() *cobra.Command {
 			return err
 		}
 		req := control.Request{Operation: "queue", Input: input, Workgroup: workgroupID, SourceName: filepath.Base(args[0])}
+		if err = scoped.apply(&req); err != nil {
+			return err
+		}
 		if handled, err := o.managed(cmd, req); handled || err != nil {
 			return err
 		}
@@ -445,6 +450,7 @@ func (o *options) queue() *cobra.Command {
 		return nil
 	}}
 	cmd.Flags().StringVar(&workgroupID, "workgroup", mail.Workgroup, "Compiled workgroup ID; see workgroup list")
+	scoped.add(cmd, true)
 	return cmd
 }
 

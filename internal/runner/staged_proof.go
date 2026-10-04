@@ -18,7 +18,7 @@ import (
 // VerifyStagedJiraProof is the staged counterpart of the legacy Jira proof:
 // the owner-selected route must have completed an actual synthetic Jira model
 // step against the still-selected Skill and policy, with a validated result.
-func VerifyStagedJiraProof(ctx context.Context, s *store.Store, c config.Config, jobID, role, policyDigest string) error {
+func VerifyStagedJiraProof(ctx context.Context, s *store.Store, c config.Config, jobID, role, policyDigest string, required ...stagedworkflow.SkillSelection) error {
 	if !files.ValidID(jobID) || !files.ValidDigest(policyDigest) {
 		return errors.New("a synthetic Jira proof job and policy digest are required")
 	}
@@ -54,14 +54,31 @@ func VerifyStagedJiraProof(ctx context.Context, s *store.Store, c config.Config,
 	if !report.Snapshot.Synthetic || report.ReportPolicyDigest != policyDigest {
 		return errors.New("Jira proof snapshot is not synthetic or uses another policy")
 	}
-	_, activeDigest, err := workgroup.ActiveFor(s.Root, job.Workgroup, c.Limits.MaxArtifactBytes)
-	if err != nil {
-		return err
-	}
 	var scope struct {
-		BundleDigest string `json:"bundle_digest"`
+		BundleDigest string                `json:"bundle_digest"`
+		SkillScope   *workgroup.SkillScope `json:"skill_scope"`
 	}
 	if err = json.Unmarshal(w.SourceScope, &scope); err != nil {
+		return err
+	}
+	if len(required) > 1 {
+		return errors.New("Jira proof requires one exact Skill selection")
+	}
+	activeDigest := ""
+	if len(required) == 0 {
+		_, activeDigest, err = workgroup.ActiveInScope(s.Root, job.Workgroup, scope.SkillScope, c.Limits.MaxArtifactBytes)
+	} else {
+		activeDigest = required[0].Digest
+		if (required[0].Scope == nil) != (scope.SkillScope == nil) || (scope.SkillScope != nil && *scope.SkillScope != *required[0].Scope) {
+			return errors.New("Jira proof belongs to a different Skill application scope")
+		}
+		bundle, loadErr := workgroup.LoadFor(s.Root, job.Workgroup, activeDigest, c.Limits.MaxArtifactBytes)
+		err = loadErr
+		if err == nil && scope.SkillScope != nil {
+			err = workgroup.ValidateScopeBundle(bundle, *scope.SkillScope)
+		}
+	}
+	if err != nil {
 		return err
 	}
 	if scope.BundleDigest != activeDigest {

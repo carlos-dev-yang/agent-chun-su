@@ -155,6 +155,10 @@ func (s Service) CompareSelected(ctx context.Context, left, right, leftEvaluatio
 	if a.Manifest == nil || b.Manifest == nil {
 		c.Comparable = false
 	} else {
+		if (a.Manifest.SkillScope == nil) != (b.Manifest.SkillScope == nil) ||
+			(a.Manifest.SkillScope != nil && *a.Manifest.SkillScope != *b.Manifest.SkillScope) {
+			c.Limitations = append(c.Limitations, "Skill application scopes differ")
+		}
 		if a.Manifest.Executor.Model == "" || b.Manifest.Executor.Model == "" {
 			c.Limitations = append(c.Limitations, "executor model was not explicitly pinned; matching implicit defaults are not established")
 		}

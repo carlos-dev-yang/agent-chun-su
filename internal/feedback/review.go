@@ -81,6 +81,23 @@ type ReviewLookup struct {
 	Status     string `json:"status"`
 }
 
+// modelReviewSource removes new owner-only Skill selection metadata while the
+// immutable host ReviewRequest retains its full provenance for inspection.
+func modelReviewSource(source ReviewSource) ReviewSource {
+	var request map[string]any
+	if json.Unmarshal(source.Job.Request, &request) == nil && request != nil {
+		delete(request, "skill_scope")
+		delete(request, "skill_bundle_digest")
+		source.Job.Request, _ = json.Marshal(request)
+	}
+	if source.Manifest != nil {
+		manifest := *source.Manifest
+		manifest.SkillScope = nil
+		source.Manifest = &manifest
+	}
+	return source
+}
+
 type ReviewExecution struct {
 	Version      int             `json:"version"`
 	RequestID    string          `json:"request_id"`
@@ -341,7 +358,7 @@ func (s Service) Evaluate(ctx context.Context, jobID, caseID, rubricID, skillID 
 	}
 	request := ReviewRequest{Purpose: ReviewEvaluation, CriteriaID: skillID, JobIDs: []string{jobID}, CaseID: caseID, RubricID: rubricID, Sources: []ReviewSource{source}}
 	caseEvidence := map[string]any{"name": evaluationCase.Name, "review_status": evaluationCase.ReviewStatus, "purpose": evaluationCase.Purpose, "exposure": evaluationCase.Exposure, "expectations": evaluationCase.Expectations, "limitations": evaluationCase.Limitations}
-	input := map[string]any{"source": source, "input": source.Disclosure, "result": source.Result, "case": caseEvidence, "rubric": rubric}
+	input := map[string]any{"source": modelReviewSource(source), "input": source.Disclosure, "result": source.Result, "case": caseEvidence, "rubric": rubric}
 	out, err = s.runReview(ctx, request, []byte(skill.Content), schema, input)
 	if err != nil {
 		return out, err
@@ -403,7 +420,7 @@ func (s Service) Analyze(ctx context.Context, criteriaID, question string, jobID
 			return out, errors.New("selected review evidence exceeds the configured artifact budget; select fewer results")
 		}
 		request.Sources = append(request.Sources, source)
-		items = append(items, map[string]any{"source": source, "input": source.Disclosure, "result": source.Result})
+		items = append(items, map[string]any{"source": modelReviewSource(source), "input": source.Disclosure, "result": source.Result})
 	}
 	schema, err := analysisSchema()
 	if err != nil {

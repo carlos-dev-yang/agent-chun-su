@@ -257,7 +257,8 @@ func (o *options) experiment() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if _, err = workgroup.LoadFor(s.Root, j.Workgroup, candidate, c.Limits.MaxArtifactBytes); err != nil {
+		bundle, err := workgroup.LoadFor(s.Root, j.Workgroup, candidate, c.Limits.MaxArtifactBytes)
+		if err != nil {
 			return err
 		}
 		art, err := s.InputArtifact(cmd.Context(), j)
@@ -277,6 +278,19 @@ func (o *options) experiment() *cobra.Command {
 		}
 		request["experiment_of"] = j.ID
 		request["candidate_digest"] = candidate
+		if rawScope, scoped := request["skill_scope"]; scoped {
+			data, _ := json.Marshal(rawScope)
+			var scope workgroup.SkillScope
+			if err = mail.Decode(data, &scope); err != nil {
+				return err
+			}
+			if err = workgroup.ValidateScopeBundle(bundle, scope); err != nil {
+				return err
+			}
+			request["skill_bundle_digest"] = candidate
+		} else if bundle.Composition != nil {
+			return errors.New("composed candidate requires a scoped baseline job")
+		}
 		if acquisition, ok := request["acquisition_id"]; ok {
 			request["source_acquisition_id"] = acquisition
 			delete(request, "acquisition_id")

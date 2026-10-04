@@ -106,12 +106,22 @@ func pinnedBundle(in StageInput) (workgroup.Bundle, error) {
 	if !files.ValidDigest(in.PinnedBundleDigest) {
 		return workgroup.Bundle{}, errors.New("staged workgroup bundle digest is missing")
 	}
+	if in.PinnedSkillScope != nil {
+		bundle, err := workgroup.LoadFor(in.Root, in.Workgroup, in.PinnedBundleDigest, in.Config.Limits.MaxArtifactBytes)
+		if err == nil {
+			err = workgroup.ValidateScopeBundle(bundle, *in.PinnedSkillScope)
+		}
+		return bundle, err
+	}
 	active, digest, err := workgroup.ActiveFor(in.Root, in.Workgroup, in.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return workgroup.Bundle{}, err
 	}
 	if digest != in.PinnedBundleDigest {
 		return workgroup.Bundle{}, errors.New("active workgroup bundle changed after staged admission")
+	}
+	if active.Composition != nil {
+		return workgroup.Bundle{}, errors.New("scoped composition requires an explicit admitted application scope")
 	}
 	return active, nil
 }

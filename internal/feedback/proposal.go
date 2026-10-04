@@ -14,14 +14,15 @@ import (
 )
 
 type Proposal struct {
-	Version         int      `json:"version"`
-	Workgroup       string   `json:"workgroup,omitempty"`
-	BaseDigest      string   `json:"base_digest"`
-	CandidateDigest string   `json:"candidate_digest"`
-	EvidenceIDs     []string `json:"evidence_ids"`
-	Hypothesis      string   `json:"hypothesis"`
-	RequiredChecks  []string `json:"required_checks"`
-	Status          string   `json:"status"`
+	Version         int                   `json:"version"`
+	Workgroup       string                `json:"workgroup,omitempty"`
+	BaseDigest      string                `json:"base_digest"`
+	CandidateDigest string                `json:"candidate_digest"`
+	EvidenceIDs     []string              `json:"evidence_ids"`
+	Hypothesis      string                `json:"hypothesis"`
+	RequiredChecks  []string              `json:"required_checks"`
+	Status          string                `json:"status"`
+	Scope           *workgroup.SkillScope `json:"scope,omitempty"`
 }
 
 func proposalWorkgroup(p Proposal) string {
@@ -32,17 +33,18 @@ func proposalWorkgroup(p Proposal) string {
 }
 
 type Decision struct {
-	Version        int    `json:"version"`
-	ProposalID     string `json:"proposal_id"`
-	Action         string `json:"action"`
-	Actor          string `json:"actor"`
-	ActorKind      string `json:"actor_kind"`
-	Reason         string `json:"reason"`
-	ComparisonID   string `json:"comparison_id"`
-	AssessmentID   string `json:"assessment_id,omitempty"`
-	PreviousDigest string `json:"previous_digest"`
-	SelectedDigest string `json:"selected_digest"`
-	At             string `json:"at"`
+	Version        int                   `json:"version"`
+	ProposalID     string                `json:"proposal_id"`
+	Action         string                `json:"action"`
+	Actor          string                `json:"actor"`
+	ActorKind      string                `json:"actor_kind"`
+	Reason         string                `json:"reason"`
+	ComparisonID   string                `json:"comparison_id"`
+	AssessmentID   string                `json:"assessment_id,omitempty"`
+	PreviousDigest string                `json:"previous_digest"`
+	SelectedDigest string                `json:"selected_digest"`
+	At             string                `json:"at"`
+	Scope          *workgroup.SkillScope `json:"scope,omitempty"`
 }
 
 func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence []string, hypothesis string, checks []string) (store.Record, error) {
@@ -57,7 +59,11 @@ func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence 
 		seenChecks[check] = true
 	}
 	for _, id := range evidence {
-		if _, err := s.Store.Record(ctx, id); err != nil {
+		record, err := s.Store.Record(ctx, id)
+		if err != nil {
+			return store.Record{}, err
+		}
+		if _, err = s.Store.ReadRecord(record, s.Config.Limits.MaxArtifactBytes); err != nil {
 			return store.Record{}, err
 		}
 	}
@@ -65,7 +71,12 @@ func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence 
 	if group == "" {
 		group = mail.Workgroup
 	}
-	_, base, err := workgroup.ActiveFor(s.Store.Root, group, s.Config.Limits.MaxArtifactBytes)
+	var scope *workgroup.SkillScope
+	if bundle.Composition != nil {
+		value := bundle.Composition.Scope
+		scope = &value
+	}
+	_, base, err := workgroup.ActiveInScope(s.Store.Root, group, scope, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return store.Record{}, err
 	}
@@ -76,7 +87,7 @@ func (s Service) Propose(ctx context.Context, bundle workgroup.Bundle, evidence 
 	if candidate == base {
 		return store.Record{}, errors.New("candidate does not change the active bundle")
 	}
-	return s.Store.PutRecord(ctx, "proposal", "", Proposal{Version: Version, Workgroup: group, BaseDigest: base, CandidateDigest: candidate, EvidenceIDs: evidence, Hypothesis: hypothesis, RequiredChecks: checks, Status: "candidate_only"}, s.Config.Limits.MaxArtifactBytes)
+	return s.Store.PutRecord(ctx, "proposal", "", Proposal{Version: Version, Workgroup: group, BaseDigest: base, CandidateDigest: candidate, EvidenceIDs: evidence, Hypothesis: hypothesis, RequiredChecks: checks, Status: "candidate_only", Scope: scope}, s.Config.Limits.MaxArtifactBytes)
 }
 
 func (s Service) Diff(ctx context.Context, id string) (map[string]any, error) {
@@ -108,7 +119,7 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 		return store.Record{}, err
 	}
 	group := proposalWorkgroup(p)
-	_, active, err := workgroup.ActiveFor(s.Store.Root, group, s.Config.Limits.MaxArtifactBytes)
+	_, active, err := workgroup.ActiveInScope(s.Store.Root, group, p.Scope, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return store.Record{}, err
 	}
@@ -163,7 +174,7 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	if _, err = workgroup.LoadFor(s.Store.Root, group, selected, s.Config.Limits.MaxArtifactBytes); err != nil {
 		return store.Record{}, err
 	}
-	decision := Decision{Version: Version, ProposalID: id, Action: action, Actor: actor, ActorKind: actorKind, Reason: reason, ComparisonID: comparisonID, AssessmentID: assessmentID, PreviousDigest: active, SelectedDigest: selected, At: time.Now().UTC().Format(time.RFC3339Nano)}
+	decision := Decision{Version: Version, ProposalID: id, Action: action, Actor: actor, ActorKind: actorKind, Reason: reason, ComparisonID: comparisonID, AssessmentID: assessmentID, PreviousDigest: active, SelectedDigest: selected, At: time.Now().UTC().Format(time.RFC3339Nano), Scope: p.Scope}
 	record, err := s.Store.PutRecord(ctx, "decision", id, decision, s.Config.Limits.MaxArtifactBytes)
 	if err != nil {
 		return record, err
@@ -175,6 +186,9 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 	// authority for whether that request actually took effect after a crash.
 	data, _ := json.Marshal(workgroup.Selection{Digest: selected, Reason: reason, DecisionID: record.ID})
 	path, err := workgroup.ActivePathFor(group)
+	if p.Scope != nil {
+		path, err = workgroup.ScopeActivePath(group, *p.Scope)
+	}
 	if err != nil {
 		return record, err
 	}

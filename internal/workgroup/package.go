@@ -22,6 +22,7 @@ type Package struct {
 	WorkgroupDigest   string            `json:"workgroup_digest"`
 	Workgroup         string            `json:"workgroup"`
 	Skill             SkillIdentity     `json:"skill"`
+	SkillScope        *SkillScope       `json:"skill_scope,omitempty"`
 	SourceKind        string            `json:"source_kind"`
 	SourceIndexDigest string            `json:"source_index_digest"`
 	Synthetic         bool              `json:"synthetic"`
@@ -77,6 +78,23 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 	if err != nil {
 		return p, err
 	}
+	var scopedRequest struct {
+		Scope        *SkillScope `json:"skill_scope"`
+		BundleDigest string      `json:"skill_bundle_digest"`
+	}
+	if err = json.Unmarshal(j.Request, &scopedRequest); err != nil {
+		return p, err
+	}
+	p.SkillScope = scopedRequest.Scope
+	if p.SkillScope != nil {
+		if !files.ValidDigest(scopedRequest.BundleDigest) {
+			return p, fmt.Errorf("scoped job bundle pin is missing")
+		}
+		if candidate != "" && candidate != scopedRequest.BundleDigest {
+			return p, fmt.Errorf("scoped job retains its admitted bundle; create an explicit experiment to use another candidate")
+		}
+		candidate = scopedRequest.BundleDigest
+	}
 	if candidate == "" {
 		p.Bundle, p.WorkgroupDigest, err = ActiveFor(s.Root, j.Workgroup, c.Limits.MaxArtifactBytes)
 	} else {
@@ -85,6 +103,13 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 	}
 	if err != nil {
 		return p, err
+	}
+	if p.SkillScope != nil {
+		if err = ValidateScopeBundle(p.Bundle, *p.SkillScope); err != nil {
+			return p, err
+		}
+	} else if p.Bundle.Composition != nil {
+		return p, fmt.Errorf("composed bundle requires an explicit application scope")
 	}
 	skill, err := p.Bundle.SelectedSkill()
 	if err != nil {
@@ -102,7 +127,7 @@ func Prepare(ctx context.Context, s *store.Store, c config.Config, j store.Job, 
 	if err = json.Unmarshal(j.Request, &request); err != nil {
 		return p, err
 	}
-	for _, key := range []string{"origin", "source_name", "admission", "experiment_of", "candidate_digest", "connection_id", "acquisition_id", "source_acquisition_id"} {
+	for _, key := range []string{"origin", "source_name", "admission", "experiment_of", "candidate_digest", "connection_id", "acquisition_id", "source_acquisition_id", "skill_scope", "skill_bundle_digest"} {
 		delete(request, key)
 	}
 	requestData, err := json.Marshal(request)

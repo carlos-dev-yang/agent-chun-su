@@ -16,12 +16,19 @@ records the current inventory, proposed contracts, work units and acceptance gat
 An always-on company-accessible device is the proposed deployment baseline;
 connectivity and private-data disclosure still need actual company verification.
 
-TEAM-00 is design/preparation only. TEAM-01 onward are planned, not implemented
-or activated by this document. Existing FLOW steps and versioned Skill/feedback
+TEAM-00 is design/preparation only. The owner subsequently authorized
+[TEAM-08A scoped internal Skills](docs/implementation/SCOPED_SKILLS_2026-10-04.md):
+central immutable common/team/project instruction versions, explicit composition,
+owner-operated feedback provenance and the existing human comparison/adoption gates.
+Local CLI and queue/FLOW pinning are implemented; see the
+[bounded validation](docs/validation/TEAM_08A_SCOPED_SKILLS_2026-10-04.md).
+TEAM-01–07/09 and the remaining TEAM-08 team-access/live-feedback scope are planned,
+not implemented or activated by that bounded work. Existing FLOW steps and versioned Skill/feedback
 assets are reused; business work-item state is distinct from job execution state.
 This direction supersedes the personal-report-only product target and the old
 mail-before-everything expansion order for future team work. Preserve existing
 mail/Jira read-only boundaries, human-owned controls and evidence requirements.
+TEAM-08A keeps schema 5 and adds no migration or team-user authorization.
 Schema changes, team authorization, external notifications and deployment need
 their specific implementation/activation decisions. Earlier model policies and
 validation records below are historical evidence, not instructions to override

@@ -21,6 +21,7 @@ import (
 	"chunsu/internal/stagedworkflow"
 	"chunsu/internal/store"
 	"chunsu/internal/webresearch"
+	"chunsu/internal/workgroup"
 )
 
 func stageOrigin(req control.Request) (stagedworkflow.Origin, error) {
@@ -42,11 +43,23 @@ func (r *Runner) submitSavedStage(ctx context.Context, group string, input []byt
 	if err != nil {
 		return store.Job{}, err
 	}
-	spec, err := stagedworkflow.BuildSpec(r.Store.Root, group, req.Answer, input, c, origin)
+	scope, digest, err := r.resolveSkills(group, req)
 	if err != nil {
 		return store.Job{}, err
 	}
-	return r.Store.SubmitStaged(ctx, group, input, request, spec, c.Limits.MaxArtifactBytes)
+	var selections []stagedworkflow.SkillSelection
+	if scope != nil {
+		selections = append(selections, stagedworkflow.SkillSelection{Scope: scope, Digest: digest})
+	}
+	spec, err := stagedworkflow.BuildSpec(r.Store.Root, group, req.Answer, input, c, origin, selections...)
+	if err != nil {
+		return store.Job{}, err
+	}
+	pinnedRequest, err := scopedRequest(request, scope, digest)
+	if err != nil {
+		return store.Job{}, err
+	}
+	return r.Store.SubmitStaged(ctx, group, input, pinnedRequest, spec, c.Limits.MaxArtifactBytes)
 }
 
 func (r *Runner) submitWebStage(ctx context.Context, req control.Request) (store.Job, error) {
@@ -290,8 +303,9 @@ func (r *Runner) RunStage(ctx context.Context, jobID string) (out Outcome, runEr
 		return r.failStage(finishCtx, out, step, attempt, err)
 	}
 	var scope struct {
-		BundleDigest string `json:"bundle_digest"`
-		MailMode     string `json:"mail_mode"`
+		BundleDigest string                `json:"bundle_digest"`
+		MailMode     string                `json:"mail_mode"`
+		SkillScope   *workgroup.SkillScope `json:"skill_scope"`
 	}
 	if err = json.Unmarshal(workflow.SourceScope, &scope); err != nil {
 		return r.failStage(finishCtx, out, step, attempt, err)
@@ -318,7 +332,7 @@ func (r *Runner) RunStage(ctx context.Context, jobID string) (out Outcome, runEr
 			if !route.LiveJiraApproved || route.LiveJiraPolicyDigest != report.ReportPolicyDigest {
 				return r.failStage(finishCtx, out, step, attempt, errors.New("live Jira stage route or policy is not approved"))
 			}
-			if proofErr := VerifyStagedJiraProof(attemptCtx, r.Store, current, route.LiveJiraValidationJobID, role, report.ReportPolicyDigest); proofErr != nil {
+			if proofErr := VerifyStagedJiraProof(attemptCtx, r.Store, current, route.LiveJiraValidationJobID, role, report.ReportPolicyDigest, stagedworkflow.SkillSelection{Scope: scope.SkillScope, Digest: scope.BundleDigest}); proofErr != nil {
 				return r.failStage(finishCtx, out, step, attempt, proofErr)
 			}
 		}
@@ -328,6 +342,7 @@ func (r *Runner) RunStage(ctx context.Context, jobID string) (out Outcome, runEr
 		return r.failStage(finishCtx, out, step, attempt, err)
 	}
 	in := stagedworkflow.StageInput{Root: r.Store.Root, JobID: jobID, StepID: step.ID, AttemptID: attempt.ID, Workgroup: job.Workgroup, Stage: step.Stage, Objective: objective, Request: job.Request, Snapshot: snapshot, Config: current, Inputs: inputs, PinnedModel: attempt.ExecutorModel, PinnedEffort: attempt.ExecutorEffort, PinnedIdentity: attempt.ExecutorIdentity, PinnedBundleDigest: scope.BundleDigest, PinnedMailMode: scope.MailMode}
+	in.PinnedSkillScope = scope.SkillScope
 	result, stageErr := stagedworkflow.ExecuteStage(attemptCtx, in)
 	var receiptID string
 	if result.Receipt != nil {

@@ -29,6 +29,8 @@ type Request struct {
 	MessageID         string          `json:"message_id,omitempty"`
 	RequestRevision   int64           `json:"request_revision,omitempty"`
 	ManualCheckpoint  bool            `json:"manual_checkpoint,omitempty"`
+	SkillScope        json.RawMessage `json:"skill_scope,omitempty"`
+	SkillCandidate    string          `json:"skill_candidate,omitempty"`
 	Input             json.RawMessage `json:"input,omitempty"`
 	Workgroup         string          `json:"workgroup,omitempty"`
 	SourceName        string          `json:"source_name,omitempty"`

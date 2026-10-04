@@ -433,6 +433,9 @@ func runCodexReport(ctx context.Context, root string, p workgroup.Package) (Resu
 }
 
 func VerifySkill(p workgroup.Package) error {
+	if err := p.Bundle.Validate(); err != nil {
+		return err
+	}
 	skill, err := p.Bundle.SelectedSkill()
 	if err != nil {
 		return err
