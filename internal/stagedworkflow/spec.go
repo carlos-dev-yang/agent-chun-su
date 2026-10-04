@@ -9,6 +9,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/files"
+	"chunsu/internal/ops"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 )
@@ -107,7 +108,12 @@ func BuildSpec(root, group, objective string, snapshot []byte, c config.Config, 
 		if i > 0 {
 			step.DependsOn = []string{[]string{Collect, Refine, Synthesize, Validate}[i-1]}
 		}
-		if stageRole := role[stage]; stageRole != "" {
+		if group == ops.Workgroup && (stage == Collect || stage == Refine) {
+			step.ExecutorIdentity = "host:" + stage + ":" + Version
+			if stage == Refine {
+				step.ExecutorIdentity = OpsHostRefinementIdentity
+			}
+		} else if stageRole := role[stage]; stageRole != "" {
 			route := c.ExecutorFor(stageRole)
 			step.ExecutorModel, step.ExecutorEffort = route.Model, route.ReasoningEffort
 			step.ExecutorIdentity = RouteIdentity(route)

@@ -13,11 +13,30 @@ import (
 // on macOS/arm64. It does not extend task or review disclosure authorization.
 const TestedReceptionVersion = "codex-cli 0.154.0-alpha.6.2"
 const TestedStructuredVersion = "codex-cli 0.158.0-alpha.2.1"
+const TestedStructuredStableVersion = "codex-cli 0.160.0"
 
 // This exact host/CLI/model/effort combination passed a synthetic tool-free
 // boundary check. It does not validate the native-MCP report path or Linux.
 func structuredBoundaryValidated(role, version string, selected config.Executor) bool {
-	if role == config.RoleTask || runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" || version != TestedStructuredVersion || selected.Kind != "codex" {
+	if role == config.RoleTask || runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" || selected.Kind != "codex" {
+		return false
+	}
+	if version == TestedStructuredStableVersion {
+		// These requested role/model/effort tuples were actually exercised with
+		// agents.enabled=false in addition to the disabled native tool host.
+		// Collection remains a host operation; native report and Linux paths are
+		// not covered by this structured-only evidence.
+		switch role {
+		case config.RoleReception:
+			return selected.Model == SolModel && selected.ReasoningEffort == "medium"
+		case config.RoleRefinement:
+			return selected.Model == LunaModel && selected.ReasoningEffort == "xhigh"
+		case config.RoleSynthesis, config.RoleReview:
+			return selected.Model == SolModel && selected.ReasoningEffort == "xhigh"
+		}
+		return false
+	}
+	if version != TestedStructuredVersion {
 		return false
 	}
 	switch selected.Model {

@@ -147,17 +147,17 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 	var baseline, candidate *RunEvidence
 	for i := range comparison.Runs {
 		run := &comparison.Runs[i]
-		if run.Job.Workgroup != group || run.Manifest == nil {
+		digest, scope, pinned := bundlePin(*run)
+		if run.Job.Workgroup != group || !pinned {
 			continue
 		}
-		if (proposal.Scope == nil) != (run.Manifest.SkillScope == nil) ||
-			(proposal.Scope != nil && *run.Manifest.SkillScope != *proposal.Scope) {
+		if !sameScope(proposal.Scope, scope) {
 			continue
 		}
-		if run.Manifest.WorkgroupDigest == proposal.BaseDigest {
+		if digest == proposal.BaseDigest {
 			baseline = run
 		}
-		if run.Manifest.WorkgroupDigest == proposal.CandidateDigest {
+		if digest == proposal.CandidateDigest {
 			candidate = run
 		}
 	}
@@ -173,7 +173,7 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 			if err = s.load(ctx, run.SelectedEvaluationID, "evaluation", &judgment); err != nil {
 				return store.Record{}, a, err
 			}
-			if judgment.JobID != run.Job.ID || judgment.AttemptID != run.Job.CurrentAttempt {
+			if judgment.JobID != run.Job.ID || judgment.AttemptID != selectedAttempt(*run) || (run.Flow != nil && judgment.FlowRevisionDigest != run.Flow.RevisionDigest) {
 				return store.Record{}, a, errors.New("comparison evaluation ownership mismatch")
 			}
 			a.EvaluationIDs = append(a.EvaluationIDs, run.SelectedEvaluationID)
@@ -182,7 +182,15 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 			if e != nil {
 				return store.Record{}, a, e
 			}
-			if current.CurrentAttempt != run.Job.CurrentAttempt || current.Status != run.Job.Status {
+			if run.Flow != nil {
+				refreshed, e := s.InspectRun(ctx, run.Job.ID)
+				if e != nil {
+					return store.Record{}, a, e
+				}
+				if refreshed.Flow == nil || refreshed.Flow.RevisionDigest != run.Flow.RevisionDigest || selectedAttempt(refreshed) != selectedAttempt(*run) {
+					a.Reasons = append(a.Reasons, "compared FLOW quality evidence changed; recreate the comparison")
+				}
+			} else if current.CurrentAttempt != run.Job.CurrentAttempt || current.Status != run.Job.Status {
 				a.Reasons = append(a.Reasons, "compared job changed; recreate the comparison")
 			}
 			if !policy.AllowEvaluationLimitations && len(judgment.Limitations) != 0 {
@@ -210,7 +218,7 @@ func (s Service) Assess(ctx context.Context, proposalID, comparisonID string, op
 				}
 			}
 		}
-		if !slices.Contains(policy.AllowedJobStatuses, candidate.Job.Status) {
+		if !slices.Contains(policy.AllowedJobStatuses, reportStatus(*candidate)) {
 			a.Reasons = append(a.Reasons, "candidate job state is not allowed by the release policy")
 		}
 		if candidate.SelectedEvaluation != nil {

@@ -18,20 +18,44 @@ import (
 	"chunsu/internal/runtimeenv"
 )
 
+// StructuredAudit contains requested selectors and content hashes, never a
+// transcript or a claim about a provider's hidden effective reasoning effort.
+type StructuredAudit struct {
+	Result       Result           `json:"executor"`
+	Model        string           `json:"model"`
+	Requested    *config.Executor `json:"requested_executor,omitempty"`
+	ArgsDigest   string           `json:"arguments_digest"`
+	PromptDigest string           `json:"prompt_digest"`
+	SchemaDigest string           `json:"schema_digest"`
+	SkillDigest  string           `json:"skill_digest"`
+	ReplyDigest  string           `json:"reply_digest"`
+}
+
 // ConversationArguments gives the model no native tools. Structured proposals
 // are validated and dispatched later by the host, outside this process.
 func ConversationArguments(directory, model string) []string {
 	return conversationArguments(directory, model, "low", runtimeenv.Boundary{ReadRoots: []string{directory}})
 }
 
-func conversationArguments(directory, model, effort string, boundary runtimeenv.Boundary) []string {
+func conversationArguments(directory, model, effort string, boundary runtimeenv.Boundary, versions ...string) []string {
 	args := []string{"exec", "--json", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--strict-config", "-C", directory, "--output-schema", filepath.Join(directory, "response.schema.json")}
 	args = append(args, boundaryArgs(boundary)...)
 	args = append(args, "-c", `approval_policy="never"`, "-c", `web_search="disabled"`, "-c", `shell_environment_policy.inherit="none"`, "-c", `mcp_servers={}`, "-c", `project_doc_max_bytes=0`, "-c", `model_reasoning_effort=`+strconv.Quote(effort), "--enable", "skip_host_skill_discovery")
+	if len(versions) == 1 && versions[0] == TestedStructuredStableVersion {
+		// Current Codex controls multi-agent tools independently of the older
+		// feature switches. Never rely on the prompt or streamed item absence.
+		args = append(args, "-c", `agents.enabled=false`)
+	}
 	for _, feature := range disabledFeatures {
 		args = append(args, "--disable", feature)
 	}
 	return append(args, "--model", model, "-")
+}
+
+// StructuredArguments exposes the canonical, version-specific invocation for
+// retained audit verification. It does not authorize an unvalidated selector.
+func StructuredArguments(version, directory string, selected config.Executor, boundary runtimeenv.Boundary) []string {
+	return conversationArguments(directory, selected.Model, reasoningEffort(selected, "low"), boundary, version)
 }
 
 func runCodexStructured(parent context.Context, role, root, directory string, selected config.Executor, limits config.Limits, prompt, schema, skill []byte) (result Result, runErr error) {
@@ -71,20 +95,12 @@ func runCodexStructured(parent context.Context, role, root, directory string, se
 		return result, err
 	}
 	result.Boundary = &boundary
-	arguments := conversationArguments(directory, selected.Model, reasoningEffort(selected, "low"), boundary)
+	arguments := StructuredArguments(version, directory, selected, boundary)
 	argumentBytes, _ := json.Marshal(arguments)
 	result.ArgumentsDigest = files.Digest(argumentBytes)
 	defer func() {
 		// Audit metadata only: no transcript, provider diagnostic or native tool payload.
-		b, e := json.MarshalIndent(struct {
-			Result       Result `json:"executor"`
-			Model        string `json:"model"`
-			ArgsDigest   string `json:"arguments_digest"`
-			PromptDigest string `json:"prompt_digest"`
-			SchemaDigest string `json:"schema_digest"`
-			SkillDigest  string `json:"skill_digest"`
-			ReplyDigest  string `json:"reply_digest"`
-		}{result, selected.Model, files.Digest(argumentBytes), files.Digest(prompt), files.Digest(schema), files.Digest(skill), files.Digest(result.Final)}, "", "  ")
+		b, e := json.MarshalIndent(StructuredAudit{Result: result, Model: selected.Model, Requested: &selected, ArgsDigest: files.Digest(argumentBytes), PromptDigest: files.Digest(prompt), SchemaDigest: files.Digest(schema), SkillDigest: files.Digest(skill), ReplyDigest: files.Digest(result.Final)}, "", "  ")
 		if e == nil {
 			e = files.Write(directory, "executor.json", b, false)
 		}

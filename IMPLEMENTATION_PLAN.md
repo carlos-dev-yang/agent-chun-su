@@ -2,9 +2,9 @@
 
 **Version:** 2.0  
 **Date:** 2026-09-05  
-**Status:** Approved modular and persistent chat implementation delivered; current Mac has supervised Telegram and independent local operations monitoring; broader fault recovery, human acceptance and company deployment remain separate
+**Status:** Owner-operated saved-input team operations implemented locally; actual synthetic AI/report/shadow validation recorded separately; team access, live collection/notifications and company deployment remain unimplemented
 **Confirmed stack:** Go + embedded SQLite  
-**Current position:** MOD-01–06 implement optional selected-result review and release requirements, separate reception and execution routes, portable Linux operation, bounded Git review and owner access/revocation. Final installation checks are recorded in MOD-07; human usefulness and company deployment remain separate evidence.
+**Current position:** OPS-01/02 reuse persistent FLOW and scoped result feedback for saved-input team accountability. Owner work/release facts, actual synthetic AI risk reports and shadow incident response are locally implemented; independent team-case usefulness/adoption and live/team deployment remain separate evidence. Historical MOD/FLOW checkpoints below remain reference evidence, not a new development-work priority.
 
 ## Current product direction — TEAM-00 (2026-10-04)
 
@@ -22,11 +22,22 @@ central immutable common/team/project instruction versions, explicit composition
 owner-operated feedback provenance and the existing human comparison/adoption gates.
 Local CLI and queue/FLOW pinning are implemented; see the
 [bounded validation](docs/validation/TEAM_08A_SCOPED_SKILLS_2026-10-04.md).
-TEAM-01–07/09 and the remaining TEAM-08 team-access/live-feedback scope are planned,
-not implemented or activated by that bounded work. Existing FLOW steps and versioned Skill/feedback
-assets are reused; business work-item state is distinct from job execution state.
+The owner then authorized [OPS-01/02 local team-operations delivery](docs/implementation/OPS_LOCAL_2026-10-04.md):
+independent owner-confirmed work state, original/current schedule history, release
+commitments separate from deployment evidence, saved mail/Jira/Slack provenance,
+actual FLOW risk synthesis and low-noise shadow incidents/outbox. The
+[setup guide](docs/setup/TEAM_OPS_LOCAL.md) and [actual validation record](docs/validation/OPS_02_LOCAL_2026-10-05.md)
+distinguish implementation, tested synthetic cases and remaining checks. The first
+actual AI report is honestly partial and verified reconciliation changes no business state.
+This reuses schema5 append-only records and introduces no migration or team-user authority.
+TEAM-01–04/06/07 are covered only by this bounded local slice, not completed in
+their live/team sense. TEAM-05/09 and remaining live-feedback/team-access scope stay
+unimplemented. Existing FLOW steps and versioned Skill/feedback assets are reused;
+business work-item state is distinct from job execution state.
 This direction supersedes the personal-report-only product target and the old
-mail-before-everything expansion order for future team work. Preserve existing
+mail-before-everything expansion order for future team work. Development/code-review
+feature expansion and new code-review quality validation are explicitly excluded.
+Preserve existing
 mail/Jira read-only boundaries, human-owned controls and evidence requirements.
 TEAM-08A keeps schema 5 and adds no migration or team-user authorization.
 Schema changes, team authorization, external notifications and deployment need
@@ -267,8 +278,9 @@ principles when refining implementation details:
    obligatorily run after every job, and optimization does not require growing
    the golden set.
 6. AI-generated changes remain proposals until a human adopts them.
-7. Mail reporting comes first, Jira reporting second, and development work
-   follows validation of the common framework.
+7. The original personal-report rollout was mail first, then Jira. The current
+   OPS direction reuses those read-only workflows for team accountability;
+   development/code-review expansion is excluded from the new priority.
 8. Initial mail and Jira workflows are read-only. Mail read-state changes,
    replies, archive/delete/move/label actions, calendar changes, and Jira
    comments/transitions/field updates are outside that scope.

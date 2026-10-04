@@ -74,10 +74,12 @@ scoped queue와 FLOW는 admission의 정확한 Bundle을 유지한다. 이후 �
 FLOW는 application scope와 stage role도 일치해야 한다. 기존 unscoped legacy와 FLOW의
 선택/active-match 동작은 유지한다.
 
-FLOW의 collect/refine/synthesize/validate/deliver에는 pin이 통합됐지만, 기존 독립 평가와
-release comparison은 legacy report attempt를 읽는다. **FLOW 결과만 두 개 실행해서
-채택하는 경로는 이번에 추가하지 않았다.** 후보 채택 증거는 scoped queue/experiment 경로로
-만든다. 자동 AI 후보 작성/상위 범위 승격도 아직 없다.
+TEAM-08A 당시 FLOW는 실행 pin만 지원했고 release 증거는 scoped queue/experiment로
+만들었다. 후속 [OPS-01](OPS01_FLOW_FEEDBACK_2026-10-05.md)은 exact model response/audit와
+전체 실제 단계 ancestry를 가진 새 FLOW의 독립 평가·comparison·release gate를 연결한다.
+과거 증거가 부족한 FLOW는 소급 인정하지 않으며 저장 입력을 다시 실행해야 한다.
+동일 입력·objective·scope·역할 route를 검증하고 기존 사람 승인/confirmation/필수 check를
+그대로 요구한다. 자동 AI 후보 작성/상위 범위 승격은 아직 없다.
 
 ## 저장·검증 경계
 

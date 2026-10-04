@@ -2,6 +2,7 @@ package feedback
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -15,6 +16,8 @@ type RunEvidence struct {
 	Attempts             []store.Attempt    `json:"attempts"`
 	Artifacts            []store.Artifact   `json:"artifacts"`
 	Manifest             *workgroup.Package `json:"manifest"`
+	Flow                 *FlowRunEvidence   `json:"flow,omitempty"`
+	SelectedAttemptID    string             `json:"selected_attempt_id,omitempty"`
 	ExecutorResult       *executor.Result   `json:"executor_result"`
 	Evaluations          []Evaluation       `json:"evaluations"`
 	EvaluationIDs        []string           `json:"evaluation_ids,omitempty"`
@@ -48,7 +51,18 @@ func (s Service) InspectRun(ctx context.Context, id string) (RunEvidence, error)
 	if err != nil {
 		return r, err
 	}
+	workflow, workflowErr := s.Store.Workflow(ctx, id)
+	if workflowErr == nil {
+		if err = s.inspectFlow(ctx, &r, workflow); err != nil {
+			return r, err
+		}
+	} else if !errors.Is(workflowErr, sql.ErrNoRows) {
+		return r, workflowErr
+	}
 	for _, art := range r.Artifacts {
+		if r.Flow != nil {
+			break
+		}
 		if art.AttemptID != r.Job.CurrentAttempt {
 			continue
 		}
@@ -84,12 +98,12 @@ func (s Service) InspectRun(ctx context.Context, id string) (RunEvidence, error)
 			r.Gaps = append(r.Gaps, "unavailable evaluation: "+record.ID)
 			continue
 		}
-		if e.AttemptID == r.Job.CurrentAttempt {
+		if e.AttemptID == selectedAttempt(r) && (r.Flow == nil || e.FlowRevisionDigest == r.Flow.RevisionDigest) {
 			r.Evaluations = append(r.Evaluations, e)
 			r.EvaluationIDs = append(r.EvaluationIDs, record.ID)
 		}
 	}
-	if r.Manifest == nil {
+	if r.Manifest == nil && r.Flow == nil {
 		r.Gaps = append(r.Gaps, "no pinned manifest for the selected attempt")
 	}
 	if r.ExecutorResult == nil {
@@ -126,7 +140,7 @@ func (s Service) CompareSelected(ctx context.Context, left, right, leftEvaluatio
 			if err = s.load(ctx, selected[index], "evaluation", &judgment); err != nil {
 				return store.Record{}, c, err
 			}
-			if judgment.JobID != id || judgment.AttemptID != r.Job.CurrentAttempt {
+			if judgment.JobID != id || judgment.AttemptID != selectedAttempt(r) || (r.Flow != nil && judgment.FlowRevisionDigest != r.Flow.RevisionDigest) {
 				return store.Record{}, c, errors.New("selected evaluation does not belong to this job's current attempt")
 			}
 			r.SelectedEvaluationID, r.SelectedEvaluation = selected[index], &judgment
@@ -135,6 +149,14 @@ func (s Service) CompareSelected(ctx context.Context, left, right, leftEvaluatio
 		}
 		c.Runs = append(c.Runs, r)
 		c.AttemptCount += len(r.Attempts)
+		if r.Flow != nil {
+			c.AttemptCount += len(r.Flow.Attempts)
+			for _, attempt := range r.Flow.Attempts {
+				if attempt.Status == store.StepFailed || attempt.Status == store.StepInterrupted || attempt.Status == store.StepCancelled {
+					c.FailedOrInterruptedAttempts++
+				}
+			}
+		}
 		for _, a := range r.Attempts {
 			if a.Status == store.Failed || a.Status == store.Interrupted || a.Status == store.Cancelled {
 				if waitingForInputAfterReport(r, a) {
@@ -152,7 +174,11 @@ func (s Service) CompareSelected(ctx context.Context, left, right, leftEvaluatio
 	if a.Job.Workgroup != b.Job.Workgroup {
 		return store.Record{}, c, errors.New("cannot compare runs from different workgroups")
 	}
-	if a.Manifest == nil || b.Manifest == nil {
+	if (a.Flow == nil) != (b.Flow == nil) {
+		c.Limitations = append(c.Limitations, "legacy and FLOW execution engines are not comparable")
+	} else if a.Flow != nil {
+		c.Limitations = append(c.Limitations, compareFlows(a.Flow, b.Flow)...)
+	} else if a.Manifest == nil || b.Manifest == nil {
 		c.Comparable = false
 	} else {
 		if (a.Manifest.SkillScope == nil) != (b.Manifest.SkillScope == nil) ||

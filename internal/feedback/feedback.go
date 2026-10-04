@@ -12,6 +12,7 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
+	"chunsu/internal/ops"
 	"chunsu/internal/store"
 )
 
@@ -51,6 +52,7 @@ type Case struct {
 	Workgroup    string            `json:"workgroup,omitempty"`
 	JiraSnapshot *jira.ReportInput `json:"jira_snapshot,omitempty"`
 	CodeSnapshot *codereview.Input `json:"code_snapshot,omitempty"`
+	OpsSnapshot  *ops.Input        `json:"ops_snapshot,omitempty"`
 	Expectations []Expectation     `json:"expectations"`
 	Limitations  []string          `json:"limitations"`
 }
@@ -84,6 +86,7 @@ type Evaluation struct {
 	EvaluatorSkillID   string     `json:"evaluator_skill_id,omitempty"`
 	EvaluatorSkillHash string     `json:"evaluator_skill_hash,omitempty"`
 	ReviewExecutionID  string     `json:"review_execution_id,omitempty"`
+	FlowRevisionDigest string     `json:"flow_revision_digest,omitempty"`
 }
 type Finding struct {
 	Version     int      `json:"version"`
@@ -117,6 +120,13 @@ func caseWorkgroup(c Case) string {
 // the declared workgroup with their typed report input so equal source IDs from
 // different domains cannot compare as the same input.
 func caseFingerprint(c Case) string {
+	if c.OpsSnapshot != nil {
+		b, _ := json.Marshal(struct {
+			Workgroup string     `json:"workgroup"`
+			Snapshot  *ops.Input `json:"snapshot"`
+		}{caseWorkgroup(c), c.OpsSnapshot})
+		return files.Digest(b)
+	}
 	if c.CodeSnapshot != nil {
 		b, _ := json.Marshal(struct {
 			Workgroup string            `json:"workgroup"`
@@ -136,6 +146,20 @@ func caseFingerprint(c Case) string {
 
 func caseSources(c Case, limits config.Limits) (map[string]bool, error) {
 	sources := map[string]bool{}
+	if c.OpsSnapshot != nil {
+		if caseWorkgroup(c) != ops.Workgroup || c.CodeSnapshot != nil || c.JiraSnapshot != nil {
+			return nil, errors.New("team-ops case must contain only its team-ops input")
+		}
+		b, _ := json.Marshal(c.OpsSnapshot)
+		in, err := ops.ParseInput(b, limits)
+		if err != nil {
+			return nil, err
+		}
+		for _, source := range in.Sources {
+			sources[source.ID] = true
+		}
+		return sources, nil
+	}
 	if c.CodeSnapshot != nil {
 		if caseWorkgroup(c) != codereview.Workgroup || c.JiraSnapshot != nil {
 			return nil, errors.New("code case must contain only its code-review input")
@@ -339,14 +363,26 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 		if err != nil {
 			return store.Record{}, err
 		}
+		run, err := s.InspectRun(ctx, subject)
+		if err != nil {
+			return store.Record{}, err
+		}
 		if e.AttemptID == "" {
-			e.AttemptID = j.CurrentAttempt
+			e.AttemptID = selectedAttempt(run)
 		}
 		attempts, err := s.Store.Attempts(ctx, subject)
 		if err != nil {
 			return store.Record{}, err
 		}
 		matched := false
+		if run.Flow != nil {
+			if run.Flow.RevisionDigest == "" || e.FlowRevisionDigest != run.Flow.RevisionDigest || e.AttemptID != selectedAttempt(run) {
+				return store.Record{}, errors.New("FLOW evaluation must bind the current validated attempt and exact quality revision")
+			}
+			matched = true
+		} else if e.FlowRevisionDigest != "" {
+			return store.Record{}, errors.New("legacy evaluation cannot claim FLOW provenance")
+		}
 		for _, a := range attempts {
 			if a.ID == e.AttemptID {
 				matched = true
@@ -362,7 +398,11 @@ func (s Service) Add(ctx context.Context, kind, subject string, data []byte) (st
 			}
 			matched = false
 			for _, a := range artifacts {
-				if a.ID == e.ResultArtifactID && a.AttemptID == e.AttemptID && (a.Kind == "raw_result" || a.Kind == "report_markdown") {
+				validKind := a.Kind == "raw_result" || a.Kind == "report_markdown"
+				if run.Flow != nil {
+					validKind = a.Kind == "staged_validated" && len(run.Flow.Outputs) == 4 && a.ID == run.Flow.Outputs[3].ID
+				}
+				if a.ID == e.ResultArtifactID && a.AttemptID == e.AttemptID && validKind {
 					_, err = s.Store.ReadArtifact(a, s.Config.Limits.MaxArtifactBytes)
 					if err != nil {
 						return store.Record{}, err

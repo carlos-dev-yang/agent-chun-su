@@ -118,8 +118,9 @@ chunsu --home PRIVATE_DATA_HOME skills list --kind skill_feedback
 비활성 조합 실행에는 `queue` 또는 `flow submit`에 `--skill-candidate BUNDLE_SHA256`을
 추가한다. 기존 scoped job의 pin을 바꾸는 것은 아니며 새 job을 만든다. Scope가 다른
 후보는 거부한다. checkpoint의 다음 단계는 기존 `flow approve STEP_ID`로 승인한다.
-FLOW 결과만으로 기존 release 비교를 만들 수는 없으므로 채택에는 앞의 scoped
-queue/experiment 경로를 쓴다.
+새 exact response/audit 증거를 보존한 FLOW는 [독립 평가·후보 비교](FLOW_FEEDBACK.md)로
+기존 release gate에 연결할 수 있다. 증거가 없는 과거 FLOW와 legacy 실행을 섞지 않는다.
+0.160 structured compatibility를 쓸 때는 해당 안내의 정확한 host/role 제한을 확인한다.
 
 피드백 kind는 `false-positive`, `omission`, `severity`, `owner`, `duplicate`,
 `insufficient-evidence`, `useful`이다. `useful` 외에는 교정 내용이 필요하다.

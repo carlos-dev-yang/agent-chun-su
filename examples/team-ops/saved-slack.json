@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "provider": "slack",
+  "scope": {"team": "pilot", "project": "checkout"},
+  "synthetic": true,
+  "workspace_id": "demo-workspace",
+  "allowed_channels": ["demo-checkout"],
+  "captured_from": "2026-10-04T09:00:00Z",
+  "captured_through": "2026-10-04T10:30:00Z",
+  "coverage": "complete",
+  "gaps": [],
+  "messages": [
+    {
+      "id": "payment-impact",
+      "event_id": "demo-event-impact",
+      "version": "1",
+      "channel_id": "demo-checkout",
+      "thread_id": "payment-impact",
+      "source_at": "2026-10-04T10:00:00Z",
+      "kind": "message",
+      "uri": "slack:demo-checkout/payment-impact",
+      "text": "Every checkout payment is failing with HTTP 503. Orders stopped succeeding at 09:58 UTC. Customer support confirms buyers cannot place orders; there is no recovery confirmation yet.",
+      "content_status": "complete"
+    },
+    {
+      "id": "payment-response",
+      "event_id": "demo-event-response",
+      "version": "1",
+      "channel_id": "demo-checkout",
+      "thread_id": "payment-impact",
+      "source_at": "2026-10-04T10:05:00Z",
+      "kind": "message",
+      "uri": "slack:demo-checkout/payment-response",
+      "text": "Mina is investigating the checkout failures and preparing a rollback. This is an active response, but traffic has not recovered and no completed rollback has been reported.",
+      "content_status": "complete"
+    },
+    {
+      "id": "historical-quotation",
+      "event_id": "demo-event-history",
+      "version": "1",
+      "channel_id": "demo-checkout",
+      "thread_id": "historical-quotation",
+      "source_at": "2026-10-04T09:30:00Z",
+      "kind": "message",
+      "uri": "slack:demo-checkout/historical-quotation",
+      "text": "For the postmortem I am quoting last Tuesday: 'URGENT: all orders are blocked.' That Tuesday incident was resolved on Tuesday and is historical context. This quotation is not a new outage report.",
+      "content_status": "complete"
+    }
+  ]
+}

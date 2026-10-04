@@ -10,11 +10,24 @@ supports the registered repository's `master` branch and refuses database
 schema/migration changes.
 
 A local/server AI workflow controller built with Go and embedded SQLite.
-Human-owned Skills, golden cases, evaluation, analyzer/optimizer criteria and
-adoption policies stay outside task executors. Mail reporting comes first.
+The current direction is team work-omission prevention: owner-confirmed work state,
+original/current schedules, release commitments versus deployment evidence,
+saved mail/Jira/Slack context and low-noise risk response. Human-owned Skills,
+golden cases, evaluation, analyzer/optimizer criteria and adoption policies stay
+outside task executors. Development/code-review expansion is not the current scope.
 Reception, task execution and optional result review have separate contexts and
 configurable routes. The Codex CLI/model pin is a temporary stabilization rule
 inside the first driver; execution environments have a separate interface.
+
+[Local team operations](docs/setup/TEAM_OPS_LOCAL.md) is now an owner-operated CLI
+slice using schema5 append-only records. Work state is independent of Jira;
+actual AI reports use FLOW with verified source spans and exact project Skill pins.
+Reconciliation only creates shadow incidents/notification plans, never changes
+business state or claims a message was sent. AI reports are synthetic-only until
+private-source disclosure policy is defined. See the [detailed plan](docs/implementation/OPS_LOCAL_2026-10-04.md)
+and [actual checks/partial-result limits](docs/validation/OPS_02_LOCAL_2026-10-05.md).
+Team authentication, live Slack collection, real on-call delivery and company
+deployment are not implemented by this local pilot.
 
 [Scoped internal Skills](docs/setup/SCOPED_SKILLS.md) now preserve immutable common,
 team and project instruction versions with explicit composed selections, scoped

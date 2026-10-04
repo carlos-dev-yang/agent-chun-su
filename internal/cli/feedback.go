@@ -7,6 +7,7 @@ import (
 	"chunsu/internal/feedback"
 	"chunsu/internal/files"
 	"chunsu/internal/mail"
+	"chunsu/internal/ops"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 	"github.com/spf13/cobra"
@@ -256,6 +257,9 @@ func (o *options) experiment() *cobra.Command {
 		j, err := s.Job(cmd.Context(), args[0])
 		if err != nil {
 			return err
+		}
+		if j.Workgroup == ops.Workgroup {
+			return errors.New("team-ops experiments require a fresh ops report with unchanged ledger, as-of and objective plus --skill-candidate; legacy experiment has no FLOW provenance")
 		}
 		bundle, err := workgroup.LoadFor(s.Root, j.Workgroup, candidate, c.Limits.MaxArtifactBytes)
 		if err != nil {

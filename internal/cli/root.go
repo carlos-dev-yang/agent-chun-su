@@ -78,6 +78,7 @@ func New(version string) *cobra.Command {
 	root.AddCommand(o.web())
 	root.AddCommand(o.flow())
 	root.AddCommand(o.skills())
+	root.AddCommand(o.ops())
 	return root
 }
 

@@ -11,6 +11,7 @@ import (
 	"chunsu/internal/files"
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
+	"chunsu/internal/ops"
 	"chunsu/internal/workgroup"
 )
 
@@ -26,7 +27,7 @@ func buildEvidence(raw RawBundle, proposed []SourceFacts, limits config.Limits) 
 		byID[source.SourceID] = source
 	}
 	rawData, _ := json.Marshal(raw)
-	evidence := EvidenceBundle{Version: 1, Workgroup: raw.Workgroup, InputDigest: raw.InputDigest, RawBundleDigest: files.Digest(rawData), PinnedMetadata: raw.PinnedMetadata, Sources: []SourceFacts{}, Gaps: append([]string{}, raw.Gaps...)}
+	evidence := EvidenceBundle{Version: 1, ProjectionVersion: raw.ProjectionVersion, Workgroup: raw.Workgroup, InputDigest: raw.InputDigest, RawBundleDigest: files.Digest(rawData), PinnedMetadata: raw.PinnedMetadata, Sources: []SourceFacts{}, Gaps: append([]string{}, raw.Gaps...)}
 	for _, source := range raw.Sources {
 		facts, ok := byID[source.ID]
 		if !ok {
@@ -93,6 +94,12 @@ func authorizeModel(ctx context.Context, in StageInput, role string) error {
 		if e = codereview.Authorize(snapshot, route); e != nil {
 			return e
 		}
+	case ops.Workgroup:
+		input, e := ops.ParseInput(in.Snapshot, current.Limits)
+		if e != nil {
+			return e
+		}
+		return ops.AuthorizeInput(input, route)
 	default:
 		return errors.New("no disclosure adapter for staged source")
 	}

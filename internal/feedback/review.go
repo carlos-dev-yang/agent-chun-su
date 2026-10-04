@@ -17,6 +17,8 @@ import (
 	"chunsu/internal/gmail"
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
+	"chunsu/internal/ops"
+	"chunsu/internal/stagedworkflow"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
 )
@@ -66,6 +68,7 @@ type ReviewSource struct {
 	ResultArtifact *store.Artifact    `json:"result_artifact,omitempty"`
 	Manifest       *workgroup.Package `json:"manifest,omitempty"`
 	Executor       *executor.Result   `json:"executor,omitempty"`
+	Flow           *FlowRunEvidence   `json:"flow,omitempty"`
 	Lookups        []ReviewLookup     `json:"lookups"`
 	Validation     json.RawMessage    `json:"validation,omitempty"`
 	Input          json.RawMessage    `json:"-"`
@@ -84,6 +87,19 @@ type ReviewLookup struct {
 // modelReviewSource removes new owner-only Skill selection metadata while the
 // immutable host ReviewRequest retains its full provenance for inspection.
 func modelReviewSource(source ReviewSource) ReviewSource {
+	if source.Executor != nil {
+		reduced := *source.Executor
+		reduced.Boundary = nil
+		reduced.ThreadID = ""
+		source.Executor = &reduced
+	}
+	if source.Flow != nil {
+		// Scope IDs, origin identifiers, requested executable paths and full
+		// host audit provenance are not needed for semantic result judgment.
+		source.Job.Request = source.Flow.Workflow.OriginalRequest
+		source.Job.InputRef = ""
+		source.Flow = nil
+	}
 	var request map[string]any
 	if json.Unmarshal(source.Job.Request, &request) == nil && request != nil {
 		delete(request, "skill_scope")
@@ -142,7 +158,7 @@ func (s Service) reviewSource(ctx context.Context, id string) (ReviewSource, err
 	if err != nil {
 		return ReviewSource{}, err
 	}
-	out := ReviewSource{Job: r.Job, AttemptID: r.Job.CurrentAttempt, Manifest: r.Manifest, Executor: r.ExecutorResult, Lookups: []ReviewLookup{}}
+	out := ReviewSource{Job: r.Job, AttemptID: selectedAttempt(r), Manifest: r.Manifest, Executor: r.ExecutorResult, Flow: r.Flow, Lookups: []ReviewLookup{}}
 	if r.Job.Status == store.Running || r.Job.Status == store.Retiring || r.Job.Status == store.Purged {
 		return out, errors.New("review requires preserved, non-running job contents")
 	}
@@ -199,8 +215,37 @@ func (s Service) reviewSource(ctx context.Context, id string) (ReviewSource, err
 			return out, e
 		}
 		out.Disclosure = input
+	} else if r.Job.Workgroup == ops.Workgroup {
+		input, e := ops.ParseInput(out.Input, s.Config.Limits)
+		if e != nil {
+			return out, e
+		}
+		if r.Flow == nil || r.Flow.RevisionDigest == "" {
+			return out, errors.New("team-ops review requires its verified host-admitted FLOW result")
+		}
+		if e = ops.AuthorizeInput(input, s.Config.ExecutorFor(config.RoleReview)); e != nil {
+			return out, e
+		}
+		out.Disclosure = input
 	} else {
 		return out, errors.New("review input adapter is not available for this workgroup")
+	}
+	if r.Flow != nil {
+		if r.Flow.RevisionDigest != "" && len(r.Flow.Outputs) == 4 {
+			artifact := r.Flow.Outputs[3]
+			data, e := s.Store.ReadArtifact(artifact, s.Config.Limits.MaxArtifactBytes)
+			if e != nil {
+				return out, e
+			}
+			var validated stagedworkflow.Validated
+			if e = mail.Decode(data, &validated); e != nil {
+				return out, e
+			}
+			out.Result = validated.Report
+			out.ResultArtifact = &artifact
+			out.Validation, _ = json.Marshal(map[string]any{"status": validated.Status, "gaps": validated.Gaps, "source_ids": validated.SourceIDs, "collection": "host inspected admitted immutable sources; model did not use a gateway"})
+		}
+		return out, nil
 	}
 	for _, artifact := range r.Artifacts {
 		if artifact.AttemptID == out.AttemptID && artifact.Kind == "source_lookup" {
@@ -372,6 +417,9 @@ func (s Service) Evaluate(ctx context.Context, jobID, caseID, rubricID, skillID 
 		return out, err
 	}
 	evaluation := Evaluation{Version: Version, JobID: jobID, AttemptID: source.AttemptID, RubricID: rubricID, CaseID: caseID, Reviewer: reviewerName(execution), ReviewerKind: "ai", Outcome: response.Outcome, Judgments: response.Judgments, Limitations: response.Limitations, Workgroup: source.Job.Workgroup, EvaluatorSkillID: skillID, EvaluatorSkillHash: files.Digest([]byte(skill.Content)), ReviewExecutionID: out.Execution.ID}
+	if source.Flow != nil {
+		evaluation.FlowRevisionDigest = source.Flow.RevisionDigest
+	}
 	if source.ResultArtifact != nil {
 		evaluation.ResultArtifactID = source.ResultArtifact.ID
 	}
@@ -455,6 +503,11 @@ func (s Service) Analyze(ctx context.Context, criteriaID, question string, jobID
 
 func (s Service) caseForInput(group string, data []byte) (Case, error) {
 	actual := Case{Workgroup: group}
+	if group == ops.Workgroup {
+		input, err := ops.ParseInput(data, s.Config.Limits)
+		actual.OpsSnapshot = &input
+		return actual, err
+	}
 	if group == codereview.Workgroup {
 		input, err := codereview.Parse(data, s.Config.Limits)
 		actual.CodeSnapshot = &input
@@ -490,6 +543,9 @@ func (s Service) verifyReviewExecution(ctx context.Context, evaluation Evaluatio
 		return errors.New("evaluation does not have a completed isolated reviewer execution")
 	}
 	source := request.Sources[0]
+	if (source.Flow == nil) != (evaluation.FlowRevisionDigest == "") || (source.Flow != nil && source.Flow.RevisionDigest != evaluation.FlowRevisionDigest) {
+		return errors.New("evaluation FLOW revision differs from the preserved reviewer request")
+	}
 	resultID := ""
 	if source.ResultArtifact != nil {
 		resultID = source.ResultArtifact.ID

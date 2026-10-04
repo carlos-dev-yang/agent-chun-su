@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "rules": {
+    "P0": {"mode": "immediate", "recipients": ["demo-oncall"], "cooldown_seconds": 0, "acknowledgment_seconds": 0},
+    "P1": {"mode": "immediate", "recipients": ["demo-owner"], "cooldown_seconds": 0, "acknowledgment_seconds": 0},
+    "P2": {"mode": "digest", "recipients": ["demo-owner"], "cooldown_seconds": 0, "acknowledgment_seconds": 0},
+    "P3": {"mode": "none", "recipients": [], "cooldown_seconds": 0, "acknowledgment_seconds": 0}
+  },
+  "source_freshness_seconds": 0,
+  "p0_bypasses_snooze": true
+}

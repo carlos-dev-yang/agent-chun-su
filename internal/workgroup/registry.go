@@ -7,6 +7,7 @@ import (
 
 	"chunsu/internal/config"
 	"chunsu/internal/mail"
+	"chunsu/internal/ops"
 )
 
 const MailToolName = "mail_source_get"
@@ -45,6 +46,7 @@ var definitions = map[string]Definition{
 	mail.Workgroup: mailDefinition(),
 	"jira-report":  jiraDefinition(),
 	"code-review":  codeDefinition(),
+	ops.Workgroup:  opsDefinition(),
 }
 
 func Lookup(id string) (Definition, error) {

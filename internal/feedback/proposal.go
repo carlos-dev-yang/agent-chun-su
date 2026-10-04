@@ -139,9 +139,10 @@ func (s Service) Decide(ctx context.Context, id, action, actor, actorKind, reaso
 			if r.Job.Workgroup != group {
 				return store.Record{}, errors.New("comparison includes a different workgroup")
 			}
-			if r.Manifest != nil {
-				hasBase = hasBase || r.Manifest.WorkgroupDigest == p.BaseDigest
-				hasCandidate = hasCandidate || r.Manifest.WorkgroupDigest == p.CandidateDigest
+			digest, scope, pinned := bundlePin(r)
+			if pinned && sameScope(p.Scope, scope) {
+				hasBase = hasBase || digest == p.BaseDigest
+				hasCandidate = hasCandidate || digest == p.CandidateDigest
 			}
 		}
 		if !hasBase || !hasCandidate {

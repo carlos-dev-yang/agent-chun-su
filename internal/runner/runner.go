@@ -24,6 +24,7 @@ import (
 	"chunsu/internal/jira"
 	"chunsu/internal/mail"
 	"chunsu/internal/onboarding"
+	"chunsu/internal/ops"
 	"chunsu/internal/service"
 	"chunsu/internal/store"
 	"chunsu/internal/workgroup"
@@ -213,12 +214,27 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		r.setupOnce.Do(func() { r.setupHost = &onboarding.Host{Root: r.Store.Root, Config: r.Config} })
 		return r.setupHost.Handle(ctx, req)
 	}
+	if strings.HasPrefix(req.Operation, "ops_") {
+		if r.admissionBlocked() {
+			return nil, errors.New("controller is stopping and is not admitting OPS mutations or reports")
+		}
+		return r.handleOps(ctx, req)
+	}
 	switch req.Operation {
 	case "staged_web":
 		return r.submitWebStage(ctx, req)
 	case "staged_submit":
 		if req.Workgroup == "" {
 			return nil, errors.New("staged workgroup is required")
+		}
+		if req.Workgroup == ops.Workgroup {
+			current, e := config.Load(r.Store.Root)
+			if e != nil {
+				return nil, e
+			}
+			if e = r.verifyOpsAdmission(ctx, req.Input, req.SkillScope, current); e != nil {
+				return nil, e
+			}
 		}
 		return r.submitSavedStage(ctx, req.Workgroup, req.Input, map[string]any{"origin": "saved", "admission": "owner_cli", "user_request": req.Answer}, req)
 	case "staged_steps":
@@ -303,6 +319,9 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if job.Workgroup == ops.Workgroup {
+			return nil, errors.New("team-ops delegation is unavailable; create a fresh owner-operated ops report with current ledger provenance")
+		}
 		artifact, err := r.Store.InputArtifact(ctx, job)
 		if err != nil {
 			return nil, err
@@ -325,6 +344,9 @@ func (r *Runner) Handle(ctx context.Context, req control.Request) (any, error) {
 		workgroupID := req.Workgroup
 		if workgroupID == "" {
 			workgroupID = mail.Workgroup
+		}
+		if workgroupID == ops.Workgroup {
+			return nil, errors.New("team-ops reports require FLOW admission through ops report or flow submit")
 		}
 		if err := workgroup.ValidateInput(workgroupID, req.Input, r.Config.Limits); err != nil {
 			return nil, err
